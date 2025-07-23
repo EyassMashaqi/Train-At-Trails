@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .train-emoji {
+    @apply text-4xl transform transition-all duration-500;
+  }
+  
+  .trail-step {
+    @apply w-16 h-16 rounded-full border-4 border-gray-300 bg-white shadow-lg flex items-center justify-center text-2xl font-bold transition-all duration-300;
+  }
+  
+  .trail-step.completed {
+    @apply border-green-500 bg-green-100 text-green-700;
+  }
+  
+  .trail-step.current {
+    @apply border-blue-500 bg-blue-100 text-blue-700 animate-pulse;
+  }
+  
+  .trail-connection {
+    @apply h-1 bg-gray-300 flex-1 mx-2;
+  }
+  
+  .trail-connection.completed {
+    @apply bg-green-500;
+  }
+}
