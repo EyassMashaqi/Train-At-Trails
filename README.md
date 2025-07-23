@@ -56,12 +56,27 @@ train-at-trails/
 
 ## 🚀 Quick Start
 
-### Prerequisites
+> **📋 For detailed setup instructions, see [REQUIREMENTS.md](./REQUIREMENTS.md)**
+> 
+> **⚡ For fastest setup, see [QUICK_START.md](./QUICK_START.md)**
+
+### Automated Setup (Recommended)
+```bash
+# Windows users
+setup.bat
+
+# Mac/Linux users
+chmod +x setup.sh && ./setup.sh
+```
+
+### Manual Setup
+
+#### Prerequisites
 - Node.js 18+
-- PostgreSQL database
+- PostgreSQL database (or SQLite for development)
 - npm or yarn
 
-### 1. Install Dependencies
+#### 1. Install Dependencies
 ```bash
 npm run install:all
 ```
