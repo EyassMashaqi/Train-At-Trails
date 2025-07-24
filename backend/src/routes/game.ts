@@ -29,9 +29,12 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get current active question
+    // Get current released question that hasn't passed its deadline
     const currentQuestion = await prisma.question.findFirst({
-      where: { isActive: true },
+      where: { 
+        isReleased: true,
+        deadline: { gt: new Date() } // Only questions with future deadlines
+      },
       orderBy: { questionNumber: 'asc' }
     });
 
@@ -73,6 +76,10 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         questionNumber: currentQuestion.questionNumber,
         title: currentQuestion.title,
         content: currentQuestion.content,
+        description: currentQuestion.description,
+        deadline: currentQuestion.deadline,
+        points: currentQuestion.points,
+        bonusPoints: currentQuestion.bonusPoints,
         hasAnswered: hasAnsweredCurrent
       } : null,
       answers: answers.map((answer: { id: any; content: any; status: any; submittedAt: any; reviewedAt: any; feedback: any; question: any; }) => ({
@@ -101,9 +108,12 @@ router.post('/answer', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Answer content is required' });
     }
 
-    // Get current active question
+    // Get current released question
     const currentQuestion = await prisma.question.findFirst({
-      where: { isActive: true },
+      where: { 
+        isReleased: true,
+        // Allow submission even if deadline has passed (with reduced points)
+      },
       orderBy: { questionNumber: 'asc' }
     });
 

@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import QuestionManagement from './pages/QuestionManagement';
 import GameView from './pages/GameView';
 
 function App() {
@@ -43,6 +44,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminDashboard />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/questions" 
+              element={
+                <AdminRoute>
+                  <QuestionManagement />
                 </AdminRoute>
               } 
             />

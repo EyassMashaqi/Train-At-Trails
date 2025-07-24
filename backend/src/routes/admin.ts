@@ -47,6 +47,46 @@ router.get('/users', async (req: AuthRequest, res) => {
   }
 });
 
+// Get game statistics
+router.get('/stats', async (req: AuthRequest, res) => {
+  try {
+    // Get total users (excluding admins)
+    const totalUsers = await prisma.user.count({
+      where: { isAdmin: false }
+    });
+
+    // Get total answers
+    const totalAnswers = await prisma.answer.count();
+
+    // Get pending answers
+    const pendingAnswers = await prisma.answer.count({
+      where: { status: 'PENDING' }
+    });
+
+    // Calculate average progress
+    const users = await prisma.user.findMany({
+      where: { isAdmin: false },
+      select: { currentStep: true }
+    });
+
+    const averageProgress = users.length > 0 
+      ? (users.reduce((sum, user) => sum + user.currentStep, 0) / users.length / 12) * 100
+      : 0;
+
+    const stats = {
+      totalUsers,
+      totalAnswers,
+      pendingAnswers,
+      averageProgress: Math.round(averageProgress * 10) / 10 // Round to 1 decimal place
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Failed to get statistics' });
+  }
+});
+
 // Get all pending answers for review
 router.get('/pending-answers', async (req: AuthRequest, res) => {
   try {
@@ -150,19 +190,14 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
 router.get('/questions', async (req: AuthRequest, res) => {
   try {
     const questions = await prisma.question.findMany({
-      orderBy: { questionNumber: 'asc' },
       include: {
-        answers: {
-          include: {
-            user: {
-              select: {
-                fullName: true,
-                email: true
-              }
-            }
+        _count: {
+          select: {
+            answers: true
           }
         }
-      }
+      },
+      orderBy: { questionNumber: 'asc' }
     });
 
     res.json({ questions });
@@ -172,22 +207,39 @@ router.get('/questions', async (req: AuthRequest, res) => {
   }
 });
 
-// Create a new question
+// Question Management Routes
+
+// Get specific question with all answers
+router.get('/questions/:questionId/answers', async (req: AuthRequest, res) => {
+  try {
+    const questionId = req.params.questionId;
+    
+    const answers = await prisma.answer.findMany({
+      where: { questionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            trainName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    res.json({ answers });
+  } catch (error) {
+    console.error('Get question answers error:', error);
+    res.status(500).json({ error: 'Failed to get question answers' });
+  }
+});
+
+// Create new question
 router.post('/questions', async (req: AuthRequest, res) => {
   try {
-    const { questionNumber, title, content } = req.body;
-
-    if (!questionNumber || !title || !content) {
-      return res.status(400).json({ 
-        error: 'Question number, title, and content are required' 
-      });
-    }
-
-    if (questionNumber < 1 || questionNumber > 12) {
-      return res.status(400).json({ 
-        error: 'Question number must be between 1 and 12' 
-      });
-    }
+    const { questionNumber, title, description, deadline, points, bonusPoints } = req.body;
 
     // Check if question number already exists
     const existingQuestion = await prisma.question.findUnique({
@@ -195,117 +247,75 @@ router.post('/questions', async (req: AuthRequest, res) => {
     });
 
     if (existingQuestion) {
-      return res.status(400).json({ 
-        error: `Question ${questionNumber} already exists` 
-      });
+      return res.status(400).json({ error: 'Question number already exists' });
     }
 
     const question = await prisma.question.create({
       data: {
         questionNumber,
         title,
-        content,
-        isActive: false // Admin needs to manually activate
+        content: description, // Use description as content for backward compatibility
+        description,
+        deadline: new Date(deadline),
+        points: points || 100,
+        bonusPoints: bonusPoints || 50,
+        isActive: false,
+        isReleased: false
       }
     });
 
-    res.status(201).json({
-      message: 'Question created successfully',
-      question
-    });
+    res.status(201).json({ question });
   } catch (error) {
     console.error('Create question error:', error);
     res.status(500).json({ error: 'Failed to create question' });
   }
 });
 
-// Update a question
-router.put('/questions/:questionId', async (req: AuthRequest, res) => {
+// Release question (make it available to users)
+router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
   try {
-    const { questionId } = req.params;
-    const { title, content, isActive } = req.body;
-
+    const questionId = req.params.questionId;
+    
     const question = await prisma.question.update({
       where: { id: questionId },
       data: {
-        ...(title && { title }),
-        ...(content && { content }),
-        ...(typeof isActive === 'boolean' && { 
-          isActive,
-          ...(isActive && { releaseDate: new Date() })
-        })
-      }
-    });
-
-    res.json({
-      message: 'Question updated successfully',
-      question
-    });
-  } catch (error) {
-    console.error('Update question error:', error);
-    res.status(500).json({ error: 'Failed to update question' });
-  }
-});
-
-// Manually activate/release a question
-router.post('/questions/:questionId/activate', async (req: AuthRequest, res) => {
-  try {
-    const { questionId } = req.params;
-
-    const question = await prisma.question.update({
-      where: { id: questionId },
-      data: {
-        isActive: true,
+        isReleased: true,
+        isActive: true, // Also set as active for backward compatibility
         releaseDate: new Date()
       }
     });
 
-    res.json({
-      message: 'Question activated successfully',
-      question
-    });
+    res.json({ question });
   } catch (error) {
-    console.error('Activate question error:', error);
-    res.status(500).json({ error: 'Failed to activate question' });
+    console.error('Release question error:', error);
+    res.status(500).json({ error: 'Failed to release question' });
   }
 });
 
-// Get game statistics
-router.get('/stats', async (req: AuthRequest, res) => {
+// Delete question
+router.delete('/questions/:questionId', async (req: AuthRequest, res) => {
   try {
-    const totalUsers = await prisma.user.count({
-      where: { isAdmin: false }
+    const questionId = req.params.questionId;
+    
+    // Check if question has any answers
+    const answerCount = await prisma.answer.count({
+      where: { questionId }
     });
 
-    const totalAnswers = await prisma.answer.count();
-
-    const pendingAnswers = await prisma.answer.count({
-      where: { status: 'PENDING' }
-    });
-
-    // Calculate average progress
-    const users = await prisma.user.findMany({
-      where: { isAdmin: false },
-      select: { currentStep: true }
-    });
-
-    interface UserProgress {
-        currentStep: number;
+    if (answerCount > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete question with existing answers. Please review/remove answers first.' 
+      });
     }
 
-    const averageProgress: number = totalUsers > 0 
-        ? (users.reduce((sum: number, user: UserProgress) => sum + user.currentStep, 0) / totalUsers / 12) * 100
-        : 0;
-
-    res.json({
-      totalUsers,
-      totalAnswers,
-      pendingAnswers,
-      averageProgress
+    await prisma.question.delete({
+      where: { id: questionId }
     });
+
+    res.json({ message: 'Question deleted successfully' });
   } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({ error: 'Failed to get statistics' });
+    console.error('Delete question error:', error);
+    res.status(500).json({ error: 'Failed to delete question' });
   }
 });
 

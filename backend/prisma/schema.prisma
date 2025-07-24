@@ -32,8 +32,14 @@ model Question {
   questionNumber Int   @unique // 1-12
   title       String
   content     String
+  description String   // Detailed question description
+  deadline    DateTime // Deadline for full points
+  points      Int      @default(100) // Base points for correct answer
+  bonusPoints Int      @default(50)  // Bonus points for on-time submission
   isActive    Boolean  @default(false)
+  isReleased  Boolean  @default(false) // Whether question is released to users
   releaseDate DateTime?
+  releasedAt  DateTime? // When question was actually released
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -51,6 +57,7 @@ model Answer {
   reviewedAt DateTime?
   reviewedBy String?    // Admin user ID who reviewed
   feedback   String?    // Optional feedback from admin
+  pointsAwarded Int?    // Points awarded for this answer
 
   // Foreign Keys
   userId     String

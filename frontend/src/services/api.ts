@@ -140,4 +140,22 @@ export const adminService = {
     }),
   
   getGameStats: () => api.get('/admin/stats'),
+
+  // Question management
+  getAllQuestions: () => api.get('/admin/questions'),
+  
+  getQuestionAnswers: (questionId: number) => api.get(`/admin/questions/${questionId}/answers`),
+  
+  createQuestion: (questionData: {
+    questionNumber: number;
+    title: string;
+    description: string;
+    deadline: string;
+    points: number;
+    bonusPoints: number;
+  }) => api.post('/admin/questions', questionData),
+  
+  releaseQuestion: (questionId: number) => api.post(`/admin/questions/${questionId}/release`),
+  
+  deleteQuestion: (questionId: number) => api.delete(`/admin/questions/${questionId}`),
 };

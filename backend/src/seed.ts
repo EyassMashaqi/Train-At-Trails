@@ -101,13 +101,31 @@ async function main() {
   ];
 
   for (const questionData of questions) {
+    // Calculate deadline (1-12 weeks from now based on question number)
+    const deadlineDate = new Date();
+    deadlineDate.setDate(deadlineDate.getDate() + (questionData.questionNumber * 7));
+
     const question = await prisma.question.upsert({
       where: { questionNumber: questionData.questionNumber },
       update: {
         title: questionData.title,
-        content: questionData.content
+        content: questionData.content,
+        description: questionData.content, // Use content as description for now
+        deadline: deadlineDate,
+        points: 100 + (questionData.questionNumber * 10), // Progressive points
+        bonusPoints: 50
       },
-      create: questionData
+      create: {
+        questionNumber: questionData.questionNumber,
+        title: questionData.title,
+        content: questionData.content,
+        description: questionData.content, // Use content as description for now
+        deadline: deadlineDate,
+        points: 100 + (questionData.questionNumber * 10), // Progressive points
+        bonusPoints: 50,
+        isActive: false,
+        isReleased: false
+      }
     });
     console.log(`📋 Question ${question.questionNumber} created: ${question.title}`);
   }
