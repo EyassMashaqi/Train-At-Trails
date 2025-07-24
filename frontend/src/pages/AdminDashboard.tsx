@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { adminService } from '../services/api';
 
 interface User {
@@ -36,20 +36,17 @@ interface GameStats {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers'>('overview');
 
-  useEffect(() => {
-    loadAdminData();
-  }, []);
-
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
       const [usersResponse, pendingResponse, statsResponse] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getPendingAnswers(),
@@ -59,20 +56,53 @@ const AdminDashboard: React.FC = () => {
       setUsers(usersResponse.data.users);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to load admin data');
+    } catch (error: unknown) {
+      console.error('Admin data loading error:', error);
+      let errorMessage = 'Failed to load admin data';
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: unknown }).response === 'object' &&
+        (error as { response: unknown }).response !== null
+      ) {
+        const response = (error as { response: { data?: { error?: string; message?: string }; status?: number } }).response;
+        errorMessage = response.data?.error || response.data?.message || errorMessage;
+        if (response.status === 403) {
+          toast.error(`Access denied: ${errorMessage}. Please ensure you're logged in as an admin user.`);
+        } else {
+          toast.error(errorMessage);
+        }
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email, user?.isAdmin]);
+
+  useEffect(() => {
+    loadAdminData();
+  }, [loadAdminData]);
 
   const handleReviewAnswer = async (answerId: number, status: 'approved' | 'rejected') => {
     try {
       await adminService.reviewAnswer(answerId, status);
       toast.success(`Answer ${status} successfully!`);
       await loadAdminData(); // Refresh data
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || `Failed to ${status} answer`);
+    } catch (error: unknown) {
+      let errorMessage = `Failed to ${status} answer`;
+      if (
+        error && 
+        typeof error === 'object' && 
+        'response' in error &&
+        typeof (error as { response: unknown }).response === 'object' &&
+        (error as { response: unknown }).response !== null
+      ) {
+        const response = (error as { response: { data?: { message?: string } } }).response;
+        errorMessage = response.data?.message || errorMessage;
+      }
+      toast.error(errorMessage);
     }
   };
 
@@ -313,7 +343,7 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">   
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -352,7 +382,7 @@ const AdminDashboard: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'

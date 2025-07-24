@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
 const Login: React.FC = () => {
@@ -9,6 +9,16 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleAdminLogin = async () => {
+    setLoading(true);
+    const success = await login('admin@traintrails.com', 'admin123');
+    setLoading(false);
+
+    if (success) {
+      navigate('/admin');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,10 +133,21 @@ const Login: React.FC = () => {
           <div className="mt-6 border-t border-gray-200 pt-6">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
             <div className="space-y-2 text-xs text-gray-600">
-              <p><strong>Admin:</strong> admin@trainattrails.com / admin123</p>
+              <p><strong>Admin:</strong> admin@traintrails.com / admin123</p>
               <p><strong>User:</strong> alice@example.com / password123</p>
               <p><strong>User:</strong> bob@example.com / password123</p>
             </div>
+            {import.meta.env.DEV && (
+              <div className="mt-4">
+                <button
+                  onClick={handleAdminLogin}
+                  disabled={loading}
+                  className="w-full py-2 px-4 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  Quick Admin Login
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>

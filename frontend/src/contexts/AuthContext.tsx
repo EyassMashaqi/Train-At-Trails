@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
 import { toast } from 'react-hot-toast';
 
@@ -33,13 +33,7 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export { AuthContext };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,7 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
     delete api.defaults.headers.common['Authorization'];
+    
+    // Reset any pending interceptor state
+    // This helps prevent issues with ongoing requests during logout
+    setTimeout(() => {
+      delete api.defaults.headers.common['Authorization'];
+    }, 50);
   };
 
   // Set auth data
@@ -67,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Refresh authentication
-  const refreshAuth = async (): Promise<boolean> => {
+  const refreshAuth = useCallback(async (): Promise<boolean> => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -85,10 +86,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearAuth();
       return false;
     }
-  };
+  }, []);
 
   // Verify existing token
-  const verifyToken = async (accessToken: string): Promise<boolean> => {
+  const verifyToken = useCallback(async (accessToken: string): Promise<boolean> => {
     try {
       api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       const response = await api.get('/auth/me');
@@ -100,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Try to refresh token if verification fails
       return await refreshAuth();
     }
-  };
+  }, [refreshAuth]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -115,18 +116,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
-  }, []);
+  }, [verifyToken]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      console.log('🔐 Attempting login for:', email);
+      console.log('🌐 API Base URL:', api.defaults.baseURL);
       const response = await api.post('/auth/login', { email, password });
       const { user: userData, token: userToken, refreshToken } = response.data;
 
+      console.log('✅ Login successful:', userData.fullName);
       setAuth(userData, userToken, refreshToken);
       toast.success(`Welcome back, ${userData.fullName}!`);
       return true;
-    } catch (error: any) {
-      const message = error.response?.data?.error || 'Login failed';
+    } catch (error: unknown) {
+      console.error('❌ Login failed:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        response: (error as { response?: { data?: unknown } })?.response?.data,
+        status: (error as { response?: { status?: number } })?.response?.status
+      });
+      
+      const message = error && typeof error === 'object' && 'response' in error &&
+        typeof (error as { response: unknown }).response === 'object' &&
+        (error as { response: { data?: { error?: string } } }).response?.data?.error
+        ? (error as { response: { data: { error: string } } }).response.data.error
+        : 'Login failed';
       toast.error(message);
       return false;
     }
@@ -139,8 +154,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuth(userData, userToken, refreshToken);
       toast.success(`Welcome to Train at Trails, ${userData.fullName}!`);
       return true;
-    } catch (error: any) {
-      const message = error.response?.data?.error || 'Registration failed';
+    } catch (error: unknown) {
+      const message = error && typeof error === 'object' && 'response' in error &&
+        typeof (error as { response: unknown }).response === 'object' &&
+        (error as { response: { data?: { error?: string } } }).response?.data?.error
+        ? (error as { response: { data: { error: string } } }).response.data.error
+        : 'Registration failed';
       toast.error(message);
       return false;
     }
@@ -149,6 +168,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     clearAuth();
     toast.success('Logged out successfully');
+    // Use a more gentle navigation approach
+    setTimeout(() => {
+      window.location.replace('/login');
+    }, 100);
   };
 
   const updateProfile = async (data: Partial<User>): Promise<boolean> => {
@@ -157,8 +180,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(response.data.user);
       toast.success('Profile updated successfully');
       return true;
-    } catch (error: any) {
-      const message = error.response?.data?.error || 'Profile update failed';
+    } catch (error: unknown) {
+      const message = error && typeof error === 'object' && 'response' in error &&
+        typeof (error as { response: unknown }).response === 'object' &&
+        (error as { response: { data?: { error?: string } } }).response?.data?.error
+        ? (error as { response: { data: { error: string } } }).response.data.error
+        : 'Profile update failed';
       toast.error(message);
       return false;
     }

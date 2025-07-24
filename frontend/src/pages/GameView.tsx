@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 interface Question {
   id: number;
@@ -79,9 +79,12 @@ const GameView: React.FC = () => {
       
       console.log('Extracted leaderboard data:', possibleData);
       setLeaderboard(possibleData);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load game data:', error);
-      toast.error(error.response?.data?.message || 'Failed to load game data');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : ((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to load game data');
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -111,8 +114,11 @@ const GameView: React.FC = () => {
       setShowTrainAnimation(true);
       setTimeout(() => setShowTrainAnimation(false), 3000);
       await loadGameData(); // Refresh data
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to submit answer');
+    } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : ((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to submit answer');
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }

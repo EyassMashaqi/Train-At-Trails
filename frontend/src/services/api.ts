@@ -11,9 +11,9 @@ export const api = axios.create({
 
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (value: any) => void; reject: (error: any) => void }> = [];
+let failedQueue: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
       reject(error);
@@ -45,7 +45,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle both 401 (Unauthorized) and 403 (Forbidden) for invalid tokens
+    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -79,16 +80,22 @@ api.interceptors.response.use(
           return api(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
+          // Clear all auth data thoroughly
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          delete api.defaults.headers.common['Authorization'];
           window.location.href = '/login';
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;
         }
       } else {
+        // Clear all auth data thoroughly
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        delete api.defaults.headers.common['Authorization'];
         window.location.href = '/login';
       }
     }

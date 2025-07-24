@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // Ensure JWT secret is available for testing
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secure-test-jwt-secret-key-for-development-only';
+const JWT_SECRET = process.env.JWT_SECRET || 'train-at-trails-super-secure-test-secret-key-2025';
 
 export interface AuthRequest extends Request {
   user?: {
