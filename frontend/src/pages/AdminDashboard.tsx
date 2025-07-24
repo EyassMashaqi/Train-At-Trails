@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { adminService } from '../services/api';
+import toast from 'react-hot-toast';
 
 interface User {
   id: number;
@@ -43,6 +43,18 @@ const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers'>('overview');
+  
+  // Feedback modal state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState<{
+    answerId: number | null;
+    status: 'approved' | 'rejected' | null;
+    feedback: string;
+  }>({
+    answerId: null,
+    status: null,
+    feedback: ''
+  });
 
   const loadAdminData = useCallback(async () => {
     try {
@@ -87,12 +99,31 @@ const AdminDashboard: React.FC = () => {
   }, [loadAdminData]);
 
   const handleReviewAnswer = async (answerId: number, status: 'approved' | 'rejected') => {
+    // Open feedback modal
+    setFeedbackForm({
+      answerId,
+      status,
+      feedback: ''
+    });
+    setShowFeedbackModal(true);
+  };
+
+  const submitReview = async () => {
+    if (!feedbackForm.answerId || !feedbackForm.status) return;
+    
+    if (!feedbackForm.feedback.trim()) {
+      toast.error('Feedback is required');
+      return;
+    }
+
     try {
-      await adminService.reviewAnswer(answerId, status);
-      toast.success(`Answer ${status} successfully!`);
+      await adminService.reviewAnswer(feedbackForm.answerId, feedbackForm.status, feedbackForm.feedback);
+      toast.success(`Answer ${feedbackForm.status} successfully!`);
+      setShowFeedbackModal(false);
+      setFeedbackForm({ answerId: null, status: null, feedback: '' });
       await loadAdminData(); // Refresh data
     } catch (error: unknown) {
-      let errorMessage = `Failed to ${status} answer`;
+      let errorMessage = `Failed to ${feedbackForm.status} answer`;
       if (
         error && 
         typeof error === 'object' && 
@@ -418,6 +449,53 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'answers' && renderPendingAnswers()}
         </div>
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              {feedbackForm.status === 'approved' ? 'Approve Answer' : 'Reject Answer'}
+            </h3>
+            
+            <div className="mb-4">
+              <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-2">
+                Feedback <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="feedback"
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={`Please provide feedback for ${feedbackForm.status === 'approved' ? 'approving' : 'rejecting'} this answer...`}
+                value={feedbackForm.feedback}
+                onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedback: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowFeedbackModal(false);
+                  setFeedbackForm({ answerId: null, status: null, feedback: '' });
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReview}
+                className={`px-4 py-2 text-white rounded-md transition-colors ${
+                  feedbackForm.status === 'approved' 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {feedbackForm.status === 'approved' ? 'Approve with Feedback' : 'Reject with Feedback'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

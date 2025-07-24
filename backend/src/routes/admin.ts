@@ -134,6 +134,13 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
       });
     }
 
+    // Require feedback for both approve and reject
+    if (!feedback || feedback.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Feedback is required when reviewing an answer' 
+      });
+    }
+
     // Get the answer with user info
     const answer = await prisma.answer.findUnique({
       where: { id: answerId },

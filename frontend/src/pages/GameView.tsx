@@ -18,6 +18,7 @@ interface Answer {
   content: string;
   status: string;
   submittedAt: string;
+  feedback?: string;
   question: Question;
 }
 
@@ -589,7 +590,25 @@ const GameView: React.FC = () => {
                   {new Date(answer.submittedAt).toLocaleDateString()}
                 </div>
               </div>
-              <p className="text-gray-700 italic">"{answer.content}"</p>
+              <p className="text-gray-700 italic mb-4">"{answer.content}"</p>
+              
+              {/* Show feedback if available */}
+              {answer.feedback && (
+                <div className={`mt-4 p-4 rounded-lg border-l-4 ${
+                  answer.status === 'APPROVED' 
+                    ? 'bg-green-50 border-green-400' 
+                    : 'bg-red-50 border-red-400'
+                }`}>
+                  <div className="flex items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      Admin Feedback:
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 italic">
+                    "{answer.feedback}"
+                  </p>
+                </div>
+              )}
             </div>
           ))}
         </div>
