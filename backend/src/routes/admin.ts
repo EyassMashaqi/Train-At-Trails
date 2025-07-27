@@ -336,4 +336,450 @@ router.delete('/questions/:questionId', async (req: AuthRequest, res) => {
   }
 });
 
+// ========================================
+// MODULE AND TOPIC MANAGEMENT ROUTES
+// ========================================
+
+// Get all modules with their topics
+router.get('/modules', async (req: AuthRequest, res) => {
+  try {
+    const modules = await prisma.module.findMany({
+      include: {
+        topics: {
+          include: {
+            answers: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    trainName: true,
+                    email: true
+                  }
+                }
+              },
+              orderBy: { submittedAt: 'desc' }
+            }
+          },
+          orderBy: { topicNumber: 'asc' }
+        }
+      },
+      orderBy: { moduleNumber: 'asc' }
+    });
+
+    res.json({ modules });
+  } catch (error) {
+    console.error('Get modules error:', error);
+    res.status(500).json({ error: 'Failed to get modules' });
+  }
+});
+
+// Create a new module
+router.post('/modules', async (req: AuthRequest, res) => {
+  try {
+    const { 
+      moduleNumber,
+      title, 
+      description, 
+      deadline 
+    } = req.body;
+
+    // Validate required fields
+    if (!moduleNumber || !title || !description) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: moduleNumber, title, description' 
+      });
+    }
+
+    // Check if module number already exists
+    const existingModule = await prisma.module.findUnique({
+      where: { moduleNumber }
+    });
+
+    if (existingModule) {
+      return res.status(400).json({ 
+        error: `Module ${moduleNumber} already exists` 
+      });
+    }
+
+    const module = await prisma.module.create({
+      data: {
+        moduleNumber: parseInt(moduleNumber),
+        title,
+        description,
+        deadline: deadline ? new Date(deadline) : null,
+        isActive: false,
+        isReleased: false
+      }
+    });
+
+    res.status(201).json({ module });
+  } catch (error) {
+    console.error('Create module error:', error);
+    res.status(500).json({ error: 'Failed to create module' });
+  }
+});
+
+// Update a module
+router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
+  try {
+    const moduleId = req.params.moduleId;
+    const { 
+      moduleNumber,
+      title, 
+      description, 
+      deadline,
+      isActive,
+      isReleased
+    } = req.body;
+
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId }
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    const updatedModule = await prisma.module.update({
+      where: { id: moduleId },
+      data: {
+        ...(moduleNumber && { moduleNumber: parseInt(moduleNumber) }),
+        ...(title && { title }),
+        ...(description && { description }),
+        ...(deadline && { deadline: new Date(deadline) }),
+        ...(typeof isActive === 'boolean' && { isActive }),
+        ...(typeof isReleased === 'boolean' && { isReleased }),
+        ...(isReleased && !module.isReleased && { releaseDate: new Date() })
+      },
+      include: {
+        topics: {
+          orderBy: { topicNumber: 'asc' }
+        }
+      }
+    });
+
+    res.json({ module: updatedModule });
+  } catch (error) {
+    console.error('Update module error:', error);
+    res.status(500).json({ error: 'Failed to update module' });
+  }
+});
+
+// Delete a module
+router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
+  try {
+    const moduleId = req.params.moduleId;
+    
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
+      include: {
+        topics: {
+          include: {
+            answers: true
+          }
+        }
+      }
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Check if module has any topics with answers
+    const hasAnswers = module.topics.some(topic => topic.answers.length > 0);
+    if (hasAnswers) {
+      return res.status(400).json({ 
+        error: 'Cannot delete module with topics that have answers. Please review/remove answers first.' 
+      });
+    }
+
+    await prisma.module.delete({
+      where: { id: moduleId }
+    });
+
+    res.json({ message: 'Module deleted successfully' });
+  } catch (error) {
+    console.error('Delete module error:', error);
+    res.status(500).json({ error: 'Failed to delete module' });
+  }
+});
+
+// Get topics for a specific module
+router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
+  try {
+    const moduleId = req.params.moduleId;
+    
+    const topics = await prisma.topic.findMany({
+      where: { moduleId },
+      include: {
+        module: {
+          select: {
+            id: true,
+            moduleNumber: true,
+            title: true
+          }
+        },
+        answers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                trainName: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { submittedAt: 'desc' }
+        }
+      },
+      orderBy: { topicNumber: 'asc' }
+    });
+
+    res.json({ topics });
+  } catch (error) {
+    console.error('Get module topics error:', error);
+    res.status(500).json({ error: 'Failed to get module topics' });
+  }
+});
+
+// Get answers for a specific topic
+router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
+  try {
+    const topicId = req.params.topicId;
+    
+    const answers = await prisma.answer.findMany({
+      where: { topicId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            trainName: true,
+            email: true
+          }
+        },
+        topic: {
+          include: {
+            module: {
+              select: {
+                id: true,
+                moduleNumber: true,
+                title: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    res.json({ answers });
+  } catch (error) {
+    console.error('Get topic answers error:', error);
+    res.status(500).json({ error: 'Failed to get topic answers' });
+  }
+});
+
+// Create a new topic within a module
+router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
+  try {
+    const moduleId = req.params.moduleId;
+    const { 
+      topicNumber, 
+      title, 
+      content, 
+      description, 
+      deadline, 
+      points, 
+      bonusPoints 
+    } = req.body;
+
+    // Validate required fields
+    if (!topicNumber || !title || !content || !description || !deadline || !points) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: topicNumber, title, content, description, deadline, points' 
+      });
+    }
+
+    // Check if module exists
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId }
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Check if topic number already exists in this module
+    const existingTopic = await prisma.topic.findFirst({
+      where: { 
+        moduleId,
+        topicNumber: parseInt(topicNumber)
+      }
+    });
+
+    if (existingTopic) {
+      return res.status(400).json({ 
+        error: `Topic ${topicNumber} already exists in this module` 
+      });
+    }
+
+    const topic = await prisma.topic.create({
+      data: {
+        moduleId,
+        topicNumber: parseInt(topicNumber),
+        title,
+        content,
+        description,
+        deadline: new Date(deadline),
+        points: parseInt(points),
+        bonusPoints: parseInt(bonusPoints) || 0,
+        isReleased: false
+      },
+      include: {
+        module: {
+          select: {
+            id: true,
+            moduleNumber: true,
+            title: true
+          }
+        }
+      }
+    });
+
+    res.status(201).json({ topic });
+  } catch (error) {
+    console.error('Create topic error:', error);
+    res.status(500).json({ error: 'Failed to create topic' });
+  }
+});
+
+// Update a topic
+router.put('/topics/:topicId', async (req: AuthRequest, res) => {
+  try {
+    const topicId = req.params.topicId;
+    const { 
+      topicNumber,
+      title, 
+      content, 
+      description, 
+      deadline, 
+      points, 
+      bonusPoints,
+      isReleased
+    } = req.body;
+
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    const updatedTopic = await prisma.topic.update({
+      where: { id: topicId },
+      data: {
+        ...(topicNumber && { topicNumber: parseInt(topicNumber) }),
+        ...(title && { title }),
+        ...(content && { content }),
+        ...(description && { description }),
+        ...(deadline && { deadline: new Date(deadline) }),
+        ...(points && { points: parseInt(points) }),
+        ...(typeof bonusPoints !== 'undefined' && { bonusPoints: parseInt(bonusPoints) }),
+        ...(typeof isReleased === 'boolean' && { isReleased }),
+        ...(isReleased && !topic.isReleased && { releasedAt: new Date() })
+      },
+      include: {
+        module: {
+          select: {
+            id: true,
+            moduleNumber: true,
+            title: true
+          }
+        }
+      }
+    });
+
+    res.json({ topic: updatedTopic });
+  } catch (error) {
+    console.error('Update topic error:', error);
+    res.status(500).json({ error: 'Failed to update topic' });
+  }
+});
+
+// Release a topic
+router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
+  try {
+    const topicId = req.params.topicId;
+    
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    const updatedTopic = await prisma.topic.update({
+      where: { id: topicId },
+      data: { 
+        isReleased: true,
+        releasedAt: new Date()
+      },
+      include: {
+        module: {
+          select: {
+            id: true,
+            moduleNumber: true,
+            title: true
+          }
+        }
+      }
+    });
+
+    res.json({ topic: updatedTopic });
+  } catch (error) {
+    console.error('Release topic error:', error);
+    res.status(500).json({ error: 'Failed to release topic' });
+  }
+});
+
+// Delete a topic
+router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
+  try {
+    const topicId = req.params.topicId;
+    
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    // Check if topic has any answers
+    const answerCount = await prisma.answer.count({
+      where: { topicId }
+    });
+
+    if (answerCount > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete topic with existing answers. Please review/remove answers first.' 
+      });
+    }
+
+    await prisma.topic.delete({
+      where: { id: topicId }
+    });
+
+    res.json({ message: 'Topic deleted successfully' });
+  } catch (error) {
+    console.error('Delete topic error:', error);
+    res.status(500).json({ error: 'Failed to delete topic' });
+  }
+});
+
 export default router;

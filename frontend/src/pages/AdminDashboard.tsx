@@ -21,10 +21,20 @@ interface PendingAnswer {
     fullName: string;
     trainName: string;
   };
-  question: {
+  question?: {
     id: number;
     questionNumber: number;
     title: string;
+  };
+  topic?: {
+    id: number;
+    topicNumber: number;
+    title: string;
+    module: {
+      id: number;
+      moduleNumber: number;
+      title: string;
+    };
   };
 }
 
@@ -35,23 +45,34 @@ interface GameStats {
   averageProgress: number;
 }
 
-interface Question {
-  id: number;
-  questionNumber: number;
+interface Module {
+  id: string;
+  moduleNumber: number;
   title: string;
+  description: string;
+  isActive: boolean;
+  isReleased: boolean;
+  releaseDate?: string;
+  topics: Topic[];
+}
+
+interface Topic {
+  id: string;
+  topicNumber: number;
+  title: string;
+  content: string;
   description: string;
   deadline: string;
   points: number;
   bonusPoints: number;
+  isActive: boolean;
   isReleased: boolean;
-  releasedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  answers?: QuestionAnswer[];
+  releaseDate?: string;
+  answers?: TopicAnswer[];
 }
 
-interface QuestionAnswer {
-  id: number;
+interface TopicAnswer {
+  id: string;
   content: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedAt: string;
@@ -59,20 +80,27 @@ interface QuestionAnswer {
   feedback?: string;
   pointsAwarded?: number;
   user: {
-    id: number;
+    id: string;
     fullName: string;
     trainName: string;
     email: string;
   };
 }
 
-interface QuestionFormData {
-  questionNumber: number;
+interface TopicFormData {
+  topicNumber: number;
   title: string;
+  content: string;
   description: string;
   deadline: string;
   points: number;
   bonusPoints: number;
+}
+
+interface ModuleFormData {
+  moduleNumber: number;
+  title: string;
+  description: string;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -81,7 +109,7 @@ const AdminDashboard: React.FC = () => {
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'questions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules'>('overview');
   
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -95,13 +123,30 @@ const AdminDashboard: React.FC = () => {
     feedback: ''
   });
 
-  // Question management state
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
-  const [questionForm, setQuestionForm] = useState<QuestionFormData>({
-    questionNumber: 1,
+  // Module and topic management state
+  const [modules, setModules] = useState<Module[]>([]);
+  const [expandedModule, setExpandedModule] = useState<string | null>(null);
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
+  
+  // Module management
+  const [showCreateModuleModal, setShowCreateModuleModal] = useState(false);
+  const [showEditModuleModal, setShowEditModuleModal] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<Module | null>(null);
+  const [moduleForm, setModuleForm] = useState<ModuleFormData>({
+    moduleNumber: 1,
     title: '',
+    description: ''
+  });
+
+  // Topic management
+  const [showCreateTopicModal, setShowCreateTopicModal] = useState(false);
+  const [showEditTopicModal, setShowEditTopicModal] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [selectedModuleForTopic, setSelectedModuleForTopic] = useState<string>('');
+  const [topicForm, setTopicForm] = useState<TopicFormData>({
+    topicNumber: 1,
+    title: '',
+    content: '',
     description: '',
     deadline: '',
     points: 100,
@@ -112,17 +157,17 @@ const AdminDashboard: React.FC = () => {
     try {
       setLoading(true);
       console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
-      const [usersResponse, pendingResponse, statsResponse, questionsResponse] = await Promise.all([
+      const [usersResponse, pendingResponse, statsResponse, modulesResponse] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getPendingAnswers(),
         adminService.getGameStats(),
-        adminService.getAllQuestions()
+        adminService.getAllModules()
       ]);
 
       setUsers(usersResponse.data.users);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
-      setQuestions(questionsResponse.data.questions || []);
+      setModules(modulesResponse.data.modules || []);
     } catch (error: unknown) {
       console.error('Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
@@ -261,7 +306,13 @@ const AdminDashboard: React.FC = () => {
                         {answer.user.fullName} ({answer.user.trainName})
                       </h4>
                       <p className="text-sm text-gray-600">
-                        Question {answer.question.questionNumber}: {answer.question.title}
+                        {answer.question ? (
+                          `Question ${answer.question.questionNumber}: ${answer.question.title}`
+                        ) : answer.topic ? (
+                          `${answer.topic.module.title} - Topic ${answer.topic.topicNumber}: ${answer.topic.title}`
+                        ) : (
+                          'Unknown assignment'
+                        )}
                       </p>
                     </div>
                     <div className="flex space-x-2">
@@ -382,7 +433,13 @@ const AdminDashboard: React.FC = () => {
                   {answer.user.fullName} ({answer.user.trainName})
                 </h4>
                 <p className="text-sm text-gray-600">
-                  Question {answer.question.questionNumber}: {answer.question.title}
+                  {answer.question ? (
+                    `Question ${answer.question.questionNumber}: ${answer.question.title}`
+                  ) : answer.topic ? (
+                    `${answer.topic.module.title} - Topic ${answer.topic.topicNumber}: ${answer.topic.title}`
+                  ) : (
+                    'Unknown assignment'
+                  )}
                 </p>
               </div>
               <div className="flex space-x-2">
@@ -415,93 +472,218 @@ const AdminDashboard: React.FC = () => {
     );
   };
 
-  const renderQuestions = () => {
+  const renderModules = () => {
     return (
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-medium text-gray-900">Question Management</h3>
+          <h3 className="text-lg font-medium text-gray-900">Module Management</h3>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => setShowCreateModuleModal(true)}
             className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center"
           >
             <span className="mr-2">➕</span>
-            Create Question
+            Create Module
           </button>
         </div>
 
-        {/* Questions List */}
+        {/* Modules List */}
         <div className="space-y-4">
-          {questions.length === 0 ? (
+          {modules.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl">📝</span>
-              <p className="mt-2 text-gray-500">No questions created yet</p>
+              <span className="text-4xl">�</span>
+              <p className="mt-2 text-gray-500">No modules found</p>
             </div>
           ) : (
-            questions.map((question) => (
-              <div key={question.id} className="border rounded-lg p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                        Q{question.questionNumber}
-                      </span>
-                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
-                        question.isReleased 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {question.isReleased ? '✅ Released' : '⏳ Draft'}
+            modules.map((module) => (
+              <div key={module.id} className="border rounded-lg">
+                {/* Module Header - Foldable */}
+                <div 
+                  className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => setExpandedModule(expandedModule === module.id ? null : module.id)}
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-lg">
+                          {expandedModule === module.id ? '📖' : '📚'}
+                        </span>
+                        <div>
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-semibold text-gray-900">{module.title}</h4>
+                            <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
+                              module.isReleased 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {module.isReleased ? '✅ Released' : '⏳ Draft'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">{module.description}</p>
+                          <div className="flex space-x-4 mt-1 text-xs text-gray-500">
+                            <span>Module {module.moduleNumber}</span>
+                            <span>Topics: {module.topics?.length || 0}</span>
+                            <span>Total Points: {module.topics?.reduce((sum, topic) => sum + topic.points, 0) || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 ml-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedModule(module);
+                          setShowEditModuleModal(true);
+                        }}
+                        className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors"
+                      >
+                        ✏️ Manage
+                      </button>
+                      <span className="text-sm text-gray-400">
+                        {expandedModule === module.id ? '▲' : '▼'}
                       </span>
                     </div>
-                    <h4 className="font-medium text-gray-900">{question.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{question.description}</p>
-                    <div className="flex space-x-4 mt-2 text-xs text-gray-500">
-                      <span>Points: {question.points}</span>
-                      <span>Bonus: {question.bonusPoints}</span>
-                      <span>Deadline: {new Date(question.deadline).toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setExpandedQuestion(expandedQuestion === question.id ? null : question.id)}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      {expandedQuestion === question.id ? 'Hide' : 'Show'} Answers ({question.answers?.length || 0})
-                    </button>
                   </div>
                 </div>
-                
-                {expandedQuestion === question.id && (
-                  <div className="mt-4 border-t pt-4">
-                    <h5 className="font-medium text-gray-900 mb-2">
-                      Answers ({question.answers?.length || 0})
-                    </h5>
-                    {!question.answers || question.answers.length === 0 ? (
-                      <p className="text-gray-500 text-sm">No answers submitted yet</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {question.answers.map((answer) => (
-                          <div key={answer.id} className="bg-gray-50 rounded p-3">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="font-medium text-sm">
-                                {answer.user.fullName} ({answer.user.trainName})
-                              </span>
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                answer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                answer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {answer.status}
-                              </span>
+
+                {/* Module Topics - Expandable */}
+                {expandedModule === module.id && (
+                  <div className="border-t bg-gray-50">
+                    <div className="p-4">
+                      <h5 className="font-medium text-gray-900 mb-3 flex items-center">
+                        <span className="mr-2">📋</span>
+                        Topics ({module.topics?.length || 0})
+                      </h5>
+                      
+                      {!module.topics || module.topics.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500 text-sm mb-3">No topics created yet</p>
+                          <button
+                            onClick={() => {
+                              setSelectedModuleForTopic(module.id);
+                              setShowCreateTopicModal(true);
+                            }}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                          >
+                            ➕ Create First Topic
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {module.topics.map((topic) => (
+                            <div key={topic.id} className="bg-white rounded-lg border">
+                              {/* Topic Header - Foldable */}
+                              <div 
+                                className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                                onClick={() => setExpandedTopic(expandedTopic === topic.id ? null : topic.id)}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                                        Topic {topic.topicNumber}
+                                      </span>
+                                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
+                                        topic.isReleased 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {topic.isReleased ? '✅ Released' : '⏳ Draft'}
+                                      </span>
+                                    </div>
+                                    <h6 className="font-medium text-gray-900">{topic.title}</h6>
+                                    <p className="text-sm text-gray-600 mt-1">{topic.description}</p>
+                                    <div className="flex space-x-4 mt-2 text-xs text-gray-500">
+                                      <span>Points: {topic.points}</span>
+                                      <span>Bonus: {topic.bonusPoints}</span>
+                                      <span>Deadline: {new Date(topic.deadline).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-2 ml-4">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTopic(topic);
+                                        setShowEditTopicModal(true);
+                                      }}
+                                      className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 transition-colors"
+                                    >
+                                      ✏️ Manage
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedTopic(expandedTopic === topic.id ? null : topic.id);
+                                      }}
+                                      className="text-blue-600 hover:text-blue-800 text-sm"
+                                    >
+                                      {expandedTopic === topic.id ? 'Hide' : 'Show'} Answers ({topic.answers?.length || 0})
+                                    </button>
+                                    <span className="text-sm text-gray-400">
+                                      {expandedTopic === topic.id ? '▲' : '▼'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Topic Answers - Expandable */}
+                              {expandedTopic === topic.id && (
+                                <div className="border-t bg-gray-50 p-3">
+                                  <h6 className="font-medium text-gray-900 mb-2 flex items-center">
+                                    <span className="mr-2">💬</span>
+                                    Answers ({topic.answers?.length || 0})
+                                  </h6>
+                                  {!topic.answers || topic.answers.length === 0 ? (
+                                    <p className="text-gray-500 text-sm">No answers submitted yet</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {topic.answers.map((answer) => (
+                                        <div key={answer.id} className="bg-white rounded border p-3">
+                                          <div className="flex justify-between items-start mb-2">
+                                            <span className="font-medium text-sm">
+                                              {answer.user.fullName} ({answer.user.trainName})
+                                            </span>
+                                            <span className={`text-xs px-2 py-1 rounded ${
+                                              answer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                              answer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                              'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                              {answer.status}
+                                            </span>
+                                          </div>
+                                          <p className="text-sm text-gray-700">{answer.content}</p>
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            Submitted: {new Date(answer.submittedAt).toLocaleString()}
+                                          </p>
+                                          {answer.feedback && (
+                                            <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
+                                              <span className="font-medium text-blue-800">Admin Feedback:</span>
+                                              <p className="text-blue-700">{answer.feedback}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <p className="text-sm text-gray-700">{answer.content}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Submitted: {new Date(answer.submittedAt).toLocaleString()}
-                            </p>
+                          ))}
+                          
+                          {/* Add Topic Button */}
+                          <div className="text-center pt-2">
+                            <button
+                              onClick={() => {
+                                setSelectedModuleForTopic(module.id);
+                                setShowCreateTopicModal(true);
+                              }}
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                            >
+                              ➕ Add Another Topic
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -562,11 +744,11 @@ const AdminDashboard: React.FC = () => {
               { id: 'overview', name: 'Overview', icon: '📊' },
               { id: 'users', name: 'Users', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
-              { id: 'questions', name: 'Manage Questions', icon: '❓' },
+              { id: 'modules', name: 'Manage Modules', icon: '📚' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'questions')}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -592,7 +774,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'answers' && renderPendingAnswers()}
-          {activeTab === 'questions' && renderQuestions()}
+          {activeTab === 'modules' && renderModules()}
         </div>
       </div>
 
@@ -643,24 +825,30 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Create Question Modal */}
-      {showCreateModal && (
+      {/* Create Topic Modal */}
+      {showCreateTopicModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Create New Question</h3>
+            <h3 className="text-lg font-semibold mb-4">Create New Topic</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="md:col-span-2">
+                <p className="text-sm text-gray-600 mb-4">
+                  Creating topic for module: <strong>{modules.find(m => m.id === selectedModuleForTopic)?.title || 'Unknown Module'}</strong>
+                </p>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Question Number
+                  Topic Number
                 </label>
                 <input
                   type="number"
-                  value={questionForm.questionNumber}
-                  onChange={(e) => setQuestionForm({...questionForm, questionNumber: parseInt(e.target.value) || 1})}
+                  value={topicForm.topicNumber}
+                  onChange={(e) => setTopicForm({...topicForm, topicNumber: parseInt(e.target.value) || 1})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="1"
-                  max="12"
+                  required
                 />
               </div>
               
@@ -670,8 +858,8 @@ const AdminDashboard: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={questionForm.points}
-                  onChange={(e) => setQuestionForm({...questionForm, points: parseInt(e.target.value) || 100})}
+                  value={topicForm.points}
+                  onChange={(e) => setTopicForm({...topicForm, points: parseInt(e.target.value) || 100})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="1"
                 />
@@ -683,8 +871,8 @@ const AdminDashboard: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={questionForm.bonusPoints}
-                  onChange={(e) => setQuestionForm({...questionForm, bonusPoints: parseInt(e.target.value) || 50})}
+                  value={topicForm.bonusPoints}
+                  onChange={(e) => setTopicForm({...topicForm, bonusPoints: parseInt(e.target.value) || 50})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="0"
                 />
@@ -696,8 +884,8 @@ const AdminDashboard: React.FC = () => {
                 </label>
                 <input
                   type="datetime-local"
-                  value={questionForm.deadline}
-                  onChange={(e) => setQuestionForm({...questionForm, deadline: e.target.value})}
+                  value={topicForm.deadline}
+                  onChange={(e) => setTopicForm({...topicForm, deadline: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -705,46 +893,545 @@ const AdminDashboard: React.FC = () => {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title
+                Topic Title
               </label>
               <input
                 type="text"
-                value={questionForm.title}
-                onChange={(e) => setQuestionForm({...questionForm, title: e.target.value})}
+                value={topicForm.title}
+                onChange={(e) => setTopicForm({...topicForm, title: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter question title..."
+                placeholder="Enter topic title..."
+                required
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Topic Description
+              </label>
+              <textarea
+                value={topicForm.description}
+                onChange={(e) => setTopicForm({...topicForm, description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Enter topic description..."
+                required
               />
             </div>
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Topic Content
               </label>
               <textarea
-                value={questionForm.description}
-                onChange={(e) => setQuestionForm({...questionForm, description: e.target.value})}
-                rows={4}
+                value={topicForm.content}
+                onChange={(e) => setTopicForm({...topicForm, content: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter detailed question description..."
+                rows={5}
+                placeholder="Enter detailed topic content, instructions, and requirements..."
+                required
               />
             </div>
             
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => setShowCreateTopicModal(false)}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  // TODO: Implement create question functionality
-                  console.log('Creating question:', questionForm);
-                  setShowCreateModal(false);
+                onClick={async () => {
+                  try {
+                    if (!selectedModuleForTopic) {
+                      toast.error('Please select a module first');
+                      return;
+                    }
+
+                    const response = await adminService.createTopic(selectedModuleForTopic, topicForm);
+                    const newTopic = response.data;
+                    
+                    // Update modules state with new topic
+                    setModules(prevModules => 
+                      prevModules.map(module => 
+                        module.id === selectedModuleForTopic 
+                          ? { ...module, topics: [...(module.topics || []), newTopic] }
+                          : module
+                      )
+                    );
+                    
+                    toast.success('Topic created successfully!');
+                    setShowCreateTopicModal(false);
+                    setTopicForm({
+                      topicNumber: 1,
+                      title: '',
+                      content: '',
+                      description: '',
+                      deadline: '',
+                      points: 100,
+                      bonusPoints: 50
+                    });
+                    setSelectedModuleForTopic('');
+                  } catch (error) {
+                    console.error('Error creating topic:', error);
+                    toast.error('Failed to create topic');
+                  }
                 }}
                 className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
               >
-                Create Question
+                Create Topic
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Module Modal */}
+      {showEditModuleModal && selectedModule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Edit Module</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Module Number
+                </label>
+                <input
+                  type="number"
+                  value={selectedModule.moduleNumber}
+                  onChange={(e) => setSelectedModule({...selectedModule, moduleNumber: parseInt(e.target.value) || 1})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Released Status
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedModule.isReleased}
+                    onChange={async (e) => {
+                      const newReleased = e.target.checked;
+                      
+                      // If unchecking Released, we need to make sure all topics are also unreleased
+                      if (!newReleased) {
+                        const updatedModule = {
+                          ...selectedModule,
+                          isReleased: false,
+                          topics: selectedModule.topics.map(topic => ({
+                            ...topic,
+                            isReleased: false
+                          }))
+                        };
+                        setSelectedModule(updatedModule);
+                      } else {
+                        // If checking Released, make all topics released too
+                        const updatedModule = {
+                          ...selectedModule,
+                          isReleased: true,
+                          topics: selectedModule.topics.map(topic => ({
+                            ...topic,
+                            isReleased: true
+                          }))
+                        };
+                        setSelectedModule(updatedModule);
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700">Released</span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Module Title
+              </label>
+              <input
+                type="text"
+                value={selectedModule.title}
+                onChange={(e) => setSelectedModule({...selectedModule, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter module title..."
+                required
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Module Description
+              </label>
+              <textarea
+                value={selectedModule.description}
+                onChange={(e) => setSelectedModule({...selectedModule, description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Enter module description..."
+                required
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowEditModuleModal(false);
+                  setSelectedModule(null);
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await adminService.updateModule(selectedModule.id, {
+                      moduleNumber: selectedModule.moduleNumber,
+                      title: selectedModule.title,
+                      description: selectedModule.description,
+                      isReleased: selectedModule.isReleased
+                    });
+                    
+                    const updatedModule = response.data;
+                    
+                    // Update modules state
+                    setModules(prevModules => 
+                      prevModules.map(module => 
+                        module.id === selectedModule.id ? updatedModule : module
+                      )
+                    );
+                    
+                    toast.success('Module updated successfully!');
+                    setShowEditModuleModal(false);
+                    setSelectedModule(null);
+                  } catch (error) {
+                    console.error('Error updating module:', error);
+                    toast.error('Failed to update module');
+                  }
+                }}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to delete this module? This will also delete all topics within it.')) {
+                    try {
+                      await adminService.deleteModule(selectedModule.id);
+                      
+                      // Remove module from state
+                      setModules(prevModules => 
+                        prevModules.filter(module => module.id !== selectedModule.id)
+                      );
+                      
+                      toast.success('Module deleted successfully!');
+                      setShowEditModuleModal(false);
+                      setSelectedModule(null);
+                    } catch (error) {
+                      console.error('Error deleting module:', error);
+                      toast.error('Failed to delete module');
+                    }
+                  }
+                }}
+                className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200"
+              >
+                Delete Module
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Topic Modal */}
+      {showEditTopicModal && selectedTopic && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Edit Topic</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Topic Number
+                </label>
+                <input
+                  type="number"
+                  value={selectedTopic.topicNumber}
+                  onChange={(e) => setSelectedTopic({...selectedTopic, topicNumber: parseInt(e.target.value) || 1})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Released Status
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedTopic.isReleased}
+                    onChange={(e) => setSelectedTopic({...selectedTopic, isReleased: e.target.checked})}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700">Released</span>
+                </label>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Points
+                </label>
+                <input
+                  type="number"
+                  value={selectedTopic.points}
+                  onChange={(e) => setSelectedTopic({...selectedTopic, points: parseInt(e.target.value) || 100})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bonus Points
+                </label>
+                <input
+                  type="number"
+                  value={selectedTopic.bonusPoints}
+                  onChange={(e) => setSelectedTopic({...selectedTopic, bonusPoints: parseInt(e.target.value) || 50})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                />
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Deadline
+                </label>
+                <input
+                  type="datetime-local"
+                  value={selectedTopic.deadline.substring(0, 16)}
+                  onChange={(e) => setSelectedTopic({...selectedTopic, deadline: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Topic Title
+              </label>
+              <input
+                type="text"
+                value={selectedTopic.title}
+                onChange={(e) => setSelectedTopic({...selectedTopic, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter topic title..."
+                required
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Topic Description
+              </label>
+              <textarea
+                value={selectedTopic.description}
+                onChange={(e) => setSelectedTopic({...selectedTopic, description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Enter topic description..."
+                required
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Topic Content
+              </label>
+              <textarea
+                value={selectedTopic.content}
+                onChange={(e) => setSelectedTopic({...selectedTopic, content: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={5}
+                placeholder="Enter detailed topic content, instructions, and requirements..."
+                required
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowEditTopicModal(false);
+                  setSelectedTopic(null);
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await adminService.updateTopic(selectedTopic.id, {
+                      topicNumber: selectedTopic.topicNumber,
+                      title: selectedTopic.title,
+                      content: selectedTopic.content,
+                      description: selectedTopic.description,
+                      deadline: selectedTopic.deadline,
+                      points: selectedTopic.points,
+                      bonusPoints: selectedTopic.bonusPoints,
+                      isReleased: selectedTopic.isReleased
+                    });
+                    
+                    const updatedTopic = response.data;
+                    
+                    // Update modules state with updated topic
+                    setModules(prevModules => 
+                      prevModules.map(module => ({
+                        ...module,
+                        topics: module.topics.map(topic => 
+                          topic.id === selectedTopic.id ? updatedTopic : topic
+                        )
+                      }))
+                    );
+                    
+                    toast.success('Topic updated successfully!');
+                    setShowEditTopicModal(false);
+                    setSelectedTopic(null);
+                  } catch (error) {
+                    console.error('Error updating topic:', error);
+                    toast.error('Failed to update topic');
+                  }
+                }}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to delete this topic?')) {
+                    try {
+                      await adminService.deleteTopic(selectedTopic.id);
+                      
+                      // Remove topic from state
+                      setModules(prevModules => 
+                        prevModules.map(module => ({
+                          ...module,
+                          topics: module.topics.filter(topic => topic.id !== selectedTopic.id)
+                        }))
+                      );
+                      
+                      toast.success('Topic deleted successfully!');
+                      setShowEditTopicModal(false);
+                      setSelectedTopic(null);
+                    } catch (error) {
+                      console.error('Error deleting topic:', error);
+                      toast.error('Failed to delete topic');
+                    }
+                  }
+                }}
+                className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200"
+              >
+                Delete Topic
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Module Modal */}
+      {showCreateModuleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Create New Module</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Module Number
+                </label>
+                <input
+                  type="number"
+                  value={moduleForm.moduleNumber}
+                  onChange={(e) => setModuleForm({...moduleForm, moduleNumber: parseInt(e.target.value) || 1})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Module Title
+              </label>
+              <input
+                type="text"
+                value={moduleForm.title}
+                onChange={(e) => setModuleForm({...moduleForm, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter module title..."
+                required
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Module Description
+              </label>
+              <textarea
+                value={moduleForm.description}
+                onChange={(e) => setModuleForm({...moduleForm, description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Enter module description..."
+                required
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCreateModuleModal(false);
+                  setModuleForm({
+                    moduleNumber: 1,
+                    title: '',
+                    description: ''
+                  });
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await adminService.createModule(moduleForm);
+                    const newModule = response.data;
+                    
+                    // Add new module to state
+                    setModules(prevModules => [...prevModules, newModule]);
+                    
+                    toast.success('Module created successfully!');
+                    setShowCreateModuleModal(false);
+                    setModuleForm({
+                      moduleNumber: 1,
+                      title: '',
+                      description: ''
+                    });
+                  } catch (error) {
+                    console.error('Error creating module:', error);
+                    toast.error('Failed to create module');
+                  }
+                }}
+                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
+              >
+                Create Module
               </button>
             </div>
           </div>

@@ -141,7 +141,56 @@ export const adminService = {
   
   getGameStats: () => api.get('/admin/stats'),
 
-  // Question management
+  // Module management
+  getAllModules: () => api.get('/admin/modules'),
+  
+  createModule: (moduleData: {
+    moduleNumber: number;
+    title: string;
+    description: string;
+  }) => api.post('/admin/modules', moduleData),
+  
+  updateModule: (moduleId: string, moduleData: {
+    moduleNumber?: number;
+    title?: string;
+    description?: string;
+    isActive?: boolean;
+    isReleased?: boolean;
+  }) => api.put(`/admin/modules/${moduleId}`, moduleData),
+  
+  deleteModule: (moduleId: string) => api.delete(`/admin/modules/${moduleId}`),
+  
+  getModuleTopics: (moduleId: string) => api.get(`/admin/modules/${moduleId}/topics`),
+  
+  // Topic management
+  createTopic: (moduleId: string, topicData: {
+    topicNumber: number;
+    title: string;
+    content: string;
+    description: string;
+    deadline: string;
+    points: number;
+    bonusPoints: number;
+  }) => api.post(`/admin/modules/${moduleId}/topics`, topicData),
+  
+  updateTopic: (topicId: string, topicData: {
+    topicNumber?: number;
+    title?: string;
+    content?: string;
+    description?: string;
+    deadline?: string;
+    points?: number;
+    bonusPoints?: number;
+    isReleased?: boolean;
+  }) => api.put(`/admin/topics/${topicId}`, topicData),
+  
+  getTopicAnswers: (topicId: string) => api.get(`/admin/topics/${topicId}/answers`),
+  
+  releaseTopic: (topicId: string) => api.post(`/admin/topics/${topicId}/release`),
+  
+  deleteTopic: (topicId: string) => api.delete(`/admin/topics/${topicId}`),
+
+  // Question management (legacy)
   getAllQuestions: () => api.get('/admin/questions'),
   
   getQuestionAnswers: (questionId: number) => api.get(`/admin/questions/${questionId}/answers`),
