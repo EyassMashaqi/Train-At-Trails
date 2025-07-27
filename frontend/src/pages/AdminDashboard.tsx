@@ -478,7 +478,25 @@ const AdminDashboard: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-medium text-gray-900">Module Management</h3>
           <button
-            onClick={() => setShowCreateModuleModal(true)}
+            onClick={() => {
+              // Calculate the next available module number
+              const usedNumbers = modules.map(m => m.moduleNumber).sort((a, b) => a - b);
+              let nextNumber = 1;
+              for (const num of usedNumbers) {
+                if (num === nextNumber) {
+                  nextNumber++;
+                } else {
+                  break;
+                }
+              }
+              
+              setModuleForm({
+                moduleNumber: nextNumber,
+                title: '',
+                description: ''
+              });
+              setShowCreateModuleModal(true);
+            }}
             className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center"
           >
             <span className="mr-2">➕</span>
@@ -560,7 +578,27 @@ const AdminDashboard: React.FC = () => {
                             <p className="text-gray-600 text-sm mb-4">No assignments created yet</p>
                             <button
                               onClick={() => {
+                                // Calculate the next available assignment number for this module
+                                const usedNumbers = module.topics?.map(t => t.topicNumber).sort((a, b) => a - b) || [];
+                                let nextNumber = 1;
+                                for (const num of usedNumbers) {
+                                  if (num === nextNumber) {
+                                    nextNumber++;
+                                  } else {
+                                    break;
+                                  }
+                                }
+                                
                                 setSelectedModuleForTopic(module.id);
+                                setTopicForm({
+                                  topicNumber: nextNumber,
+                                  title: '',
+                                  content: '',
+                                  description: '',
+                                  deadline: '',
+                                  points: 100,
+                                  bonusPoints: 50
+                                });
                                 setShowCreateTopicModal(true);
                               }}
                               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
@@ -676,7 +714,27 @@ const AdminDashboard: React.FC = () => {
                             <div className="bg-white/60 rounded-lg border-2 border-dashed border-blue-300 p-4">
                               <button
                                 onClick={() => {
+                                  // Calculate the next available assignment number for this module
+                                  const usedNumbers = module.topics?.map(t => t.topicNumber).sort((a, b) => a - b) || [];
+                                  let nextNumber = 1;
+                                  for (const num of usedNumbers) {
+                                    if (num === nextNumber) {
+                                      nextNumber++;
+                                    } else {
+                                      break;
+                                    }
+                                  }
+                                  
                                   setSelectedModuleForTopic(module.id);
+                                  setTopicForm({
+                                    topicNumber: nextNumber,
+                                    title: '',
+                                    content: '',
+                                    description: '',
+                                    deadline: '',
+                                    points: 100,
+                                    bonusPoints: 50
+                                  });
                                   setShowCreateTopicModal(true);
                                 }}
                                 className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
