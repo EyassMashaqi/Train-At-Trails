@@ -122,7 +122,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔐 Attempting login for:', email);
       console.log('🌐 API Base URL:', api.defaults.baseURL);
-      const response = await api.post('/auth/login', { email, password });
+      
+      // Basic client-side validation
+      if (!email || !password) {
+        toast.error('Please enter both email and password');
+        return false;
+      }
+
+      const response = await api.post('/auth/login', { 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
       const { user: userData, token: userToken, refreshToken } = response.data;
 
       console.log('✅ Login successful:', userData.fullName);
@@ -131,18 +141,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (error: unknown) {
       console.error('❌ Login failed:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        response: (error as { response?: { data?: unknown } })?.response?.data,
-        status: (error as { response?: { status?: number } })?.response?.status
-      });
       
-      const message = error && typeof error === 'object' && 'response' in error &&
-        typeof (error as { response: unknown }).response === 'object' &&
-        (error as { response: { data?: { error?: string } } }).response?.data?.error
-        ? (error as { response: { data: { error: string } } }).response.data.error
-        : 'Login failed';
-      toast.error(message);
+      // Extract error details
+      const axiosError = error as {
+        response?: {
+          status?: number;
+          data?: {
+            error?: string;
+            code?: string;
+          };
+        };
+        message?: string;
+      };
+
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (axiosError.response?.data?.error) {
+        errorMessage = axiosError.response.data.error;
+      } else if (axiosError.response?.status === 400) {
+        errorMessage = 'Please check your email and password format.';
+      } else if (axiosError.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (axiosError.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (axiosError.message?.includes('Network Error')) {
+        errorMessage = 'Unable to connect to server. Please check your internet connection.';
+      }
+
+      console.error('Login error details:', {
+        status: axiosError.response?.status,
+        error: axiosError.response?.data?.error,
+        code: axiosError.response?.data?.code,
+        message: axiosError.message
+      });
+
+      toast.error(errorMessage);
       return false;
     }
   };

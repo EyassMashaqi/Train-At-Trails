@@ -7,6 +7,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '' });
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -22,17 +23,47 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    
+    // Clear previous errors
+    setErrors({ email: '', password: '' });
+    
+    // Client-side validation
+    const newErrors = { email: '', password: '' };
+    
+    if (!email.trim()) {
+      newErrors.email = 'Please enter your email address';
+    } else {
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        newErrors.email = 'Please enter a valid email address';
+      }
+    }
+    
+    if (!password) {
+      newErrors.password = 'Please enter your password';
+    }
+
+    if (newErrors.email || newErrors.password) {
+      setErrors(newErrors);
+      if (newErrors.email) toast.error(newErrors.email);
+      if (newErrors.password) toast.error(newErrors.password);
+      return;
+    }
 
     setLoading(true);
-    const success = await login(email, password);
-    setLoading(false);
-
-    if (success) {
-      // Navigate to dashboard after successful login
-      navigate('/dashboard');
-    } else {
-      toast.error('Login failed. Please check your credentials.');
+    try {
+      const success = await login(email.trim(), password);
+      if (success) {
+        // Navigate to dashboard after successful login
+        navigate('/dashboard');
+      }
+      // Error handling is done in the login function
+    } catch (error) {
+      console.error('Unexpected login error:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,6 +80,26 @@ const Login: React.FC = () => {
           <p className="mt-2 text-sm text-gray-600">
             Sign in to continue your trail journey
           </p>
+        </div>
+
+        {/* Test Accounts Info */}
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <span className="text-blue-400 text-lg">ℹ️</span>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">Test Accounts</h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <p className="mb-1">
+                  <strong>Admin:</strong> admin@traintrails.com / admin123
+                </p>
+                <p>
+                  <strong>User:</strong> test@traintrails.com / test123
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg" onSubmit={handleSubmit}>
@@ -68,11 +119,23 @@ const Login: React.FC = () => {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) {
+                      setErrors(prev => ({ ...prev, email: '' }));
+                    }
+                  }}
+                  className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
+                    errors.email 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="Enter your email"
                 />
               </div>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+              )}
             </div>
 
             <div>
@@ -90,11 +153,23 @@ const Login: React.FC = () => {
                   autoComplete="current-password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errors.password) {
+                      setErrors(prev => ({ ...prev, password: '' }));
+                    }
+                  }}
+                  className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
+                    errors.password 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="Enter your password"
                 />
               </div>
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
             </div>
           </div>
 

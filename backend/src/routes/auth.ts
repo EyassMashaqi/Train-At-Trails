@@ -82,24 +82,51 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate input
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      console.log('❌ Login attempt failed: Missing email or password');
+      return res.status(400).json({ 
+        error: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
+      });
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.log('❌ Login attempt failed: Invalid email format:', email);
+      return res.status(400).json({ 
+        error: 'Please enter a valid email address',
+        code: 'INVALID_EMAIL_FORMAT'
+      });
+    }
+
+    console.log('🔍 Login attempt for email:', email);
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email: email.toLowerCase().trim() }
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      console.log('❌ Login failed: User not found for email:', email);
+      return res.status(401).json({ 
+        error: 'No account found with this email address. Please check your email or register for a new account.',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      console.log('❌ Login failed: Incorrect password for email:', email);
+      return res.status(401).json({ 
+        error: 'Incorrect password. Please check your password and try again.',
+        code: 'INVALID_PASSWORD'
+      });
     }
+
+    console.log('✅ Login successful for user:', user.fullName, '(', user.email, ')');
 
     // Generate JWT token
     const token = jwt.sign(
@@ -117,8 +144,11 @@ router.post('/login', async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Failed to login' });
+    console.error('❌ Login error (unexpected):', error);
+    res.status(500).json({ 
+      error: 'An unexpected error occurred during login. Please try again.',
+      code: 'INTERNAL_ERROR'
+    });
   }
 });
 

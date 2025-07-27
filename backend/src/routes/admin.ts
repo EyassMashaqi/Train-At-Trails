@@ -175,10 +175,20 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
 
     // If approved, update user's progress
     if (status === 'APPROVED') {
+      let newStep = answer.user.currentStep;
+      
+      // Update progress based on question or topic
+      if (answer.question) {
+        newStep = Math.max(answer.user.currentStep, answer.question.questionNumber);
+      } else if (answer.topicId) {
+        // For topics, we could implement a different progress calculation
+        newStep = answer.user.currentStep + 1;
+      }
+      
       await prisma.user.update({
         where: { id: answer.userId },
         data: {
-          currentStep: Math.max(answer.user.currentStep, answer.question.questionNumber)
+          currentStep: newStep
         }
       });
     }

@@ -11,6 +11,7 @@ import adminRoutes from './routes/admin';
 
 // Import services
 import { startQuestionScheduler } from './services/questionScheduler';
+import { startModuleTopicScheduler } from './services/moduleTopicScheduler';
 
 // Load environment variables
 dotenv.config();
@@ -75,8 +76,11 @@ app.listen(PORT, () => {
   console.log(`🚂 Train at Trails server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
   
-  // Start the question release scheduler
+  // Start the question release scheduler (legacy system)
   startQuestionScheduler();
+  
+  // Start the module/topic release scheduler (new system)
+  startModuleTopicScheduler();
 });
 
 export default app;

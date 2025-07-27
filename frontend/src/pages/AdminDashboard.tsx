@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
@@ -36,13 +35,53 @@ interface GameStats {
   averageProgress: number;
 }
 
+interface Question {
+  id: number;
+  questionNumber: number;
+  title: string;
+  description: string;
+  deadline: string;
+  points: number;
+  bonusPoints: number;
+  isReleased: boolean;
+  releasedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  answers?: QuestionAnswer[];
+}
+
+interface QuestionAnswer {
+  id: number;
+  content: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: string;
+  reviewedAt?: string;
+  feedback?: string;
+  pointsAwarded?: number;
+  user: {
+    id: number;
+    fullName: string;
+    trainName: string;
+    email: string;
+  };
+}
+
+interface QuestionFormData {
+  questionNumber: number;
+  title: string;
+  description: string;
+  deadline: string;
+  points: number;
+  bonusPoints: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'questions'>('overview');
   
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -56,19 +95,34 @@ const AdminDashboard: React.FC = () => {
     feedback: ''
   });
 
+  // Question management state
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
+  const [questionForm, setQuestionForm] = useState<QuestionFormData>({
+    questionNumber: 1,
+    title: '',
+    description: '',
+    deadline: '',
+    points: 100,
+    bonusPoints: 50
+  });
+
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
-      const [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+      const [usersResponse, pendingResponse, statsResponse, questionsResponse] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getPendingAnswers(),
-        adminService.getGameStats()
+        adminService.getGameStats(),
+        adminService.getAllQuestions()
       ]);
 
       setUsers(usersResponse.data.users);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
+      setQuestions(questionsResponse.data.questions || []);
     } catch (error: unknown) {
       console.error('Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
@@ -361,6 +415,103 @@ const AdminDashboard: React.FC = () => {
     );
   };
 
+  const renderQuestions = () => {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-medium text-gray-900">Question Management</h3>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center"
+          >
+            <span className="mr-2">➕</span>
+            Create Question
+          </button>
+        </div>
+
+        {/* Questions List */}
+        <div className="space-y-4">
+          {questions.length === 0 ? (
+            <div className="text-center py-8">
+              <span className="text-4xl">📝</span>
+              <p className="mt-2 text-gray-500">No questions created yet</p>
+            </div>
+          ) : (
+            questions.map((question) => (
+              <div key={question.id} className="border rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                        Q{question.questionNumber}
+                      </span>
+                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
+                        question.isReleased 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {question.isReleased ? '✅ Released' : '⏳ Draft'}
+                      </span>
+                    </div>
+                    <h4 className="font-medium text-gray-900">{question.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{question.description}</p>
+                    <div className="flex space-x-4 mt-2 text-xs text-gray-500">
+                      <span>Points: {question.points}</span>
+                      <span>Bonus: {question.bonusPoints}</span>
+                      <span>Deadline: {new Date(question.deadline).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setExpandedQuestion(expandedQuestion === question.id ? null : question.id)}
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      {expandedQuestion === question.id ? 'Hide' : 'Show'} Answers ({question.answers?.length || 0})
+                    </button>
+                  </div>
+                </div>
+                
+                {expandedQuestion === question.id && (
+                  <div className="mt-4 border-t pt-4">
+                    <h5 className="font-medium text-gray-900 mb-2">
+                      Answers ({question.answers?.length || 0})
+                    </h5>
+                    {!question.answers || question.answers.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No answers submitted yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {question.answers.map((answer) => (
+                          <div key={answer.id} className="bg-gray-50 rounded p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="font-medium text-sm">
+                                {answer.user.fullName} ({answer.user.trainName})
+                              </span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                answer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                answer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {answer.status}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700">{answer.content}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Submitted: {new Date(answer.submittedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -390,13 +541,6 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Link
-                to="/admin/questions"
-                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex items-center shadow-lg"
-              >
-                <span className="mr-2">❓</span>
-                Manage Questions
-              </Link>
               <button
                 onClick={logout}
                 className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 flex items-center shadow-lg"
@@ -418,10 +562,11 @@ const AdminDashboard: React.FC = () => {
               { id: 'overview', name: 'Overview', icon: '📊' },
               { id: 'users', name: 'Users', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
+              { id: 'questions', name: 'Manage Questions', icon: '❓' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers')}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'questions')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -447,6 +592,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'answers' && renderPendingAnswers()}
+          {activeTab === 'questions' && renderQuestions()}
         </div>
       </div>
 
@@ -491,6 +637,114 @@ const AdminDashboard: React.FC = () => {
                 }`}
               >
                 {feedbackForm.status === 'approved' ? 'Approve with Feedback' : 'Reject with Feedback'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Question Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Create New Question</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Question Number
+                </label>
+                <input
+                  type="number"
+                  value={questionForm.questionNumber}
+                  onChange={(e) => setQuestionForm({...questionForm, questionNumber: parseInt(e.target.value) || 1})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  max="12"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Points
+                </label>
+                <input
+                  type="number"
+                  value={questionForm.points}
+                  onChange={(e) => setQuestionForm({...questionForm, points: parseInt(e.target.value) || 100})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bonus Points
+                </label>
+                <input
+                  type="number"
+                  value={questionForm.bonusPoints}
+                  onChange={(e) => setQuestionForm({...questionForm, bonusPoints: parseInt(e.target.value) || 50})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Deadline
+                </label>
+                <input
+                  type="datetime-local"
+                  value={questionForm.deadline}
+                  onChange={(e) => setQuestionForm({...questionForm, deadline: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title
+              </label>
+              <input
+                type="text"
+                value={questionForm.title}
+                onChange={(e) => setQuestionForm({...questionForm, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter question title..."
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={questionForm.description}
+                onChange={(e) => setQuestionForm({...questionForm, description: e.target.value})}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter detailed question description..."
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implement create question functionality
+                  console.log('Creating question:', questionForm);
+                  setShowCreateModal(false);
+                }}
+                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
+              >
+                Create Question
               </button>
             </div>
           </div>
