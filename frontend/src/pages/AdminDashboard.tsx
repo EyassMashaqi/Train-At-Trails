@@ -309,7 +309,7 @@ const AdminDashboard: React.FC = () => {
                         {answer.question ? (
                           `Question ${answer.question.questionNumber}: ${answer.question.title}`
                         ) : answer.topic ? (
-                          `${answer.topic.module.title} - Topic ${answer.topic.topicNumber}: ${answer.topic.title}`
+                          `${answer.topic.module.title} - Assignment ${answer.topic.topicNumber}: ${answer.topic.title}`
                         ) : (
                           'Unknown assignment'
                         )}
@@ -436,7 +436,7 @@ const AdminDashboard: React.FC = () => {
                   {answer.question ? (
                     `Question ${answer.question.questionNumber}: ${answer.question.title}`
                   ) : answer.topic ? (
-                    `${answer.topic.module.title} - Topic ${answer.topic.topicNumber}: ${answer.topic.title}`
+                    `${answer.topic.module.title} - Assignment ${answer.topic.topicNumber}: ${answer.topic.title}`
                   ) : (
                     'Unknown assignment'
                   )}
@@ -521,7 +521,7 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-sm text-gray-600">{module.description}</p>
                           <div className="flex space-x-4 mt-1 text-xs text-gray-500">
                             <span>Module {module.moduleNumber}</span>
-                            <span>Topics: {module.topics?.length || 0}</span>
+                            <span>Assignments: {module.topics?.length || 0}</span>
                             <span>Total Points: {module.topics?.reduce((sum, topic) => sum + topic.points, 0) || 0}</span>
                           </div>
                         </div>
@@ -545,42 +545,44 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Module Topics - Expandable */}
+                {/* Module Assignments - Expandable */}
                 {expandedModule === module.id && (
-                  <div className="border-t bg-gray-50">
-                    <div className="p-4">
-                      <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                        <span className="mr-2">📋</span>
-                        Topics ({module.topics?.length || 0})
+                  <div className="border-t-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="p-6 border-l-4 border-blue-400">
+                      <h5 className="font-medium text-gray-900 mb-4 flex items-center bg-white/70 rounded-lg p-3 shadow-sm">
+                        <span className="mr-2 text-lg">📋</span>
+                        <span className="text-blue-800 font-semibold">Assignments ({module.topics?.length || 0})</span>
                       </h5>
                       
                       {!module.topics || module.topics.length === 0 ? (
-                        <div className="text-center py-4">
-                          <p className="text-gray-500 text-sm mb-3">No topics created yet</p>
-                          <button
-                            onClick={() => {
-                              setSelectedModuleForTopic(module.id);
-                              setShowCreateTopicModal(true);
-                            }}
-                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
-                          >
-                            ➕ Create First Topic
-                          </button>
+                        <div className="text-center py-6 bg-white/60 rounded-lg border-2 border-dashed border-blue-300">
+                          <div className="bg-white rounded-lg p-4 shadow-sm max-w-sm mx-auto">
+                            <p className="text-gray-600 text-sm mb-4">No assignments created yet</p>
+                            <button
+                              onClick={() => {
+                                setSelectedModuleForTopic(module.id);
+                                setShowCreateTopicModal(true);
+                              }}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                            >
+                              ➕ Create First Assignment
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           {module.topics.map((topic) => (
-                            <div key={topic.id} className="bg-white rounded-lg border">
-                              {/* Topic Header - Foldable */}
+                            <div key={topic.id} className="bg-white rounded-lg border-2 border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                              {/* Assignment Header - Foldable */}
                               <div 
-                                className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                                className="p-4 cursor-pointer hover:bg-blue-50 transition-colors rounded-t-lg"
                                 onClick={() => setExpandedTopic(expandedTopic === topic.id ? null : topic.id)}
                               >
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <div className="flex items-center space-x-2 mb-1">
                                       <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                                        Topic {topic.topicNumber}
+                                        Assignment {topic.topicNumber}
                                       </span>
                                       <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
                                         topic.isReleased 
@@ -625,9 +627,9 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                               </div>
 
-                              {/* Topic Answers - Expandable */}
+                              {/* Assignment Answers - Expandable */}
                               {expandedTopic === topic.id && (
-                                <div className="border-t bg-gray-50 p-3">
+                                <div className="border-t-2 border-gray-200 bg-gray-50 p-4 rounded-b-lg">
                                   <h6 className="font-medium text-gray-900 mb-2 flex items-center">
                                     <span className="mr-2">💬</span>
                                     Answers ({topic.answers?.length || 0})
@@ -669,17 +671,19 @@ const AdminDashboard: React.FC = () => {
                             </div>
                           ))}
                           
-                          {/* Add Topic Button */}
-                          <div className="text-center pt-2">
-                            <button
-                              onClick={() => {
-                                setSelectedModuleForTopic(module.id);
-                                setShowCreateTopicModal(true);
-                              }}
-                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
-                            >
-                              ➕ Add Another Topic
-                            </button>
+                          {/* Add Assignment Button */}
+                          <div className="text-center pt-4">
+                            <div className="bg-white/60 rounded-lg border-2 border-dashed border-blue-300 p-4">
+                              <button
+                                onClick={() => {
+                                  setSelectedModuleForTopic(module.id);
+                                  setShowCreateTopicModal(true);
+                                }}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                              >
+                                ➕ Add Another Assignment
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -829,18 +833,18 @@ const AdminDashboard: React.FC = () => {
       {showCreateTopicModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Create New Topic</h3>
+            <h3 className="text-lg font-semibold mb-4">Create New Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-600 mb-4">
-                  Creating topic for module: <strong>{modules.find(m => m.id === selectedModuleForTopic)?.title || 'Unknown Module'}</strong>
+                  Creating assignment for module: <strong>{modules.find(m => m.id === selectedModuleForTopic)?.title || 'Unknown Module'}</strong>
                 </p>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Topic Number
+                  Assignment Number
                 </label>
                 <input
                   type="number"
@@ -893,7 +897,7 @@ const AdminDashboard: React.FC = () => {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Topic Title
+                Assignment Title
               </label>
               <input
                 type="text"
@@ -907,7 +911,7 @@ const AdminDashboard: React.FC = () => {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Topic Description
+                Assignment Description
               </label>
               <textarea
                 value={topicForm.description}
@@ -921,7 +925,7 @@ const AdminDashboard: React.FC = () => {
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Topic Content
+                Assignment Content
               </label>
               <textarea
                 value={topicForm.content}
@@ -960,7 +964,7 @@ const AdminDashboard: React.FC = () => {
                       )
                     );
                     
-                    toast.success('Topic created successfully!');
+                    toast.success('Assignment created successfully!');
                     setShowCreateTopicModal(false);
                     setTopicForm({
                       topicNumber: 1,
@@ -974,12 +978,12 @@ const AdminDashboard: React.FC = () => {
                     setSelectedModuleForTopic('');
                   } catch (error) {
                     console.error('Error creating topic:', error);
-                    toast.error('Failed to create topic');
+                    toast.error('Failed to create assignment');
                   }
                 }}
                 className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
               >
-                Create Topic
+                Create Assignment
               </button>
             </div>
           </div>
@@ -1097,18 +1101,24 @@ const AdminDashboard: React.FC = () => {
                       isReleased: selectedModule.isReleased
                     });
                     
+                    // The response should contain the updated module with all its data
                     const updatedModule = response.data;
                     
-                    // Update modules state
+                    // Update modules state, preserving existing topics if they're not in the response
                     setModules(prevModules => 
                       prevModules.map(module => 
-                        module.id === selectedModule.id ? updatedModule : module
+                        module.id === selectedModule.id 
+                          ? { ...updatedModule, topics: updatedModule.topics || module.topics }
+                          : module
                       )
                     );
                     
                     toast.success('Module updated successfully!');
                     setShowEditModuleModal(false);
                     setSelectedModule(null);
+                    
+                    // Refresh data to ensure consistency
+                    await loadAdminData();
                   } catch (error) {
                     console.error('Error updating module:', error);
                     toast.error('Failed to update module');
@@ -1120,7 +1130,7 @@ const AdminDashboard: React.FC = () => {
               </button>
               <button
                 onClick={async () => {
-                  if (window.confirm('Are you sure you want to delete this module? This will also delete all topics within it.')) {
+                  if (window.confirm('Are you sure you want to delete this module? This will also delete all assignments within it.')) {
                     try {
                       await adminService.deleteModule(selectedModule.id);
                       
@@ -1151,12 +1161,12 @@ const AdminDashboard: React.FC = () => {
       {showEditTopicModal && selectedTopic && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Edit Topic</h3>
+            <h3 className="text-lg font-semibold mb-4">Edit Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Topic Number
+                  Assignment Number
                 </label>
                 <input
                   type="number"
@@ -1295,17 +1305,20 @@ const AdminDashboard: React.FC = () => {
                       prevModules.map(module => ({
                         ...module,
                         topics: module.topics.map(topic => 
-                          topic.id === selectedTopic.id ? updatedTopic : topic
+                          topic.id === selectedTopic.id ? { ...updatedTopic, answers: topic.answers } : topic
                         )
                       }))
                     );
                     
-                    toast.success('Topic updated successfully!');
+                    toast.success('Assignment updated successfully!');
                     setShowEditTopicModal(false);
                     setSelectedTopic(null);
+                    
+                    // Refresh data to ensure consistency
+                    await loadAdminData();
                   } catch (error) {
-                    console.error('Error updating topic:', error);
-                    toast.error('Failed to update topic');
+                    console.error('Error updating assignment:', error);
+                    toast.error('Failed to update assignment');
                   }
                 }}
                 className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
@@ -1314,7 +1327,7 @@ const AdminDashboard: React.FC = () => {
               </button>
               <button
                 onClick={async () => {
-                  if (window.confirm('Are you sure you want to delete this topic?')) {
+                  if (window.confirm('Are you sure you want to delete this assignment?')) {
                     try {
                       await adminService.deleteTopic(selectedTopic.id);
                       
@@ -1326,18 +1339,18 @@ const AdminDashboard: React.FC = () => {
                         }))
                       );
                       
-                      toast.success('Topic deleted successfully!');
+                      toast.success('Assignment deleted successfully!');
                       setShowEditTopicModal(false);
                       setSelectedTopic(null);
                     } catch (error) {
-                      console.error('Error deleting topic:', error);
-                      toast.error('Failed to delete topic');
+                      console.error('Error deleting assignment:', error);
+                      toast.error('Failed to delete assignment');
                     }
                   }
                 }}
                 className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200"
               >
-                Delete Topic
+                Delete Assignment
               </button>
             </div>
           </div>
