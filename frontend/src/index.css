@@ -33,4 +33,25 @@
   .trail-connection.completed {
     @apply bg-green-500;
   }
+
+  /* Logo styling */
+  .lighthouse-logo {
+    @apply rounded-full object-cover shadow-lg border-4 border-blue-200 transition-all duration-300;
+    background: linear-gradient(145deg, #ffffff, #f0f9ff);
+  }
+  
+  .lighthouse-logo:hover {
+    @apply transform scale-105 border-blue-300;
+    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.2);
+  }
+  
+  .bvisionary-logo {
+    @apply object-contain rounded-lg transition-all duration-300;
+    /* No background, gradient, or shadow for BVisionRY images */
+  }
+  
+  .bvisionary-logo:hover {
+    @apply transform scale-105;
+    /* No shadow on hover either */
+  }
 }

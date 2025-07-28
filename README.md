@@ -105,7 +105,7 @@ npm run dev
 
 # Or start individually:
 npm run dev:frontend  # Starts React dev server (port 5173)
-npm run dev:backend   # Starts Express server (port 3001)
+npm run dev:backend   # Starts Express server (port 3000)
 ```
 
 ## 📝 Default Accounts
@@ -187,7 +187,7 @@ JWT_SECRET="your-super-secure-jwt-secret-key"
 JWT_EXPIRES_IN="7d"
 
 # Server
-PORT=3001
+PORT=3000
 NODE_ENV="development"
 
 # Admin Account
@@ -203,7 +203,7 @@ QUESTION_RELEASE_INTERVAL_HOURS=48
 Create a `.env` file in the `frontend` directory:
 
 ```env
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:3000/api
 ```
 
 ## 🚀 Deployment

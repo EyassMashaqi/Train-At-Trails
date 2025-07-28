@@ -41,7 +41,7 @@ async function main() {
     {
       questionNumber: 1,
       title: "Welcome Aboard!",
-      content: "Welcome to Train at Trails! This is your first challenge. Tell us about yourself and why you're excited to be part of this journey. What do you hope to achieve through this experience?"
+      content: "Welcome to BVisionRY Lighthouse! This is your first challenge. Tell us about yourself and why you're excited to be part of this journey. What do you hope to achieve through this experience?"
     },
     {
       questionNumber: 2,

@@ -17,8 +17,17 @@ CREATE TABLE "questions" (
     "questionNumber" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "deadline" DATETIME NOT NULL,
+    "points" INTEGER NOT NULL DEFAULT 100,
+    "bonusPoints" INTEGER NOT NULL DEFAULT 50,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "isReleased" BOOLEAN NOT NULL DEFAULT false,
     "releaseDate" DATETIME,
+    "releasedAt" DATETIME,
+    "moduleNumber" INTEGER,
+    "topicNumber" INTEGER,
+    "category" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -32,10 +41,11 @@ CREATE TABLE "answers" (
     "reviewedAt" DATETIME,
     "reviewedBy" TEXT,
     "feedback" TEXT,
+    "pointsAwarded" INTEGER,
     "userId" TEXT NOT NULL,
     "questionId" TEXT NOT NULL,
-    CONSTRAINT "answers_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "answers_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "questions" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "answers_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "questions" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "answers_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -52,6 +62,3 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "questions_questionNumber_key" ON "questions"("questionNumber");
-
--- CreateIndex
-CREATE UNIQUE INDEX "answers_userId_questionId_key" ON "answers"("userId", "questionId");

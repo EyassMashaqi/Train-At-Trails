@@ -1,7 +1,7 @@
 {
   "name": "train-at-trails",
   "version": "1.0.0",
-  "description": "Train at Trails - A gamification web application",
+  "description": "BVisionRY Lighthouse - A gamification web application",
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",

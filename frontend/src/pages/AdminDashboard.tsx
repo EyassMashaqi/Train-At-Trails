@@ -296,7 +296,7 @@ const AdminDashboard: React.FC = () => {
 
         {pendingAnswers.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Recent Pending Answers</h3>
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">In Review</h3>
             <div className="space-y-4">
               {pendingAnswers.slice(0, 3).map((answer) => (
                 <div key={answer.id} className="border border-gray-200 rounded-md p-4">
@@ -418,7 +418,7 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-lg p-6 text-center">
           <span className="text-4xl">🎉</span>
           <h3 className="text-xl font-semibold text-gray-800 mt-4 mb-2">All Caught Up!</h3>
-          <p className="text-gray-600">No pending answers to review.</p>
+          <p className="text-gray-600">No answers to review.</p>
         </div>
       );
     }

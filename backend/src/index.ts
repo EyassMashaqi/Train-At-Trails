@@ -11,7 +11,7 @@ import adminRoutes from './routes/admin';
 
 // Import services
 import { startQuestionScheduler } from './services/questionScheduler';
-import { startModuleTopicScheduler } from './services/moduleTopicScheduler';
+// import { startModuleTopicScheduler } from './services/moduleTopicScheduler'; // Disabled - using simplified Question-based system
 
 // Load environment variables
 dotenv.config();
@@ -34,7 +34,7 @@ app.use(limiter);
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://your-frontend-domain.com'] 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5178', 'http://localhost:3000'],
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5178', 'http://localhost:3000'],
   credentials: true
 }));
 
@@ -73,14 +73,14 @@ app.use('*', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚂 Train at Trails server running on port ${PORT}`);
+  console.log(`🏮 BVisionRY Lighthouse server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
   
-  // Start the question release scheduler (legacy system)
+  // Start the question release scheduler
   startQuestionScheduler();
   
-  // Start the module/topic release scheduler (new system)
-  startModuleTopicScheduler();
+  // Module/topic scheduler disabled - using simplified Question-based system
+  // startModuleTopicScheduler();
 });
 
 export default app;

@@ -177,12 +177,9 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
     if (status === 'APPROVED') {
       let newStep = answer.user.currentStep;
       
-      // Update progress based on question or topic
+      // Update progress based on question only (since topicId doesn't exist in current schema)
       if (answer.question) {
         newStep = Math.max(answer.user.currentStep, answer.question.questionNumber);
-      } else if (answer.topicId) {
-        // For topics, we could implement a different progress calculation
-        newStep = answer.user.currentStep + 1;
       }
       
       await prisma.user.update({
@@ -336,36 +333,134 @@ router.delete('/questions/:questionId', async (req: AuthRequest, res) => {
   }
 });
 
+// Update question
+router.put('/questions/:questionId', async (req: AuthRequest, res) => {
+  try {
+    const questionId = req.params.questionId;
+    const { 
+      questionNumber,
+      title, 
+      content,
+      description, 
+      deadline, 
+      points, 
+      bonusPoints,
+      isReleased,
+      isActive,
+      moduleNumber,
+      topicNumber
+    } = req.body;
+
+    // Find the question by ID
+    const question = await prisma.question.findUnique({
+      where: { id: questionId }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (questionNumber !== undefined) updateData.questionNumber = parseInt(questionNumber);
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (description !== undefined) updateData.description = description;
+    if (deadline !== undefined) updateData.deadline = new Date(deadline);
+    if (points !== undefined) updateData.points = parseInt(points);
+    if (bonusPoints !== undefined) updateData.bonusPoints = parseInt(bonusPoints);
+    if (moduleNumber !== undefined) updateData.moduleNumber = parseInt(moduleNumber);
+    if (topicNumber !== undefined) updateData.topicNumber = parseInt(topicNumber);
+    if (typeof isReleased === 'boolean') {
+      updateData.isReleased = isReleased;
+      if (isReleased && !question.isReleased) {
+        updateData.releasedAt = new Date();
+      }
+    }
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+
+    const updatedQuestion = await prisma.question.update({
+      where: { id: questionId },
+      data: updateData
+    });
+
+    res.json({ question: updatedQuestion });
+  } catch (error) {
+    console.error('Update question error:', error);
+    res.status(500).json({ error: 'Failed to update question' });
+  }
+});
+
 // ========================================
 // MODULE AND TOPIC MANAGEMENT ROUTES
 // ========================================
 
-// Get all modules with their topics
+// Get all modules with their topics (compatibility endpoint - uses Questions organized by moduleNumber)
 router.get('/modules', async (req: AuthRequest, res) => {
   try {
-    const modules = await prisma.module.findMany({
+    // Get all questions and group them by moduleNumber
+    const questions = await prisma.question.findMany({
       include: {
-        topics: {
+        answers: {
           include: {
-            answers: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    fullName: true,
-                    trainName: true,
-                    email: true
-                  }
-                }
-              },
-              orderBy: { submittedAt: 'desc' }
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                trainName: true,
+                email: true
+              }
             }
           },
-          orderBy: { topicNumber: 'asc' }
+          orderBy: { submittedAt: 'desc' }
         }
       },
-      orderBy: { moduleNumber: 'asc' }
+      orderBy: [
+        { moduleNumber: 'asc' },
+        { questionNumber: 'asc' }
+      ]
     });
+
+    // Group questions by module number
+    const moduleGroups = questions.reduce((acc, question) => {
+      const moduleNum = question.moduleNumber || 1; // Default to module 1 if not set
+      if (!acc[moduleNum]) {
+        acc[moduleNum] = [];
+      }
+      acc[moduleNum].push(question);
+      return acc;
+    }, {} as Record<number, any[]>);
+
+    // Convert to module format that frontend expects
+    const modules = Object.entries(moduleGroups).map(([moduleNum, moduleQuestions]) => ({
+      id: `module-${moduleNum}`,
+      moduleNumber: parseInt(moduleNum),
+      title: `Adventure ${moduleNum}`,
+      description: `Training module ${moduleNum}`,
+      isReleased: moduleQuestions.some(q => q.isReleased),
+      isActive: moduleQuestions.some(q => q.isActive),
+      releaseDate: moduleQuestions[0]?.releaseDate,
+      releasedAt: moduleQuestions[0]?.releasedAt,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      topics: moduleQuestions.map(question => ({
+        id: question.id,
+        topicNumber: question.topicNumber || question.questionNumber,
+        title: question.title,
+        content: question.content,
+        description: question.description,
+        isReleased: question.isReleased,
+        isActive: question.isActive,
+        releaseDate: question.releaseDate,
+        releasedAt: question.releasedAt,
+        deadline: question.deadline,
+        points: question.points,
+        bonusPoints: question.bonusPoints,
+        createdAt: question.createdAt,
+        updatedAt: question.updatedAt,
+        answers: question.answers
+      }))
+    }));
 
     res.json({ modules });
   } catch (error) {
@@ -374,7 +469,93 @@ router.get('/modules', async (req: AuthRequest, res) => {
   }
 });
 
-// Create a new module
+// Create a new module (mapped to creating a placeholder question)
+router.post('/modules', async (req: AuthRequest, res) => {
+  try {
+    const { 
+      moduleNumber,
+      title, 
+      description 
+    } = req.body;
+
+    // Validate required fields
+    if (!moduleNumber || !title || !description) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: moduleNumber, title, description' 
+      });
+    }
+
+    // Check if module number already has questions
+    const existingQuestions = await prisma.question.findMany({
+      where: { moduleNumber: parseInt(moduleNumber) }
+    });
+
+    if (existingQuestions.length > 0) {
+      return res.status(400).json({ 
+        error: `Module ${moduleNumber} already has questions` 
+      });
+    }
+
+    // Use a transaction to safely calculate and create the question
+    const question = await prisma.$transaction(async (tx) => {
+      // Get the highest questionNumber within the transaction
+      const lastQuestion = await tx.question.findFirst({
+        orderBy: { questionNumber: 'desc' }
+      });
+      const nextQuestionNumber = lastQuestion ? lastQuestion.questionNumber + 1 : 1;
+
+      // Create a placeholder question for this module
+      return await tx.question.create({
+        data: {
+          questionNumber: nextQuestionNumber,
+          title: `${title} - Topic 1`,
+          content: description,
+          description: description,
+          deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          points: 100,
+          bonusPoints: 50,
+          isActive: false,
+          isReleased: false,
+          moduleNumber: parseInt(moduleNumber),
+          topicNumber: 1
+        }
+      });
+    });
+
+    // Return module-like response
+    const module = {
+      id: `module-${moduleNumber}`,
+      moduleNumber: parseInt(moduleNumber),
+      title,
+      description,
+      isReleased: false,
+      isActive: false,
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt,
+      topics: [{
+        id: question.id,
+        topicNumber: 1,
+        title: question.title,
+        content: question.content,
+        description: question.description,
+        isReleased: question.isReleased,
+        deadline: question.deadline,
+        points: question.points,
+        bonusPoints: question.bonusPoints,
+        createdAt: question.createdAt,
+        updatedAt: question.updatedAt
+      }]
+    };
+
+    res.status(201).json({ module });
+  } catch (error) {
+    console.error('Create module error:', error);
+    res.status(500).json({ error: 'Failed to create module' });
+  }
+});
+
+// Create a new module (DISABLED - Module model not in current schema)
+/*
 router.post('/modules', async (req: AuthRequest, res) => {
   try {
     const { 
@@ -419,8 +600,9 @@ router.post('/modules', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to create module' });
   }
 });
+*/
 
-// Update a module
+// Update a module (compatibility endpoint - updates all questions in the module)
 router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -428,36 +610,49 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
       moduleNumber,
       title, 
       description, 
-      deadline,
       isActive,
       isReleased
     } = req.body;
 
-    const module = await prisma.module.findUnique({
-      where: { id: moduleId }
-    });
-
-    if (!module) {
-      return res.status(404).json({ error: 'Module not found' });
+    // Extract module number from moduleId (format: "module-X")
+    const moduleNum = parseInt(moduleId.replace('module-', ''));
+    
+    if (isNaN(moduleNum)) {
+      return res.status(400).json({ error: 'Invalid module ID format' });
     }
 
-    const updatedModule = await prisma.module.update({
-      where: { id: moduleId },
-      data: {
-        ...(moduleNumber && { moduleNumber: parseInt(moduleNumber) }),
-        ...(title && { title }),
-        ...(description && { description }),
-        ...(deadline && { deadline: new Date(deadline) }),
-        ...(typeof isActive === 'boolean' && { isActive }),
-        ...(typeof isReleased === 'boolean' && { isReleased }),
-        ...(isReleased && !module.isReleased && { releaseDate: new Date() })
-      },
-      include: {
-        topics: {
-          orderBy: { topicNumber: 'asc' }
-        }
+    // Find all questions in this module
+    const questions = await prisma.question.findMany({
+      where: { 
+        moduleNumber: moduleNum 
       }
     });
+
+    if (questions.length === 0) {
+      return res.status(404).json({ error: 'Module not found or has no questions' });
+    }
+
+    // Update all questions in this module
+    const updateData: any = {};
+    if (moduleNumber) updateData.moduleNumber = parseInt(moduleNumber);
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (isReleased !== undefined) updateData.isReleased = isReleased;
+
+    const updatedQuestions = await prisma.question.updateMany({
+      where: { moduleNumber: moduleNum },
+      data: updateData
+    });
+
+    // Return module-like response
+    const updatedModule = {
+      id: moduleId,
+      moduleNumber: moduleNumber || moduleNum,
+      title: title || `Adventure ${moduleNumber || moduleNum}`,
+      description: description || `Training module ${moduleNumber || moduleNum}`,
+      isActive: isActive !== undefined ? isActive : questions[0].isActive,
+      isReleased: isReleased !== undefined ? isReleased : questions[0].isReleased,
+      updatedAt: new Date()
+    };
 
     res.json({ module: updatedModule });
   } catch (error) {
@@ -466,7 +661,8 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
   }
 });
 
-// Delete a module
+// Delete a module (DISABLED - Module model not in current schema)
+/*
 router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -505,7 +701,7 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   }
 });
 
-// Get topics for a specific module
+// Get topics for a specific module (DISABLED - Topic model not in current schema)
 router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -544,7 +740,7 @@ router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   }
 });
 
-// Get answers for a specific topic
+// Get answers for a specific topic (DISABLED - Topic model not in current schema)
 router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
@@ -582,7 +778,7 @@ router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
   }
 });
 
-// Create a new topic within a module
+// Create a new topic within a module (mapped to creating a question)
 router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -603,24 +799,72 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       });
     }
 
-    // Check if module exists
-    const module = await prisma.module.findUnique({
-      where: { id: moduleId }
-    });
-
-    if (!module) {
-      return res.status(404).json({ error: 'Module not found' });
+    // Extract module number from moduleId (format: "module-X")
+    const moduleNumber = parseInt(moduleId.replace('module-', ''));
+    if (isNaN(moduleNumber)) {
+      return res.status(400).json({ error: 'Invalid module ID format' });
     }
 
-    // Check if topic number already exists in this module
-    const existingTopic = await prisma.topic.findFirst({
+    // Check if topic/question number already exists in this module
+    const existingQuestion = await prisma.question.findFirst({
       where: { 
-        moduleId,
+        moduleNumber,
+        OR: [
+          { topicNumber: parseInt(topicNumber) },
+          { questionNumber: parseInt(topicNumber) }
+        ]
+      }
+    });
+
+    if (existingQuestion) {
+      return res.status(400).json({ 
+        error: `Topic ${topicNumber} already exists in this module` 
+      });
+    }
+
+    const question = await prisma.question.create({
+      data: {
+        questionNumber: parseInt(topicNumber), // Use topicNumber as questionNumber
+        title,
+        content,
+        description,
+        deadline: new Date(deadline),
+        points: parseInt(points),
+        bonusPoints: parseInt(bonusPoints) || 0,
+        isReleased: false,
+        isActive: false,
+        moduleNumber,
         topicNumber: parseInt(topicNumber)
       }
     });
 
-    if (existingTopic) {
+    // Return in topic format for compatibility
+    const topic = {
+      id: question.id,
+      topicNumber: question.topicNumber || question.questionNumber,
+      title: question.title,
+      content: question.content,
+      description: question.description,
+      deadline: question.deadline,
+      points: question.points,
+      bonusPoints: question.bonusPoints,
+      isReleased: question.isReleased,
+      isActive: question.isActive,
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt,
+      module: {
+        id: `module-${moduleNumber}`,
+        moduleNumber: moduleNumber,
+        title: `Adventure ${moduleNumber}`
+      }
+    };
+
+    res.status(201).json({ topic });
+  } catch (error) {
+    console.error('Create topic error:', error);
+    res.status(500).json({ error: 'Failed to create topic' });
+  }
+});
       return res.status(400).json({ 
         error: `Topic ${topicNumber} already exists in this module` 
       });
@@ -655,8 +899,10 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to create topic' });
   }
 });
+*/
 
-// Update a topic
+// Update a topic (DISABLED - Topic model not in current schema)
+/*
 router.put('/topics/:topicId', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
@@ -671,46 +917,66 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       isReleased
     } = req.body;
 
-    const topic = await prisma.topic.findUnique({
+    // Find the question (topic) by ID
+    const question = await prisma.question.findUnique({
       where: { id: topicId }
     });
 
-    if (!topic) {
-      return res.status(404).json({ error: 'Topic not found' });
+    if (!question) {
+      return res.status(404).json({ error: 'Assignment not found' });
     }
 
-    const updatedTopic = await prisma.topic.update({
-      where: { id: topicId },
-      data: {
-        ...(topicNumber && { topicNumber: parseInt(topicNumber) }),
-        ...(title && { title }),
-        ...(content && { content }),
-        ...(description && { description }),
-        ...(deadline && { deadline: new Date(deadline) }),
-        ...(points && { points: parseInt(points) }),
-        ...(typeof bonusPoints !== 'undefined' && { bonusPoints: parseInt(bonusPoints) }),
-        ...(typeof isReleased === 'boolean' && { isReleased }),
-        ...(isReleased && !topic.isReleased && { releasedAt: new Date() })
-      },
-      include: {
-        module: {
-          select: {
-            id: true,
-            moduleNumber: true,
-            title: true
-          }
-        }
+    // Prepare update data
+    const updateData: any = {};
+    if (topicNumber) updateData.topicNumber = parseInt(topicNumber);
+    if (title) updateData.title = title;
+    if (content) updateData.content = content;
+    if (description) updateData.description = description;
+    if (deadline) updateData.deadline = new Date(deadline);
+    if (points) updateData.points = parseInt(points);
+    if (typeof bonusPoints !== 'undefined') updateData.bonusPoints = parseInt(bonusPoints);
+    if (typeof isReleased === 'boolean') {
+      updateData.isReleased = isReleased;
+      if (isReleased && !question.isReleased) {
+        updateData.releasedAt = new Date();
       }
+    }
+
+    const updatedQuestion = await prisma.question.update({
+      where: { id: topicId },
+      data: updateData
     });
+
+    // Return in topic format for compatibility
+    const updatedTopic = {
+      id: updatedQuestion.id,
+      topicNumber: updatedQuestion.topicNumber || updatedQuestion.questionNumber,
+      title: updatedQuestion.title,
+      content: updatedQuestion.content,
+      description: updatedQuestion.description,
+      deadline: updatedQuestion.deadline,
+      points: updatedQuestion.points,
+      bonusPoints: updatedQuestion.bonusPoints,
+      isReleased: updatedQuestion.isReleased,
+      releasedAt: updatedQuestion.releasedAt,
+      isActive: updatedQuestion.isActive,
+      createdAt: updatedQuestion.createdAt,
+      updatedAt: updatedQuestion.updatedAt,
+      module: {
+        id: `module-${updatedQuestion.moduleNumber || 1}`,
+        moduleNumber: updatedQuestion.moduleNumber || 1,
+        title: `Adventure ${updatedQuestion.moduleNumber || 1}`
+      }
+    };
 
     res.json({ topic: updatedTopic });
   } catch (error) {
     console.error('Update topic error:', error);
-    res.status(500).json({ error: 'Failed to update topic' });
+    res.status(500).json({ error: 'Failed to update assignment' });
   }
 });
 
-// Release a topic
+// Release a topic (DISABLED - Topic model not in current schema)
 router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
@@ -747,7 +1013,7 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
   }
 });
 
-// Delete a topic
+// Delete a topic (DISABLED - Topic model not in current schema)
 router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
@@ -781,5 +1047,6 @@ router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to delete topic' });
   }
 });
+*/
 
 export default router;

@@ -8,59 +8,18 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String
-  fullName      String
-  trainName     String?
-  isAdmin       Boolean  @default(false)
-  currentStep   Int      @default(0)
-  currentModule Int      @default(0)
-  currentTopic  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  answers       Answer[]
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  fullName    String
+  trainName   String?
+  isAdmin     Boolean  @default(false)
+  currentStep Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  answers     Answer[]
 
   @@map("users")
-}
-
-model Module {
-  id           String    @id @default(cuid())
-  moduleNumber Int       @unique
-  title        String
-  description  String
-  isActive     Boolean   @default(false)
-  isReleased   Boolean   @default(false)
-  releaseDate  DateTime?
-  deadline     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  topics       Topic[]
-
-  @@map("modules")
-}
-
-model Topic {
-  id          String    @id @default(cuid())
-  topicNumber Int
-  title       String
-  content     String
-  description String
-  deadline    DateTime
-  points      Int       @default(100)
-  bonusPoints Int       @default(50)
-  isActive    Boolean   @default(false)
-  isReleased  Boolean   @default(false)
-  releaseDate DateTime?
-  releasedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  moduleId    String
-  answers     Answer[]
-  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-
-  @@unique([moduleId, topicNumber])
-  @@map("topics")
 }
 
 model Question {
@@ -76,6 +35,10 @@ model Question {
   isReleased     Boolean   @default(false)
   releaseDate    DateTime?
   releasedAt     DateTime?
+  // Additional fields to support module/topic concepts
+  moduleNumber   Int?      // Optional: group questions into modules
+  topicNumber    Int?      // Optional: sub-ordering within modules
+  category       String?   // Optional: categorization (e.g., "Adventure", "Problem Solving")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   answers        Answer[]
@@ -84,20 +47,22 @@ model Question {
 }
 
 model Answer {
-  id            String    @id @default(cuid())
-  content       String
-  status        String    @default("PENDING")
-  submittedAt   DateTime  @default(now())
-  reviewedAt    DateTime?
-  reviewedBy    String?
-  feedback      String?
-  pointsAwarded Int?
-  userId        String
-  questionId    String?
-  topicId       String?
-  topic         Topic?    @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  question      Question? @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(cuid())
+  content              String
+  status               String    @default("PENDING")
+  submittedAt          DateTime  @default(now())
+  reviewedAt           DateTime?
+  reviewedBy           String?
+  feedback             String?
+  pointsAwarded        Int?
+  attachmentFileName   String?   // Original filename of the attachment
+  attachmentFilePath   String?   // Server path to the uploaded file
+  attachmentFileSize   Int?      // File size in bytes
+  attachmentMimeType   String?   // MIME type of the file
+  userId               String
+  questionId           String
+  question             Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("answers")
 }

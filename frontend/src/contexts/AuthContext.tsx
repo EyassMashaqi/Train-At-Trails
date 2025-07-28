@@ -185,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { user: userData, token: userToken, refreshToken } = response.data;
 
       setAuth(userData, userToken, refreshToken);
-      toast.success(`Welcome to Train at Trails, ${userData.fullName}!`);
+      toast.success(`Welcome to BVisionRY Lighthouse, ${userData.fullName}!`);
       return true;
     } catch (error: unknown) {
       const message = error && typeof error === 'object' && 'response' in error &&

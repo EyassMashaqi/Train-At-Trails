@@ -98,14 +98,21 @@ const Login: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <span className="text-6xl">🚂</span>
+          <div className="flex flex-col items-center mb-6 space-y-6">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              BVisionRY Lighthouse
+            </h1>
+            <img 
+              src="./src/assets/Lighthouse.png" 
+              alt="Lighthouse Logo" 
+              className="w-32 h-32 lighthouse-logo"
+            />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">
             Welcome Back!
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to continue your trail journey
+            Sign in to continue your lighthouse journey
           </p>
         </div>
 
@@ -234,10 +241,10 @@ const Login: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
             <div className="space-y-2 text-xs text-gray-600">
               <p><strong>Admin:</strong> admin@traintrails.com / admin123</p>
-              <p><strong>User:</strong> alice@traintrails.com / demo123</p>
-              <p><strong>User:</strong> bob@traintrails.com / demo123</p>
-              <p><strong>User:</strong> test@traintrails.com / test123</p>
-            </div>
+              <p><strong>User:</strong> alice@traintrails.com / password123</p>
+              <p><strong>User:</strong> bob@traintrails.com / password123</p>
+              <p><strong>User:</strong> test@traintrails.com / password123</p>
+            </div>Inreview
             {import.meta.env.DEV && (
               <div className="mt-4">
                 <button

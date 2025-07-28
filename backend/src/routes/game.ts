@@ -1,4 +1,6 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
@@ -9,10 +11,45 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/attachments/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow specific file types
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'text/plain',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not supported'));
+    }
+  }
+});
+
 // Get user's game sta    ]);
 
     // console.log('Leaderboard API: Found', users.length, 'users');
     // console.log('Leaderboard API: Returning:', { users });
+// Get user's game status - simplified for questions-only
 router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -25,8 +62,6 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         fullName: true,
         trainName: true,
         currentStep: true,
-        currentModule: true,
-        currentTopic: true,
         createdAt: true
       }
     });
@@ -35,43 +70,17 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get current released module and topic
-    const currentModule = await prisma.module.findFirst({
+    // Get current active question
+    const currentQuestion = await prisma.question.findFirst({
       where: { 
         isReleased: true,
+        isActive: true,
         deadline: { gt: new Date() }
       },
-      orderBy: { moduleNumber: 'asc' },
-      include: {
-        topics: {
-          where: {
-            isReleased: true,
-            deadline: { gt: new Date() }
-          },
-          orderBy: { topicNumber: 'asc' }
-        }
-      }
+      orderBy: { questionNumber: 'asc' }
     });
 
-    // Get current topic (first unreleased or active topic in current module)
-    let currentTopic = null;
-    if (currentModule && currentModule.topics.length > 0) {
-      currentTopic = currentModule.topics[0];
-    }
-
-    // Fallback to old question system if no modules are found
-    let currentQuestion = null;
-    if (!currentModule) {
-      currentQuestion = await prisma.question.findFirst({
-        where: { 
-          isReleased: true,
-          deadline: { gt: new Date() }
-        },
-        orderBy: { questionNumber: 'asc' }
-      });
-    }
-
-    // Get user's answers (both old questions and new topics)
+    // Get user's answers
     const answers = await prisma.answer.findMany({
       where: { userId },
       include: {
@@ -81,75 +90,37 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
             questionNumber: true,
             title: true
           }
-        },
-        topic: {
-          select: {
-            id: true,
-            topicNumber: true,
-            title: true,
-            module: {
-              select: {
-                id: true,
-                moduleNumber: true,
-                title: true
-              }
-            }
-          }
         }
       },
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Check if user has answered current question/topic
+    // Check if user has answered current question
     let hasAnsweredCurrent = false;
-    if (currentTopic) {
-      const currentTopicAnswers = answers.filter((answer: { topicId: any; }) => answer.topicId === currentTopic.id);
-      if (currentTopicAnswers.length > 0) {
-        const latestAnswer = currentTopicAnswers[0];
-        hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
-      }
-    } else if (currentQuestion) {
-      const currentQuestionAnswers = answers.filter((answer: { questionId: any; }) => answer.questionId === currentQuestion.id);
+    if (currentQuestion) {
+      const currentQuestionAnswers = answers.filter(answer => answer.questionId === currentQuestion.id);
       if (currentQuestionAnswers.length > 0) {
         const latestAnswer = currentQuestionAnswers[0];
         hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
       }
     }
 
-    // Calculate total progress (17 total topics across 4 modules)
-    const totalTopics = 17;
-    const userProgress = Math.max(user.currentStep, 
-      (user.currentModule - 1) * 4 + user.currentTopic); // Rough calculation
+    // Only return currentQuestion if there are no questions organized as modules
+    // (legacy fallback for systems not using module/topic structure)
+    const questionsWithModules = await prisma.question.findMany({
+      where: { moduleNumber: { not: null } }
+    });
+
+    // If we have questions organized in modules, don't return currentQuestion
+    // to avoid duplication with the module/topic system
+    const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
 
     res.json({
       user,
       currentStep: user.currentStep,
-      currentModule: user.currentModule,
-      currentTopic: user.currentTopic,
       totalSteps: 12, // Keep for compatibility
-      totalTopics,
-      isComplete: userProgress >= totalTopics,
-      currentModuleData: currentModule ? {
-        id: currentModule.id,
-        moduleNumber: currentModule.moduleNumber,
-        title: currentModule.title,
-        description: currentModule.description,
-        deadline: currentModule.deadline,
-        totalTopics: currentModule.topics.length
-      } : null,
-      currentTopicData: currentTopic ? {
-        id: currentTopic.id,
-        topicNumber: currentTopic.topicNumber,
-        title: currentTopic.title,
-        content: currentTopic.content,
-        description: currentTopic.description,
-        deadline: currentTopic.deadline,
-        points: currentTopic.points,
-        bonusPoints: currentTopic.bonusPoints,
-        hasAnswered: hasAnsweredCurrent
-      } : null,
-      // Fallback to old question system
-      currentQuestion: currentQuestion ? {
+      isComplete: user.currentStep >= 12,
+      currentQuestion: shouldReturnCurrentQuestion ? (currentQuestion ? {
         id: currentQuestion.id,
         questionNumber: currentQuestion.questionNumber,
         title: currentQuestion.title,
@@ -159,7 +130,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         points: currentQuestion.points,
         bonusPoints: currentQuestion.bonusPoints,
         hasAnswered: hasAnsweredCurrent
-      } : null,
+      } : null) : null,
       answers: answers.map((answer: any) => ({
         id: answer.id,
         content: answer.content,
@@ -167,8 +138,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         submittedAt: answer.submittedAt,
         reviewedAt: answer.reviewedAt,
         feedback: answer.feedback,
-        question: answer.question,
-        topic: answer.topic
+        question: answer.question
       }))
     });
   } catch (error) {
@@ -177,101 +147,68 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Submit answer to current question/topic
-router.post('/answer', authenticateToken, async (req: AuthRequest, res) => {
+// Submit answer to current question - supports both questionId and topicId with file uploads
+router.post('/answer', authenticateToken, upload.single('attachment'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { content, topicId, questionId } = req.body;
+    const { content, questionId, topicId } = req.body;
+    const attachmentFile = req.file;
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({ error: 'Answer content is required' });
     }
 
-    let currentTarget = null;
-    let targetType = '';
-
-    // Determine if we're answering a topic or question
+    let currentQuestion = null;
+    
     if (topicId) {
-      // New topic-based system
-      currentTarget = await prisma.topic.findFirst({
+      // Topic ID provided - map to corresponding question
+      // Since topics are virtual mappings to questions, we need to find the question by topicId
+      currentQuestion = await prisma.question.findFirst({
         where: { 
-          id: topicId,
-          isReleased: true
-        },
-        include: {
-          module: {
-            select: {
-              moduleNumber: true,
-              title: true
-            }
-          }
+          id: topicId, // topicId maps directly to questionId in our current schema
+          isReleased: true,
+          isActive: true
         }
       });
-      targetType = 'topic';
     } else if (questionId) {
-      // Legacy question system
-      currentTarget = await prisma.question.findFirst({
+      // Specific question provided
+      currentQuestion = await prisma.question.findFirst({
         where: { 
           id: questionId,
-          isReleased: true
+          isReleased: true,
+          isActive: true
         }
       });
-      targetType = 'question';
     } else {
-      // Auto-detect current active target
-      currentTarget = await prisma.topic.findFirst({
+      // Auto-detect current active question
+      currentQuestion = await prisma.question.findFirst({
         where: { 
           isReleased: true,
+          isActive: true,
           deadline: { gt: new Date() }
         },
-        orderBy: [
-          { module: { moduleNumber: 'asc' } },
-          { topicNumber: 'asc' }
-        ],
-        include: {
-          module: {
-            select: {
-              moduleNumber: true,
-              title: true
-            }
-          }
-        }
+        orderBy: { questionNumber: 'asc' }
       });
-      
-      if (currentTarget) {
-        targetType = 'topic';
-      } else {
-        // Fallback to question system
-        currentTarget = await prisma.question.findFirst({
-          where: { 
-            isReleased: true,
-            deadline: { gt: new Date() }
-          },
-          orderBy: { questionNumber: 'asc' }
-        });
-        targetType = 'question';
-      }
     }
 
-    if (!currentTarget) {
-      return res.status(400).json({ error: 'No active question or topic available' });
+    if (!currentQuestion) {
+      return res.status(400).json({ error: 'No active question available' });
     }
 
     // Check if user already answered with approved or pending status
-    const whereClause = targetType === 'topic' 
-      ? { userId, topicId: currentTarget.id }
-      : { userId, questionId: currentTarget.id };
-
     const existingAnswer = await prisma.answer.findFirst({
-      where: whereClause,
+      where: { 
+        userId, 
+        questionId: currentQuestion.id 
+      },
       orderBy: { submittedAt: 'desc' }
     });
 
     if (existingAnswer && (existingAnswer.status === 'APPROVED' || existingAnswer.status === 'PENDING')) {
       return res.status(400).json({ 
         error: existingAnswer.status === 'APPROVED' 
-          ? `You have already successfully answered this ${targetType}`
-          : `You have already submitted an answer for this ${targetType} and it is pending review`,
+          ? 'You have already successfully answered this question'
+          : 'You have already submitted an answer for this question and it is pending review',
         existingAnswer: {
           content: existingAnswer.content,
           status: existingAnswer.status,
@@ -281,49 +218,30 @@ router.post('/answer', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // Create new answer
-    const answerData = {
-      content: content.trim(),
-      userId,
-      ...(targetType === 'topic' ? { topicId: currentTarget.id } : { questionId: currentTarget.id })
-    };
-
-    const includeClause = targetType === 'topic' 
-      ? {
-          topic: {
-            select: {
-              topicNumber: true,
-              title: true,
-              module: {
-                select: {
-                  moduleNumber: true,
-                  title: true
-                }
-              }
-            }
+    const answer = await prisma.answer.create({
+      data: {
+        content: content.trim(),
+        userId,
+        questionId: currentQuestion.id
+      },
+      include: {
+        question: {
+          select: {
+            questionNumber: true,
+            title: true
           }
         }
-      : {
-          question: {
-            select: {
-              questionNumber: true,
-              title: true
-            }
-          }
-        };
-
-    const answer = await prisma.answer.create({
-      data: answerData,
-      include: includeClause
+      }
     });
 
     res.status(201).json({
-      message: `Answer submitted successfully for ${targetType}`,
+      message: 'Answer submitted successfully',
       answer: {
         id: answer.id,
         content: answer.content,
         status: answer.status,
         submittedAt: answer.submittedAt,
-        ...(targetType === 'topic' ? { topic: answer.topic } : { question: answer.question })
+        question: answer.question
       }
     });
   } catch (error) {
@@ -433,111 +351,154 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Get all modules with their topics
-router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
+// Get user's progress in simplified question system
+router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const modules = await prisma.module.findMany({
-      where: { isActive: true },
+    const userId = req.user!.id;
+
+    // Get user details with progress
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        trainName: true,
+        currentStep: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get current active question
+    const currentQuestion = await prisma.question.findFirst({
+      where: { 
+        isReleased: true,
+        isActive: true,
+        deadline: { gt: new Date() }
+      },
+      orderBy: { questionNumber: 'asc' }
+    });
+
+    // Get user's answers
+    const answers = await prisma.answer.findMany({
+      where: { userId },
       include: {
-        topics: {
-          where: { isActive: true },
-          orderBy: { topicNumber: 'asc' }
+        question: {
+          select: {
+            id: true,
+            questionNumber: true,
+            title: true
+          }
         }
       },
-      orderBy: { moduleNumber: 'asc' }
+      orderBy: { submittedAt: 'desc' }
     });
+
+    // Check if user has answered current question
+    let hasAnsweredCurrent = false;
+    if (currentQuestion) {
+      const currentQuestionAnswers = answers.filter(answer => answer.questionId === currentQuestion.id);
+      if (currentQuestionAnswers.length > 0) {
+        const latestAnswer = currentQuestionAnswers[0];
+        hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
+      }
+    }
+
+    // Get total questions count
+    const totalQuestions = await prisma.question.count();
+
+    res.json({
+      user,
+      currentStep: user.currentStep,
+      totalSteps: 12,
+      totalQuestions,
+      isComplete: user.currentStep >= 12,
+      currentQuestion: currentQuestion ? {
+        id: currentQuestion.id,
+        questionNumber: currentQuestion.questionNumber,
+        title: currentQuestion.title,
+        content: currentQuestion.content,
+        description: currentQuestion.description,
+        deadline: currentQuestion.deadline,
+        points: currentQuestion.points,
+        bonusPoints: currentQuestion.bonusPoints,
+        hasAnswered: hasAnsweredCurrent
+      } : null,
+      answers: answers.map((answer: any) => ({
+        id: answer.id,
+        content: answer.content,
+        status: answer.status,
+        submittedAt: answer.submittedAt,
+        reviewedAt: answer.reviewedAt,
+        feedback: answer.feedback,
+        question: answer.question
+      }))
+    });
+  } catch (error) {
+    console.error('Get progress error:', error);
+    res.status(500).json({ error: 'Failed to get progress' });
+  }
+});
+
+// Get modules - compatibility endpoint for frontend
+// Organizes questions by moduleNumber for backward compatibility
+router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    // Get all questions and group them by moduleNumber
+    const questions = await prisma.question.findMany({
+      orderBy: [
+        { moduleNumber: 'asc' },
+        { questionNumber: 'asc' }
+      ]
+    });
+
+    // Group questions by module number
+    const moduleGroups = questions.reduce((acc, question) => {
+      const moduleNum = question.moduleNumber || 1; // Default to module 1 if not set
+      if (!acc[moduleNum]) {
+        acc[moduleNum] = [];
+      }
+      acc[moduleNum].push(question);
+      return acc;
+    }, {} as Record<number, any[]>);
+
+    // Convert to module format that frontend expects
+    const modules = Object.entries(moduleGroups).map(([moduleNum, moduleQuestions]) => ({
+      id: `module-${moduleNum}`,
+      moduleNumber: parseInt(moduleNum),
+      title: `Adventure ${moduleNum}`,
+      description: `Training module ${moduleNum}`,
+      isReleased: moduleQuestions.some(q => q.isReleased),
+      isActive: moduleQuestions.some(q => q.isActive),
+      releaseDate: moduleQuestions[0]?.releaseDate,
+      releasedAt: moduleQuestions[0]?.releasedAt,
+      topics: moduleQuestions.map(question => ({
+        id: question.id,
+        topicNumber: question.topicNumber || question.questionNumber,
+        title: question.title,
+        description: question.description,
+        isReleased: question.isReleased,
+        isActive: question.isActive,
+        releaseDate: question.releaseDate,
+        releasedAt: question.releasedAt,
+        deadline: question.deadline,
+        points: question.points,
+        bonusPoints: question.bonusPoints,
+        question: {
+          id: question.id,
+          content: question.content,
+          questionNumber: question.questionNumber
+        }
+      }))
+    }));
 
     res.json({ modules });
   } catch (error) {
     console.error('Get modules error:', error);
     res.status(500).json({ error: 'Failed to get modules' });
-  }
-});
-
-// Get specific module with topics
-router.get('/modules/:moduleNumber', authenticateToken, async (req: AuthRequest, res) => {
-  try {
-    const moduleNumber = parseInt(req.params.moduleNumber);
-    
-    const module = await prisma.module.findFirst({
-      where: { 
-        moduleNumber,
-        isActive: true 
-      },
-      include: {
-        topics: {
-          where: { isActive: true },
-          orderBy: { topicNumber: 'asc' }
-        }
-      }
-    });
-
-    if (!module) {
-      return res.status(404).json({ error: 'Module not found' });
-    }
-
-    res.json({ module });
-  } catch (error) {
-    console.error('Get module error:', error);
-    res.status(500).json({ error: 'Failed to get module' });
-  }
-});
-
-// Get user's progress in new module/topic system
-router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-
-    // Get user's completed topics
-    const completedAnswers = await prisma.answer.findMany({
-      where: {
-        userId,
-        status: 'APPROVED',
-        topicId: { not: null }
-      },
-      include: {
-        topic: {
-          include: {
-            module: true
-          }
-        }
-      }
-    });
-
-    // Group by modules
-    const moduleProgress: Record<number, any> = {};
-    completedAnswers.forEach(answer => {
-      if (answer.topic && answer.topic.module) {
-        const moduleNum = answer.topic.module.moduleNumber;
-        if (!moduleProgress[moduleNum]) {
-          moduleProgress[moduleNum] = {
-            module: answer.topic.module,
-            completedTopics: []
-          };
-        }
-        moduleProgress[moduleNum].completedTopics.push(answer.topic);
-      }
-    });
-
-    // Get all modules for progress calculation
-    const totalModules = await prisma.module.count({
-      where: { isActive: true }
-    });
-
-    const totalTopics = await prisma.topic.count({
-      where: { isActive: true }
-    });
-
-    res.json({
-      moduleProgress,
-      completedTopics: completedAnswers.length,
-      totalModules,
-      totalTopics,
-      progressPercentage: totalTopics > 0 ? (completedAnswers.length / totalTopics) * 100 : 0
-    });
-  } catch (error) {
-    console.error('Get progress error:', error);
-    res.status(500).json({ error: 'Failed to get progress' });
   }
 });
 

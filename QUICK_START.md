@@ -47,7 +47,7 @@ npm run dev
 ## 🌐 Access the Application
 
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3001
+- **Backend API**: http://localhost:3000
 - **Database**: SQLite file at `backend/prisma/dev.db`
 
 ## 🔑 Default Login Credentials
@@ -62,12 +62,12 @@ npm run dev
 ```env
 DATABASE_URL="file:./dev.db"
 JWT_SECRET="your-secret-key"
-PORT=3001
+PORT=3000
 ```
 
 ### Frontend (.env)
 ```env
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:3000/api
 ```
 
 ## 🛠️ Available Commands
@@ -96,11 +96,11 @@ npm run db:seed         # Seed with sample data
 ```bash
 # Kill processes using default ports
 # Windows
-netstat -ano | findstr :3001
+netstat -ano | findstr :3000
 netstat -ano | findstr :5173
 
 # Mac/Linux
-lsof -ti:3001 | xargs kill
+lsof -ti:3000 | xargs kill
 lsof -ti:5173 | xargs kill
 ```
 

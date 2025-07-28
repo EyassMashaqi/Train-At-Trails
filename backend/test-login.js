@@ -22,7 +22,7 @@ async function testLogin() {
     console.log('🔑 Stored password hash:', user.password);
     
     // Test password with the demo password
-    const testPassword = 'demo123';
+    const testPassword = 'password123';
     const isValid = await bcrypt.compare(testPassword, user.password);
     console.log(`🔐 Password "${testPassword}" is valid:`, isValid);
 

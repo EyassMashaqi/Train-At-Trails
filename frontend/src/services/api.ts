@@ -125,8 +125,20 @@ export const authService = {
 export const gameService = {
   getProgress: () => api.get('/game/status'),
   
-  submitAnswer: (content: string) =>
-    api.post('/game/answer', { content }),
+  submitAnswer: (content: string, file?: File | null) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append('content', content);
+      formData.append('attachment', file);
+      return api.post('/game/answer', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    } else {
+      return api.post('/game/answer', { content });
+    }
+  },
   
   getAnswers: () => api.get('/game/answers'),
 
@@ -151,14 +163,17 @@ export const adminService = {
   
   getGameStats: () => api.get('/admin/stats'),
 
-  // Module management
-  getAllModules: () => api.get('/admin/modules'),
+  // Module management (mapped to questions for compatibility)
+  getAllModules: () => api.get('/admin/modules'), // This still works as it returns virtual modules
   
   createModule: (moduleData: {
     moduleNumber: number;
     title: string;
     description: string;
-  }) => api.post('/admin/modules', moduleData),
+  }) => {
+    // Use the real module creation endpoint
+    return api.post('/admin/modules', moduleData);
+  },
   
   updateModule: (moduleId: string, moduleData: {
     moduleNumber?: number;
@@ -166,13 +181,47 @@ export const adminService = {
     description?: string;
     isActive?: boolean;
     isReleased?: boolean;
-  }) => api.put(`/admin/modules/${moduleId}`, moduleData),
+  }) => api.put(`/admin/modules/${moduleId}`, moduleData), // This route exists and works
   
-  deleteModule: (moduleId: string) => api.delete(`/admin/modules/${moduleId}`),
+  deleteModule: (moduleId: string) => {
+    // Extract module number from moduleId (format: "module-X")
+    const moduleNumber = parseInt(moduleId.replace('module-', ''));
+    if (isNaN(moduleNumber)) {
+      return Promise.reject(new Error('Invalid module ID format'));
+    }
+    // Cannot delete modules directly, would need to delete all questions in that module
+    return Promise.reject(new Error('Module deletion not supported. Delete individual questions instead.'));
+  },
   
-  getModuleTopics: (moduleId: string) => api.get(`/admin/modules/${moduleId}/topics`),
+  getModuleTopics: (moduleId: string) => {
+    // Extract module number and get questions for that module
+    const moduleNumber = parseInt(moduleId.replace('module-', ''));
+    if (isNaN(moduleNumber)) {
+      return Promise.reject(new Error('Invalid module ID format'));
+    }
+    return api.get('/admin/questions').then(response => {
+      const questions = response.data.questions || [];
+      const moduleQuestions = questions.filter((q: any) => (q.moduleNumber || 1) === moduleNumber);
+      return { data: { topics: moduleQuestions.map((q: any) => ({
+        id: q.id,
+        topicNumber: q.topicNumber || q.questionNumber,
+        title: q.title,
+        content: q.content,
+        description: q.description,
+        deadline: q.deadline,
+        points: q.points,
+        bonusPoints: q.bonusPoints,
+        isReleased: q.isReleased,
+        module: {
+          id: `module-${moduleNumber}`,
+          moduleNumber: moduleNumber,
+          title: `Adventure ${moduleNumber}`
+        }
+      })) }};
+    });
+  },
   
-  // Topic management
+  // Topic management (mapped to questions for compatibility)
   createTopic: (moduleId: string, topicData: {
     topicNumber: number;
     title: string;
@@ -181,7 +230,10 @@ export const adminService = {
     deadline: string;
     points: number;
     bonusPoints: number;
-  }) => api.post(`/admin/modules/${moduleId}/topics`, topicData),
+  }) => {
+    // Use the real topic creation endpoint
+    return api.post(`/admin/modules/${moduleId}/topics`, topicData);
+  },
   
   updateTopic: (topicId: string, topicData: {
     topicNumber?: number;
@@ -192,13 +244,25 @@ export const adminService = {
     points?: number;
     bonusPoints?: number;
     isReleased?: boolean;
-  }) => api.put(`/admin/topics/${topicId}`, topicData),
+  }) => {
+    // Map topic update to question update using the new endpoint
+    return api.put(`/admin/questions/${topicId}`, {
+      topicNumber: topicData.topicNumber,
+      title: topicData.title,
+      content: topicData.content,
+      description: topicData.description,
+      deadline: topicData.deadline,
+      points: topicData.points,
+      bonusPoints: topicData.bonusPoints,
+      isReleased: topicData.isReleased
+    });
+  },
   
-  getTopicAnswers: (topicId: string) => api.get(`/admin/topics/${topicId}/answers`),
+  getTopicAnswers: (topicId: string) => api.get(`/admin/questions/${topicId}/answers`),
   
-  releaseTopic: (topicId: string) => api.post(`/admin/topics/${topicId}/release`),
+  releaseTopic: (topicId: string) => api.post(`/admin/questions/${topicId}/release`),
   
-  deleteTopic: (topicId: string) => api.delete(`/admin/topics/${topicId}`),
+  deleteTopic: (topicId: string) => api.delete(`/admin/questions/${topicId}`),
 
   // Question management (legacy)
   getAllQuestions: () => api.get('/admin/questions'),
@@ -213,6 +277,20 @@ export const adminService = {
     points: number;
     bonusPoints: number;
   }) => api.post('/admin/questions', questionData),
+
+  updateQuestion: (questionId: string, questionData: {
+    questionNumber?: number;
+    title?: string;
+    content?: string;
+    description?: string;
+    deadline?: string;
+    points?: number;
+    bonusPoints?: number;
+    isReleased?: boolean;
+    isActive?: boolean;
+    moduleNumber?: number;
+    topicNumber?: number;
+  }) => api.put(`/admin/questions/${questionId}`, questionData),
   
   releaseQuestion: (questionId: number) => api.post(`/admin/questions/${questionId}/release`),
   

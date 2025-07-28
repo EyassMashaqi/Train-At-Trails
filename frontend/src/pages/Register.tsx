@@ -24,8 +24,8 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.email || !formData.password || !formData.name || !formData.trainName) {
-      toast.error('Please fill in all fields');
+    if (!formData.email || !formData.password || !formData.name) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -35,11 +35,19 @@ const Register: React.FC = () => {
     }
 
     setLoading(true);
+    
+    // If no train name is provided, select a random one from suggestions
+    let finalTrainName = formData.trainName;
+    if (!finalTrainName.trim()) {
+      const randomIndex = Math.floor(Math.random() * trainNameSuggestions.length);
+      finalTrainName = trainNameSuggestions[randomIndex];
+    }
+    
     const registerData = {
       email: formData.email,
       password: formData.password,
       fullName: formData.name,
-      trainName: formData.trainName
+      trainName: finalTrainName
     };
     const success = await register(registerData);
     setLoading(false);
@@ -62,11 +70,20 @@ const Register: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <span className="text-6xl">🚂</span>
+          <div className="flex flex-col items-center mb-6 space-y-6">
+            <img 
+              src="./src/assets/BVisionRY.png" 
+              alt="BVisionRY Company Logo" 
+              className="w-48 h-20 px-6 py-3 bvisionary-logo"
+            />
+            <img 
+              src="./src/assets/Lighthouse.png" 
+              alt="Lighthouse Logo" 
+              className="w-32 h-32 lighthouse-logo"
+            />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">
-            Join the Trail!
+            Join the Lighthouse!
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Create your account and start your journey
@@ -142,21 +159,20 @@ const Register: React.FC = () => {
 
             <div>
               <label htmlFor="trainName" className="block text-sm font-medium text-gray-700">
-                Train Name
+                Lighthouse Name <span className="text-gray-400">(Optional)</span>
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-400 text-lg">🚂</span>
+                  <span className="text-gray-400 text-lg">🏮</span>
                 </div>
                 <input
                   id="trainName"
                   name="trainName"
                   type="text"
-                  required
                   value={formData.trainName}
                   onChange={handleChange}
                   className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Name your train (e.g., Lightning Express)"
+                  placeholder="Name your train (or leave blank for random)"
                 />
               </div>
               <div className="mt-2">
@@ -180,7 +196,7 @@ const Register: React.FC = () => {
           <div>
             <button
               type="submit"
-              disabled={loading || !formData.email || !formData.password || !formData.name || !formData.trainName}
+              disabled={loading || !formData.email || !formData.password || !formData.name}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

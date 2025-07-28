@@ -1,12 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { gameService } from '../services/api';
+
+interface Topic {
+  id: string;
+  isReleased: boolean;
+}
+
+interface Module {
+  isReleased: boolean;
+  topics: Topic[];
+}
+
+interface Answer {
+  topic?: { id: string };
+  status: string;
+}
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTrainAnimation, setShowTrainAnimation] = useState(false);
+  const [activeQuestionsCount, setActiveQuestionsCount] = useState(0);
 
   useEffect(() => {
     // Redirect admin users to admin dashboard
@@ -14,6 +31,53 @@ const Dashboard: React.FC = () => {
       navigate('/admin');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    // Fetch active questions count
+    const fetchActiveQuestions = async () => {
+      try {
+        const [progressResponse, modulesResponse] = await Promise.all([
+          gameService.getProgress(),
+          gameService.getModules()
+        ]);
+        
+        let count = 0;
+        
+        const data = progressResponse.data;
+        
+        // Count ALL released topics that haven't been answered (don't double count)
+        const modules = modulesResponse.data.modules || [];
+        modules.forEach((module: Module) => {
+          if (module.isReleased) {
+            module.topics.forEach((topic: Topic) => {
+              if (topic.isReleased) {
+                const hasAnswered = data.answers?.some((answer: Answer) =>
+                  answer.topic?.id === topic.id && 
+                  (answer.status === 'APPROVED' || answer.status === 'PENDING')
+                );
+                if (!hasAnswered) {
+                  count++;
+                }
+              }
+            });
+          }
+        });
+        
+        // If no module topics available, check for legacy current question
+        if (count === 0 && data.currentQuestion && (!modules || modules.length === 0)) {
+          count = 1;
+        }
+        
+        setActiveQuestionsCount(count);
+      } catch (error) {
+        console.error('Failed to fetch active questions:', error);
+      }
+    };
+
+    if (user && !user.isAdmin) {
+      fetchActiveQuestions();
+    }
+  }, [user]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -71,15 +135,24 @@ const Dashboard: React.FC = () => {
       <div className="relative z-10 bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <div className={`transition-all duration-1000 ${showTrainAnimation ? 'transform scale-110' : ''}`}>
-                <span className="text-6xl mr-4 drop-shadow-lg">🚂</span>
-              </div>
-              <div>
+            <div className="flex items-center space-x-6">
+              <img 
+                src="./src/assets/BVisionRY.png" 
+                alt="BVisionRY Company Logo" 
+                className="w-40 h-14 px-4 py-2 bvisionary-logo"
+              />
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Train at Trails
+                  BVisionRY Lighthouse
                 </h1>
                 <p className="text-lg text-gray-600">Welcome back, {user.fullName}!</p>
+              </div>
+              <div className={`transition-all duration-1000 ${showTrainAnimation ? 'transform scale-110' : ''}`}>
+                <img 
+                  src="./src/assets/Lighthouse.png" 
+                  alt="Lighthouse Logo" 
+                  className="w-24 h-24 lighthouse-logo drop-shadow-lg"
+                />
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -223,6 +296,37 @@ const Dashboard: React.FC = () => {
                     day: 'numeric' 
                   })}
                 </div>
+              </div>
+            </div>
+
+            {/* Active Questions */}
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <span className="mr-3">🎯</span>
+                Active Questions
+              </h3>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg mb-4">
+                  {activeQuestionsCount}
+                </div>
+                <div className="text-lg text-gray-600 mb-4">
+                  {activeQuestionsCount === 1 
+                    ? 'Question Available' 
+                    : 'Questions Available'}
+                </div>
+                {activeQuestionsCount > 0 ? (
+                  <button
+                    onClick={() => navigate('/game')}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium"
+                  >
+                    <span className="mr-2">📝</span>
+                    Start Answering
+                  </button>
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    Check back later for new questions!
+                  </div>
+                )}
               </div>
             </div>
 
