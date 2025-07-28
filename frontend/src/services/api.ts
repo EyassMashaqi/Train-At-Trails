@@ -131,6 +131,10 @@ export const gameService = {
   getAnswers: () => api.get('/game/answers'),
 
   getLeaderboard: () => api.get('/game/leaderboard'),
+
+  getModules: () => api.get('/game/modules'),
+
+  getModuleDetails: (moduleNumber: number) => api.get(`/game/modules/${moduleNumber}`),
 };
 
 // Admin service

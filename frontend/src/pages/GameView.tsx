@@ -20,6 +20,30 @@ interface Answer {
   submittedAt: string;
   feedback?: string;
   question: Question;
+  topic?: Topic;
+}
+
+interface Topic {
+  id: string;
+  topicNumber: number;
+  title: string;
+  content: string;
+  description: string;
+  deadline: string;
+  points: number;
+  bonusPoints: number;
+  isReleased: boolean;
+  module: Module;
+}
+
+interface Module {
+  id: string;
+  moduleNumber: number;
+  title: string;
+  description: string;
+  deadline: string;
+  isReleased: boolean;
+  topics: Topic[];
 }
 
 interface TrailProgress {
@@ -40,11 +64,13 @@ const GameView: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [progress, setProgress] = useState<TrailProgress | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [modules, setModules] = useState<Module[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showTrainAnimation, setShowTrainAnimation] = useState(false);
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,9 +80,10 @@ const GameView: React.FC = () => {
   const loadGameData = async () => {
     try {
       setLoading(true);
-      const [progressResponse, leaderboardResponse] = await Promise.all([
+      const [progressResponse, leaderboardResponse, modulesResponse] = await Promise.all([
         gameService.getProgress(),
-        gameService.getLeaderboard()
+        gameService.getLeaderboard(),
+        gameService.getModules()
       ]);
       
       const data = progressResponse.data;
@@ -68,6 +95,18 @@ const GameView: React.FC = () => {
         answers: data.answers
       });
       setCurrentQuestion(data.currentQuestion);
+      
+      // Set modules data
+      setModules(modulesResponse.data.modules || []);
+      
+      // Auto-expand released modules
+      const initialExpanded: Record<string, boolean> = {};
+      modulesResponse.data.modules?.forEach((module: Module) => {
+        if (module.isReleased) {
+          initialExpanded[module.id] = true;
+        }
+      });
+      setExpandedModules(initialExpanded);
       
       // Debug leaderboard data
       console.log('Full leaderboard response:', leaderboardResponse);
@@ -551,6 +590,196 @@ const GameView: React.FC = () => {
     );
   };
 
+  const renderModules = () => {
+    if (!modules || modules.length === 0) {
+      return (
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+            <span className="mr-3">📚</span>
+            Released Assignments
+          </h2>
+          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-8 text-center shadow-lg">
+            <div className="text-6xl mb-4">📝</div>
+            <h3 className="text-2xl font-bold text-yellow-800 mb-2">
+              No Assignments Available
+            </h3>
+            <p className="text-yellow-700">
+              Assignments will be released soon. Check back later!
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const toggleModule = (moduleId: string) => {
+      setExpandedModules(prev => ({
+        ...prev,
+        [moduleId]: !prev[moduleId]
+      }));
+    };
+
+    return (
+      <div className="mb-12">
+        <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+          <span className="mr-3">📚</span>
+          Released Assignments
+        </h2>
+        <div className="space-y-6">
+          {modules.map((module) => {
+            const isExpanded = expandedModules[module.id];
+            const isReleased = module.isReleased;
+            
+            return (
+              <div
+                key={module.id}
+                className={`rounded-xl shadow-lg border transition-all duration-300 ${
+                  isReleased
+                    ? 'bg-white border-blue-200 hover:shadow-xl'
+                    : 'bg-gray-50 border-gray-200 opacity-60'
+                }`}
+              >
+                {/* Module Header */}
+                <div
+                  className={`p-6 ${
+                    isReleased 
+                      ? 'cursor-pointer hover:bg-blue-50' 
+                      : 'cursor-not-allowed'
+                  } transition-colors duration-200`}
+                  onClick={() => isReleased && toggleModule(module.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="text-3xl mr-4">
+                        {isReleased ? '📘' : '🔒'}
+                      </span>
+                      <div>
+                        <h3 className={`text-xl font-bold ${
+                          isReleased ? 'text-blue-800' : 'text-gray-500'
+                        }`}>
+                          Module {module.moduleNumber}: {module.title}
+                        </h3>
+                        <p className={`text-sm ${
+                          isReleased ? 'text-blue-600' : 'text-gray-400'
+                        }`}>
+                          {isReleased ? module.description : 'Module not yet released'}
+                        </p>
+                        {isReleased && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Deadline: {new Date(module.deadline).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      {isReleased && (
+                        <>
+                          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full mr-3">
+                            {module.topics.length} Topic{module.topics.length !== 1 ? 's' : ''}
+                          </span>
+                          <div className={`transform transition-transform duration-200 ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`}>
+                            <span className="text-xl text-blue-600">▼</span>
+                          </div>
+                        </>
+                      )}
+                      {!isReleased && (
+                        <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Module Topics (Collapsible) */}
+                {isReleased && isExpanded && (
+                  <div className="border-t border-blue-100 bg-blue-25">
+                    <div className="p-6 space-y-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <span className="mr-2">📋</span>
+                        Topics in this Module
+                      </h4>
+                      {module.topics.length > 0 ? (
+                        <div className="space-y-3">
+                          {module.topics.map((topic) => {
+                            const topicIsReleased = topic.isReleased;
+                            return (
+                              <div
+                                key={topic.id}
+                                className={`rounded-lg p-4 border transition-all duration-200 ${
+                                  topicIsReleased
+                                    ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                                    : 'bg-gray-50 border-gray-200 opacity-60'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="text-xl mr-3">
+                                      {topicIsReleased ? '📝' : '🔒'}
+                                    </span>
+                                    <div>
+                                      <h5 className={`font-medium ${
+                                        topicIsReleased ? 'text-green-800' : 'text-gray-500'
+                                      }`}>
+                                        Topic {topic.topicNumber}: {topic.title}
+                                      </h5>
+                                      <p className={`text-sm ${
+                                        topicIsReleased ? 'text-green-600' : 'text-gray-400'
+                                      }`}>
+                                        {topicIsReleased ? topic.description : 'Topic not yet released'}
+                                      </p>
+                                      {topicIsReleased && (
+                                        <div className="flex items-center mt-2 text-xs text-gray-500 space-x-4">
+                                          <span>Deadline: {new Date(topic.deadline).toLocaleDateString()}</span>
+                                          <span>Points: {topic.points}</span>
+                                          {topic.bonusPoints > 0 && (
+                                            <span className="text-amber-600">
+                                              Bonus: {topic.bonusPoints}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {topicIsReleased ? (
+                                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                      Available
+                                    </span>
+                                  ) : (
+                                    <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                      Locked
+                                    </span>
+                                  )}
+                                </div>
+                                {topicIsReleased && topic.content && (
+                                  <div className="mt-3 p-3 bg-white rounded border border-green-100">
+                                    <p className="text-sm text-gray-700">
+                                      {topic.content}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <span className="text-4xl mb-2 block">📝</span>
+                          <p>No topics available in this module yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderAnswerHistory = () => {
     if (!progress?.answers || progress.answers.length === 0) return null;
 
@@ -677,6 +906,9 @@ const GameView: React.FC = () => {
 
         {/* Leaderboard - All Users' Train Progress */}
         {renderLeaderboard()}
+
+        {/* Released Assignments (Modules) */}
+        {renderModules()}
 
         {/* Individual Trail Progress */}
         {renderTrailProgress()}
