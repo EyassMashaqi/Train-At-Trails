@@ -243,8 +243,8 @@ const Login: React.FC = () => {
               <p><strong>Admin:</strong> admin@traintrails.com / admin123</p>
               <p><strong>User:</strong> alice@traintrails.com / password123</p>
               <p><strong>User:</strong> bob@traintrails.com / password123</p>
-              <p><strong>User:</strong> test@traintrails.com / password123</p>
-            </div>Inreview
+              <p><strong>User:</strong> test@traintrails.com / test123</p>
+            </div>
             {import.meta.env.DEV && (
               <div className="mt-4">
                 <button

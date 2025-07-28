@@ -199,10 +199,24 @@ export const adminService = {
     if (isNaN(moduleNumber)) {
       return Promise.reject(new Error('Invalid module ID format'));
     }
+    interface Question {
+      id: string | number;
+      moduleNumber?: number;
+      topicNumber?: number;
+      questionNumber?: number;
+      title: string;
+      content?: string;
+      description?: string;
+      deadline?: string;
+      points?: number;
+      bonusPoints?: number;
+      isReleased?: boolean;
+    }
+
     return api.get('/admin/questions').then(response => {
-      const questions = response.data.questions || [];
-      const moduleQuestions = questions.filter((q: any) => (q.moduleNumber || 1) === moduleNumber);
-      return { data: { topics: moduleQuestions.map((q: any) => ({
+      const questions: Question[] = response.data.questions || [];
+      const moduleQuestions = questions.filter((q: Question) => (q.moduleNumber || 1) === moduleNumber);
+      return { data: { topics: moduleQuestions.map((q: Question) => ({
         id: q.id,
         topicNumber: q.topicNumber || q.questionNumber,
         title: q.title,
