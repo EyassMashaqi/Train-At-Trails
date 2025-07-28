@@ -157,6 +157,8 @@ async function main() {
   }
   console.log('📝 Created 12 questions with management fields');
 
+  console.log('👥 Starting user creation...');
+
   // Create admin user
   const adminEmail = 'admin@traintrails.com';
   const existingAdmin = await prisma.user.findUnique({
@@ -229,6 +231,7 @@ async function main() {
     }
   }
 
+  console.log('🎯 User creation completed');
   console.log('✅ Database seeded successfully!');
 }
 

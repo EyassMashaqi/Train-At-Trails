@@ -7,28 +7,44 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({ email: '', password: '' });
+  const [errors, setErrors] = useState({ email: '', password: '', general: '' });
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleAdminLogin = async () => {
     setLoading(true);
-    const success = await login('admin@traintrails.com', 'admin123');
-    setLoading(false);
-
-    if (success) {
-      navigate('/admin');
+    setErrors(prev => ({ ...prev, general: '' })); // Clear previous errors
+    
+    try {
+      const success = await login('admin@traintrails.com', 'admin123');
+      if (success) {
+        setErrors({ email: '', password: '', general: '' }); // Clear all errors
+        navigate('/admin');
+      } else {
+        setErrors(prev => ({ ...prev, general: 'Admin login failed. Please try again.' }));
+        // Note: AuthContext already shows a toast with the specific error message
+      }
+    } catch (error) {
+      console.error('Admin login error:', error);
+      setErrors(prev => ({ ...prev, general: 'Failed to login as admin. Please try again.' }));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
-    // Clear previous errors
-    setErrors({ email: '', password: '' });
+    console.log('🔵 Form submitted, preventing default behavior');
+    
+    // Clear previous general errors but keep field-specific errors if they exist
+    setErrors(prev => ({ ...prev, general: '' }));
     
     // Client-side validation
-    const newErrors = { email: '', password: '' };
+    const newErrors = { email: '', password: '', general: '' };
     
     if (!email.trim()) {
       newErrors.email = 'Please enter your email address';
@@ -52,16 +68,27 @@ const Login: React.FC = () => {
     }
 
     setLoading(true);
+    
     try {
+      console.log('🔵 About to call login function');
       const success = await login(email.trim(), password);
+      console.log('🔵 Login function returned:', success);
+      
       if (success) {
+        // Clear errors on successful login
+        console.log('✅ Login successful, clearing errors and navigating');
+        setErrors({ email: '', password: '', general: '' });
         // Navigate to dashboard after successful login
         navigate('/dashboard');
+      } else {
+        // Set a general error that will persist - this happens when login() returns false
+        console.log('🔴 Login failed - setting error state');
+        setErrors(prev => ({ ...prev, general: 'Login failed. Please check your credentials and try again.' }));
+        // Note: AuthContext already shows a toast with the specific error message
       }
-      // Error handling is done in the login function
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Unexpected login error:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      setErrors(prev => ({ ...prev, general: 'An unexpected error occurred. Please try again.' }));
     } finally {
       setLoading(false);
     }
@@ -82,27 +109,9 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        {/* Test Accounts Info */}
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <span className="text-blue-400 text-lg">ℹ️</span>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">Test Accounts</h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p className="mb-1">
-                  <strong>Admin:</strong> admin@traintrails.com / admin123
-                </p>
-                <p>
-                  <strong>User:</strong> test@traintrails.com / test123
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg" onSubmit={handleSubmit}>
+          
+          
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -123,6 +132,9 @@ const Login: React.FC = () => {
                     setEmail(e.target.value);
                     if (errors.email) {
                       setErrors(prev => ({ ...prev, email: '' }));
+                    }
+                    if (errors.general) {
+                      setErrors(prev => ({ ...prev, general: '' }));
                     }
                   }}
                   className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
@@ -158,6 +170,9 @@ const Login: React.FC = () => {
                     if (errors.password) {
                       setErrors(prev => ({ ...prev, password: '' }));
                     }
+                    if (errors.general) {
+                      setErrors(prev => ({ ...prev, general: '' }));
+                    }
                   }}
                   className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
                     errors.password 
@@ -172,6 +187,16 @@ const Login: React.FC = () => {
               )}
             </div>
           </div>
+
+          {errors.general && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div className="flex">
+                <span className="text-red-400 text-lg mr-2">⚠️</span>
+                <p className="text-sm text-red-600">{errors.general}</p>
+              </div>
+            </div>
+          )}
+
 
           <div>
             <button
@@ -209,8 +234,9 @@ const Login: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
             <div className="space-y-2 text-xs text-gray-600">
               <p><strong>Admin:</strong> admin@traintrails.com / admin123</p>
-              <p><strong>User:</strong> alice@example.com / password123</p>
-              <p><strong>User:</strong> bob@example.com / password123</p>
+              <p><strong>User:</strong> alice@traintrails.com / demo123</p>
+              <p><strong>User:</strong> bob@traintrails.com / demo123</p>
+              <p><strong>User:</strong> test@traintrails.com / test123</p>
             </div>
             {import.meta.env.DEV && (
               <div className="mt-4">
