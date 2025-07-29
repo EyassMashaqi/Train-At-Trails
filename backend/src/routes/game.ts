@@ -108,7 +108,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     // Only return currentQuestion if there are no questions organized as modules
     // (legacy fallback for systems not using module/topic structure)
     const questionsWithModules = await prisma.question.findMany({
-      where: { moduleNumber: { not: null } }
+      where: { moduleId: { not: null } } as any
     });
 
     // If we have questions organized in modules, don't return currentQuestion
@@ -447,37 +447,29 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 // Organizes questions by moduleNumber for backward compatibility
 router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    // Get all questions and group them by moduleNumber
-    const questions = await prisma.question.findMany({
-      orderBy: [
-        { moduleNumber: 'asc' },
-        { questionNumber: 'asc' }
-      ]
+    // Get all modules with their questions using the proper Module table
+    const modules = await (prisma as any).module.findMany({
+      include: {
+        questions: {
+          orderBy: { topicNumber: 'asc' }
+        }
+      },
+      orderBy: { moduleNumber: 'asc' }
     });
 
-    // Group questions by module number
-    const moduleGroups = questions.reduce((acc, question) => {
-      const moduleNum = question.moduleNumber || 1; // Default to module 1 if not set
-      if (!acc[moduleNum]) {
-        acc[moduleNum] = [];
-      }
-      acc[moduleNum].push(question);
-      return acc;
-    }, {} as Record<number, any[]>);
-
-    // Convert to module format that frontend expects
-    const modules = Object.entries(moduleGroups).map(([moduleNum, moduleQuestions]) => ({
-      id: `module-${moduleNum}`,
-      moduleNumber: parseInt(moduleNum),
-      title: `Adventure ${moduleNum}`,
-      description: `Training module ${moduleNum}`,
-      isReleased: moduleQuestions.some(q => q.isReleased),
-      isActive: moduleQuestions.some(q => q.isActive),
-      releaseDate: moduleQuestions[0]?.releaseDate,
-      releasedAt: moduleQuestions[0]?.releasedAt,
-      topics: moduleQuestions.map(question => ({
+    // Convert to format that frontend expects
+    const formattedModules = modules.map((module: any) => ({
+      id: module.id,
+      moduleNumber: module.moduleNumber,
+      title: module.title,
+      description: module.description,
+      isReleased: module.isReleased,
+      isActive: module.isActive,
+      releaseDate: module.releaseDate,
+      releasedAt: module.releasedAt,
+      topics: module.questions.map((question: any) => ({
         id: question.id,
-        topicNumber: question.topicNumber || question.questionNumber,
+        topicNumber: question.topicNumber || 1,
         title: question.title,
         description: question.description,
         isReleased: question.isReleased,
@@ -495,7 +487,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       }))
     }));
 
-    res.json({ modules });
+    res.json({ modules: formattedModules });
   } catch (error) {
     console.error('Get modules error:', error);
     res.status(500).json({ error: 'Failed to get modules' });
