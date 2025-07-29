@@ -395,57 +395,48 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
 // MODULE AND TOPIC MANAGEMENT ROUTES
 // ========================================
 
-// Get all modules with their topics (compatibility endpoint - uses Questions organized by moduleNumber)
+// Get all modules with their topics
 router.get('/modules', async (req: AuthRequest, res) => {
   try {
-    // Get all questions and group them by moduleNumber
-    const questions = await prisma.question.findMany({
+    const modules = await prisma.module.findMany({
       include: {
-        answers: {
+        questions: {
           include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                trainName: true,
-                email: true
-              }
+            answers: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    trainName: true,
+                    email: true
+                  }
+                }
+              },
+              orderBy: { submittedAt: 'desc' }
             }
           },
-          orderBy: { submittedAt: 'desc' }
+          orderBy: { topicNumber: 'asc' }
         }
       },
-      orderBy: [
-        { moduleNumber: 'asc' },
-        { questionNumber: 'asc' }
-      ]
+      orderBy: { moduleNumber: 'asc' }
     });
 
-    // Group questions by module number
-    const moduleGroups = questions.reduce((acc, question) => {
-      const moduleNum = question.moduleNumber || 1; // Default to module 1 if not set
-      if (!acc[moduleNum]) {
-        acc[moduleNum] = [];
-      }
-      acc[moduleNum].push(question);
-      return acc;
-    }, {} as Record<number, any[]>);
-
-    // Convert to module format that frontend expects
-    const modules = Object.entries(moduleGroups).map(([moduleNum, moduleQuestions]) => ({
-      id: `module-${moduleNum}`,
-      moduleNumber: parseInt(moduleNum),
-      title: `Adventure ${moduleNum}`,
-      description: `Training module ${moduleNum}`,
-      isReleased: moduleQuestions.some(q => q.isReleased),
-      isActive: moduleQuestions.some(q => q.isActive),
-      releaseDate: moduleQuestions[0]?.releaseDate,
-      releasedAt: moduleQuestions[0]?.releasedAt,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      topics: moduleQuestions.map(question => ({
+    // Convert to expected format
+    const formattedModules = modules.map(module => ({
+      id: module.id,
+      moduleNumber: module.moduleNumber,
+      title: module.title,
+      description: module.description,
+      isReleased: module.isReleased,
+      isActive: module.isActive,
+      releaseDate: module.releaseDate,
+      releasedAt: module.releasedAt,
+      createdAt: module.createdAt,
+      updatedAt: module.updatedAt,
+      topics: module.questions.map(question => ({
         id: question.id,
-        topicNumber: question.topicNumber || question.questionNumber,
+        topicNumber: question.topicNumber || 1,
         title: question.title,
         content: question.content,
         description: question.description,
@@ -462,14 +453,14 @@ router.get('/modules', async (req: AuthRequest, res) => {
       }))
     }));
 
-    res.json({ modules });
+    res.json({ modules: formattedModules });
   } catch (error) {
     console.error('Get modules error:', error);
     res.status(500).json({ error: 'Failed to get modules' });
   }
 });
 
-// Create a new module (mapped to creating a placeholder question)
+// Create a new module
 router.post('/modules', async (req: AuthRequest, res) => {
   try {
     const { 
@@ -485,67 +476,26 @@ router.post('/modules', async (req: AuthRequest, res) => {
       });
     }
 
-    // Check if module number already has questions
-    const existingQuestions = await prisma.question.findMany({
+    // Check if module number already exists
+    const existingModule = await prisma.module.findUnique({
       where: { moduleNumber: parseInt(moduleNumber) }
     });
 
-    if (existingQuestions.length > 0) {
+    if (existingModule) {
       return res.status(400).json({ 
-        error: `Module ${moduleNumber} already has questions` 
+        error: `Module ${moduleNumber} already exists` 
       });
     }
 
-    // Use a transaction to safely calculate and create the question
-    const question = await prisma.$transaction(async (tx) => {
-      // Get the highest questionNumber within the transaction
-      const lastQuestion = await tx.question.findFirst({
-        orderBy: { questionNumber: 'desc' }
-      });
-      const nextQuestionNumber = lastQuestion ? lastQuestion.questionNumber + 1 : 1;
-
-      // Create a placeholder question for this module
-      return await tx.question.create({
-        data: {
-          questionNumber: nextQuestionNumber,
-          title: `${title} - Topic 1`,
-          content: description,
-          description: description,
-          deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-          points: 100,
-          bonusPoints: 50,
-          isActive: false,
-          isReleased: false,
-          moduleNumber: parseInt(moduleNumber),
-          topicNumber: 1
-        }
-      });
+    const module = await prisma.module.create({
+      data: {
+        moduleNumber: parseInt(moduleNumber),
+        title,
+        description,
+        isActive: false,
+        isReleased: false
+      }
     });
-
-    // Return module-like response
-    const module = {
-      id: `module-${moduleNumber}`,
-      moduleNumber: parseInt(moduleNumber),
-      title,
-      description,
-      isReleased: false,
-      isActive: false,
-      createdAt: question.createdAt,
-      updatedAt: question.updatedAt,
-      topics: [{
-        id: question.id,
-        topicNumber: 1,
-        title: question.title,
-        content: question.content,
-        description: question.description,
-        isReleased: question.isReleased,
-        deadline: question.deadline,
-        points: question.points,
-        bonusPoints: question.bonusPoints,
-        createdAt: question.createdAt,
-        updatedAt: question.updatedAt
-      }]
-    };
 
     res.status(201).json({ module });
   } catch (error) {
@@ -602,7 +552,7 @@ router.post('/modules', async (req: AuthRequest, res) => {
 });
 */
 
-// Update a module (compatibility endpoint - updates all questions in the module)
+// Update a module
 router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -614,45 +564,32 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
       isReleased
     } = req.body;
 
-    // Extract module number from moduleId (format: "module-X")
-    const moduleNum = parseInt(moduleId.replace('module-', ''));
-    
-    if (isNaN(moduleNum)) {
-      return res.status(400).json({ error: 'Invalid module ID format' });
-    }
-
-    // Find all questions in this module
-    const questions = await prisma.question.findMany({
-      where: { 
-        moduleNumber: moduleNum 
-      }
+    // Find the module by ID
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId }
     });
 
-    if (questions.length === 0) {
-      return res.status(404).json({ error: 'Module not found or has no questions' });
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
     }
 
-    // Update all questions in this module
+    // Prepare update data
     const updateData: any = {};
-    if (moduleNumber) updateData.moduleNumber = parseInt(moduleNumber);
-    if (isActive !== undefined) updateData.isActive = isActive;
-    if (isReleased !== undefined) updateData.isReleased = isReleased;
+    if (moduleNumber !== undefined) updateData.moduleNumber = parseInt(moduleNumber);
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+    if (typeof isReleased === 'boolean') {
+      updateData.isReleased = isReleased;
+      if (isReleased && !module.isReleased) {
+        updateData.releasedAt = new Date();
+      }
+    }
 
-    const updatedQuestions = await prisma.question.updateMany({
-      where: { moduleNumber: moduleNum },
+    const updatedModule = await prisma.module.update({
+      where: { id: moduleId },
       data: updateData
     });
-
-    // Return module-like response
-    const updatedModule = {
-      id: moduleId,
-      moduleNumber: moduleNumber || moduleNum,
-      title: title || `Adventure ${moduleNumber || moduleNum}`,
-      description: description || `Training module ${moduleNumber || moduleNum}`,
-      isActive: isActive !== undefined ? isActive : questions[0].isActive,
-      isReleased: isReleased !== undefined ? isReleased : questions[0].isReleased,
-      updatedAt: new Date()
-    };
 
     res.json({ module: updatedModule });
   } catch (error) {
@@ -661,8 +598,7 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
   }
 });
 
-// Delete a module (DISABLED - Module model not in current schema)
-/*
+// Delete a module
 router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -670,7 +606,7 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
     const module = await prisma.module.findUnique({
       where: { id: moduleId },
       include: {
-        topics: {
+        questions: {
           include: {
             answers: true
           }
@@ -682,11 +618,11 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Module not found' });
     }
 
-    // Check if module has any topics with answers
-    const hasAnswers = module.topics.some(topic => topic.answers.length > 0);
+    // Check if module has any questions with answers
+    const hasAnswers = module.questions.some(question => question.answers.length > 0);
     if (hasAnswers) {
       return res.status(400).json({ 
-        error: 'Cannot delete module with topics that have answers. Please review/remove answers first.' 
+        error: 'Cannot delete module with questions that have answers. Please review/remove answers first.' 
       });
     }
 
@@ -701,37 +637,60 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   }
 });
 
-// Get topics for a specific module (DISABLED - Topic model not in current schema)
+// Get topics for a specific module
 router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
     
-    const topics = await prisma.topic.findMany({
-      where: { moduleId },
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
       include: {
-        module: {
-          select: {
-            id: true,
-            moduleNumber: true,
-            title: true
-          }
-        },
-        answers: {
+        questions: {
           include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                trainName: true,
-                email: true
-              }
+            answers: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    trainName: true,
+                    email: true
+                  }
+                }
+              },
+              orderBy: { submittedAt: 'desc' }
             }
           },
-          orderBy: { submittedAt: 'desc' }
+          orderBy: { topicNumber: 'asc' }
         }
-      },
-      orderBy: { topicNumber: 'asc' }
+      }
     });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Convert questions to topics format for compatibility
+    const topics = module.questions.map(question => ({
+      id: question.id,
+      topicNumber: question.topicNumber || 1,
+      title: question.title,
+      content: question.content,
+      description: question.description,
+      deadline: question.deadline,
+      points: question.points,
+      bonusPoints: question.bonusPoints,
+      isReleased: question.isReleased,
+      isActive: question.isActive,
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt,
+      module: {
+        id: module.id,
+        moduleNumber: module.moduleNumber,
+        title: module.title
+      },
+      answers: question.answers
+    }));
 
     res.json({ topics });
   } catch (error) {
@@ -740,13 +699,13 @@ router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   }
 });
 
-// Get answers for a specific topic (DISABLED - Topic model not in current schema)
+// Get answers for a specific topic (mapped to getting answers by question ID)
 router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
     
     const answers = await prisma.answer.findMany({
-      where: { topicId },
+      where: { questionId: topicId },
       include: {
         user: {
           select: {
@@ -756,15 +715,13 @@ router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
             email: true
           }
         },
-        topic: {
-          include: {
-            module: {
-              select: {
-                id: true,
-                moduleNumber: true,
-                title: true
-              }
-            }
+        question: {
+          select: {
+            id: true,
+            questionNumber: true,
+            title: true,
+            moduleNumber: true,
+            topicNumber: true
           }
         }
       },
@@ -778,7 +735,7 @@ router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
   }
 });
 
-// Create a new topic within a module (mapped to creating a question)
+// Create a new topic within a module
 router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
@@ -799,49 +756,58 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       });
     }
 
-    // Extract module number from moduleId (format: "module-X")
-    const moduleNumber = parseInt(moduleId.replace('module-', ''));
-    if (isNaN(moduleNumber)) {
-      return res.status(400).json({ error: 'Invalid module ID format' });
+    // Verify module exists
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId }
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
     }
 
-    // Check if topic/question number already exists in this module
-    const existingQuestion = await prisma.question.findFirst({
+    // Check if topic number already exists in this module
+    const existingTopic = await prisma.question.findFirst({
       where: { 
-        moduleNumber,
-        OR: [
-          { topicNumber: parseInt(topicNumber) },
-          { questionNumber: parseInt(topicNumber) }
-        ]
+        moduleId,
+        topicNumber: parseInt(topicNumber)
       }
     });
 
-    if (existingQuestion) {
+    if (existingTopic) {
       return res.status(400).json({ 
         error: `Topic ${topicNumber} already exists in this module` 
       });
     }
 
-    const question = await prisma.question.create({
-      data: {
-        questionNumber: parseInt(topicNumber), // Use topicNumber as questionNumber
-        title,
-        content,
-        description,
-        deadline: new Date(deadline),
-        points: parseInt(points),
-        bonusPoints: parseInt(bonusPoints) || 0,
-        isReleased: false,
-        isActive: false,
-        moduleNumber,
-        topicNumber: parseInt(topicNumber)
-      }
+    // Use a transaction to safely get the next unique questionNumber
+    const question = await prisma.$transaction(async (tx) => {
+      // Get the highest questionNumber to generate a unique one
+      const lastQuestion = await tx.question.findFirst({
+        orderBy: { questionNumber: 'desc' }
+      });
+      const nextQuestionNumber = lastQuestion ? lastQuestion.questionNumber + 1 : 1;
+
+      return await tx.question.create({
+        data: {
+          questionNumber: nextQuestionNumber, // Use auto-generated unique questionNumber
+          title,
+          content,
+          description,
+          deadline: new Date(deadline),
+          points: parseInt(points),
+          bonusPoints: parseInt(bonusPoints) || 0,
+          isReleased: false,
+          isActive: false,
+          moduleId,
+          topicNumber: parseInt(topicNumber)
+        }
+      });
     });
 
     // Return in topic format for compatibility
     const topic = {
       id: question.id,
-      topicNumber: question.topicNumber || question.questionNumber,
+      topicNumber: question.topicNumber || 1,
       title: question.title,
       content: question.content,
       description: question.description,
@@ -853,9 +819,9 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       createdAt: question.createdAt,
       updatedAt: question.updatedAt,
       module: {
-        id: `module-${moduleNumber}`,
-        moduleNumber: moduleNumber,
-        title: `Adventure ${moduleNumber}`
+        id: module.id,
+        moduleNumber: module.moduleNumber,
+        title: module.title
       }
     };
 
@@ -865,44 +831,8 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to create topic' });
   }
 });
-      return res.status(400).json({ 
-        error: `Topic ${topicNumber} already exists in this module` 
-      });
-    }
 
-    const topic = await prisma.topic.create({
-      data: {
-        moduleId,
-        topicNumber: parseInt(topicNumber),
-        title,
-        content,
-        description,
-        deadline: new Date(deadline),
-        points: parseInt(points),
-        bonusPoints: parseInt(bonusPoints) || 0,
-        isReleased: false
-      },
-      include: {
-        module: {
-          select: {
-            id: true,
-            moduleNumber: true,
-            title: true
-          }
-        }
-      }
-    });
-
-    res.status(201).json({ topic });
-  } catch (error) {
-    console.error('Create topic error:', error);
-    res.status(500).json({ error: 'Failed to create topic' });
-  }
-});
-*/
-
-// Update a topic (DISABLED - Topic model not in current schema)
-/*
+// Update a topic (mapped to updating a question)
 router.put('/topics/:topicId', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
@@ -944,11 +874,64 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
 
     const updatedQuestion = await prisma.question.update({
       where: { id: topicId },
-      data: updateData
+      data: updateData,
+      include: {
+        module: true
+      }
     });
 
     // Return in topic format for compatibility
     const updatedTopic = {
+      id: updatedQuestion.id,
+      topicNumber: updatedQuestion.topicNumber || 1,
+      title: updatedQuestion.title,
+      content: updatedQuestion.content,
+      description: updatedQuestion.description,
+      deadline: updatedQuestion.deadline,
+      points: updatedQuestion.points,
+      bonusPoints: updatedQuestion.bonusPoints,
+      isReleased: updatedQuestion.isReleased,
+      releasedAt: updatedQuestion.releasedAt,
+      isActive: updatedQuestion.isActive,
+      createdAt: updatedQuestion.createdAt,
+      updatedAt: updatedQuestion.updatedAt,
+      module: updatedQuestion.module ? {
+        id: updatedQuestion.module.id,
+        moduleNumber: updatedQuestion.module.moduleNumber,
+        title: updatedQuestion.module.title
+      } : null
+    };
+
+    res.json({ topic: updatedTopic });
+  } catch (error) {
+    console.error('Update topic error:', error);
+    res.status(500).json({ error: 'Failed to update assignment' });
+  }
+});
+
+// Release a topic (mapped to releasing a question)
+router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
+  try {
+    const topicId = req.params.topicId;
+    
+    const question = await prisma.question.findUnique({
+      where: { id: topicId }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const updatedQuestion = await prisma.question.update({
+      where: { id: topicId },
+      data: { 
+        isReleased: true,
+        releasedAt: new Date()
+      }
+    });
+
+    // Return in topic format for compatibility
+    const topic = {
       id: updatedQuestion.id,
       topicNumber: updatedQuestion.topicNumber || updatedQuestion.questionNumber,
       title: updatedQuestion.title,
@@ -969,66 +952,29 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       }
     };
 
-    res.json({ topic: updatedTopic });
-  } catch (error) {
-    console.error('Update topic error:', error);
-    res.status(500).json({ error: 'Failed to update assignment' });
-  }
-});
-
-// Release a topic (DISABLED - Topic model not in current schema)
-router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
-  try {
-    const topicId = req.params.topicId;
-    
-    const topic = await prisma.topic.findUnique({
-      where: { id: topicId }
-    });
-
-    if (!topic) {
-      return res.status(404).json({ error: 'Topic not found' });
-    }
-
-    const updatedTopic = await prisma.topic.update({
-      where: { id: topicId },
-      data: { 
-        isReleased: true,
-        releasedAt: new Date()
-      },
-      include: {
-        module: {
-          select: {
-            id: true,
-            moduleNumber: true,
-            title: true
-          }
-        }
-      }
-    });
-
-    res.json({ topic: updatedTopic });
+    res.json({ topic });
   } catch (error) {
     console.error('Release topic error:', error);
     res.status(500).json({ error: 'Failed to release topic' });
   }
 });
 
-// Delete a topic (DISABLED - Topic model not in current schema)
+// Delete a topic (mapped to deleting a question)
 router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
   try {
     const topicId = req.params.topicId;
     
-    const topic = await prisma.topic.findUnique({
+    const question = await prisma.question.findUnique({
       where: { id: topicId }
     });
 
-    if (!topic) {
-      return res.status(404).json({ error: 'Topic not found' });
+    if (!question) {
+      return res.status(404).json({ error: 'Assignment not found' });
     }
 
     // Check if topic has any answers
     const answerCount = await prisma.answer.count({
-      where: { topicId }
+      where: { questionId: topicId }
     });
 
     if (answerCount > 0) {
@@ -1037,7 +983,7 @@ router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
       });
     }
 
-    await prisma.topic.delete({
+    await prisma.question.delete({
       where: { id: topicId }
     });
 
@@ -1047,6 +993,5 @@ router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to delete topic' });
   }
 });
-*/
 
 export default router;

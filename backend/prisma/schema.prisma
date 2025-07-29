@@ -22,6 +22,22 @@ model User {
   @@map("users")
 }
 
+model Module {
+  id           String     @id @default(cuid())
+  moduleNumber Int        @unique
+  title        String
+  description  String
+  isActive     Boolean    @default(false)
+  isReleased   Boolean    @default(false)
+  releaseDate  DateTime?
+  releasedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  questions    Question[]
+
+  @@map("modules")
+}
+
 model Question {
   id             String    @id @default(cuid())
   questionNumber Int       @unique
@@ -35,9 +51,10 @@ model Question {
   isReleased     Boolean   @default(false)
   releaseDate    DateTime?
   releasedAt     DateTime?
-  // Additional fields to support module/topic concepts
-  moduleNumber   Int?      // Optional: group questions into modules
-  topicNumber    Int?      // Optional: sub-ordering within modules
+  // Module and topic relationship
+  moduleId       String?   // Reference to Module
+  module         Module?   @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  topicNumber    Int?      // Topic ordering within modules
   category       String?   // Optional: categorization (e.g., "Adventure", "Problem Solving")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
