@@ -398,7 +398,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
 // Get all modules with their topics
 router.get('/modules', async (req: AuthRequest, res) => {
   try {
-    const modules = await prisma.module.findMany({
+    const modules = await (prisma as any).module.findMany({
       include: {
         questions: {
           include: {
@@ -423,7 +423,7 @@ router.get('/modules', async (req: AuthRequest, res) => {
     });
 
     // Convert to expected format
-    const formattedModules = modules.map(module => ({
+    const formattedModules = modules.map((module: any) => ({
       id: module.id,
       moduleNumber: module.moduleNumber,
       title: module.title,
@@ -434,7 +434,7 @@ router.get('/modules', async (req: AuthRequest, res) => {
       releasedAt: module.releasedAt,
       createdAt: module.createdAt,
       updatedAt: module.updatedAt,
-      topics: module.questions.map(question => ({
+      topics: module.questions.map((question: any) => ({
         id: question.id,
         topicNumber: question.topicNumber || 1,
         title: question.title,
@@ -477,7 +477,7 @@ router.post('/modules', async (req: AuthRequest, res) => {
     }
 
     // Check if module number already exists
-    const existingModule = await prisma.module.findUnique({
+    const existingModule = await (prisma as any).module.findUnique({
       where: { moduleNumber: parseInt(moduleNumber) }
     });
 
@@ -487,7 +487,7 @@ router.post('/modules', async (req: AuthRequest, res) => {
       });
     }
 
-    const module = await prisma.module.create({
+    const module = await (prisma as any).module.create({
       data: {
         moduleNumber: parseInt(moduleNumber),
         title,
@@ -565,7 +565,7 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
     } = req.body;
 
     // Find the module by ID
-    const module = await prisma.module.findUnique({
+    const module = await (prisma as any).module.findUnique({
       where: { id: moduleId }
     });
 
@@ -586,7 +586,7 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
       }
     }
 
-    const updatedModule = await prisma.module.update({
+    const updatedModule = await (prisma as any).module.update({
       where: { id: moduleId },
       data: updateData
     });
@@ -603,7 +603,7 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
     
-    const module = await prisma.module.findUnique({
+    const module = await (prisma as any).module.findUnique({
       where: { id: moduleId },
       include: {
         questions: {
@@ -619,14 +619,14 @@ router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
     }
 
     // Check if module has any questions with answers
-    const hasAnswers = module.questions.some(question => question.answers.length > 0);
+    const hasAnswers = module.questions.some((question: any) => question.answers.length > 0);
     if (hasAnswers) {
       return res.status(400).json({ 
         error: 'Cannot delete module with questions that have answers. Please review/remove answers first.' 
       });
     }
 
-    await prisma.module.delete({
+    await (prisma as any).module.delete({
       where: { id: moduleId }
     });
 
@@ -642,7 +642,7 @@ router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
   try {
     const moduleId = req.params.moduleId;
     
-    const module = await prisma.module.findUnique({
+    const module = await (prisma as any).module.findUnique({
       where: { id: moduleId },
       include: {
         questions: {
@@ -671,7 +671,7 @@ router.get('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     }
 
     // Convert questions to topics format for compatibility
-    const topics = module.questions.map(question => ({
+    const topics = module.questions.map((question: any) => ({
       id: question.id,
       topicNumber: question.topicNumber || 1,
       title: question.title,
@@ -720,7 +720,6 @@ router.get('/topics/:topicId/answers', async (req: AuthRequest, res) => {
             id: true,
             questionNumber: true,
             title: true,
-            moduleNumber: true,
             topicNumber: true
           }
         }
@@ -757,7 +756,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     }
 
     // Verify module exists
-    const module = await prisma.module.findUnique({
+    const module = await (prisma as any).module.findUnique({
       where: { id: moduleId }
     });
 
@@ -770,7 +769,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       where: { 
         moduleId,
         topicNumber: parseInt(topicNumber)
-      }
+      } as any
     });
 
     if (existingTopic) {
@@ -800,7 +799,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
           isActive: false,
           moduleId,
           topicNumber: parseInt(topicNumber)
-        }
+        } as any
       });
     });
 
@@ -877,7 +876,7 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       data: updateData,
       include: {
         module: true
-      }
+      } as any
     });
 
     // Return in topic format for compatibility
@@ -895,10 +894,10 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       isActive: updatedQuestion.isActive,
       createdAt: updatedQuestion.createdAt,
       updatedAt: updatedQuestion.updatedAt,
-      module: updatedQuestion.module ? {
-        id: updatedQuestion.module.id,
-        moduleNumber: updatedQuestion.module.moduleNumber,
-        title: updatedQuestion.module.title
+      module: (updatedQuestion as any).module ? {
+        id: (updatedQuestion as any).module.id,
+        moduleNumber: (updatedQuestion as any).module.moduleNumber,
+        title: (updatedQuestion as any).module.title
       } : null
     };
 
