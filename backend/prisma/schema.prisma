@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
+  id          String      @id @default(cuid())
+  email       String      @unique
   password    String
   fullName    String
   trainName   String?
-  isAdmin     Boolean  @default(false)
-  currentStep Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isAdmin     Boolean     @default(false)
+  currentStep Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   answers     Answer[]
+  miniAnswers MiniAnswer[]
 
   @@map("users")
 }
@@ -39,26 +40,27 @@ model Module {
 }
 
 model Question {
-  id             String    @id @default(cuid())
-  questionNumber Int       @unique
+  id             String        @id @default(cuid())
+  questionNumber Int           @unique
   title          String
   content        String
   description    String
   deadline       DateTime
-  points         Int       @default(100)
-  bonusPoints    Int       @default(50)
-  isActive       Boolean   @default(false)
-  isReleased     Boolean   @default(false)
+  points         Int           @default(100)
+  bonusPoints    Int           @default(50)
+  isActive       Boolean       @default(false)
+  isReleased     Boolean       @default(false)
   releaseDate    DateTime?
   releasedAt     DateTime?
   // Module and topic relationship
-  moduleId       String?   // Reference to Module
-  module         Module?   @relation(fields: [moduleId], references: [id], onDelete: SetNull)
-  topicNumber    Int?      // Topic ordering within modules
-  category       String?   // Optional: categorization (e.g., "Adventure", "Problem Solving")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  moduleId       String?       // Reference to Module
+  module         Module?       @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  topicNumber    Int?          // Topic ordering within modules
+  category       String?       // Optional: categorization (e.g., "Adventure", "Problem Solving")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   answers        Answer[]
+  contents       Content[]     // Self-learning content sections
 
   @@map("questions")
 }
@@ -82,6 +84,51 @@ model Answer {
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("answers")
+}
+
+model Content {
+  id            String         @id @default(cuid())
+  title         String
+  material      String         // Rich text content for learning material
+  orderIndex    Int            // Order within the question
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  questionId    String
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  miniQuestions MiniQuestion[]
+
+  @@map("contents")
+}
+
+model MiniQuestion {
+  id          String       @id @default(cuid())
+  title       String
+  question    String       // The mini-question text
+  description String?      // Optional additional context
+  orderIndex  Int          // Order within the content section
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  contentId   String
+  content     Content      @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  miniAnswers MiniAnswer[]
+
+  @@map("mini_questions")
+}
+
+model MiniAnswer {
+  id             String       @id @default(cuid())
+  linkUrl        String       // The submitted link
+  notes          String?      // Optional notes from user
+  submittedAt    DateTime     @default(now())
+  userId         String
+  miniQuestionId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  miniQuestion   MiniQuestion @relation(fields: [miniQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, miniQuestionId]) // One answer per user per mini-question
+  @@map("mini_answers")
 }
 
 model GameConfig {

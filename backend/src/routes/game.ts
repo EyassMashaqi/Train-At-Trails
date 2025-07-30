@@ -77,6 +77,16 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         isActive: true,
         deadline: { gt: new Date() }
       },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        }
+      } as any,
       orderBy: { questionNumber: 'asc' }
     });
 
@@ -133,7 +143,8 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         deadline: currentQuestion.deadline,
         points: currentQuestion.points,
         bonusPoints: currentQuestion.bonusPoints,
-        hasAnswered: hasAnsweredCurrent
+        hasAnswered: hasAnsweredCurrent,
+        contents: (currentQuestion as any).contents || []
       } : null) : null,
       answers: answers.map((answer: any) => ({
         id: answer.id,
@@ -495,6 +506,194 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Get modules error:', error);
     res.status(500).json({ error: 'Failed to get modules' });
+  }
+});
+
+// Submit mini-answer (link submission for self-learning content)
+router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { miniQuestionId, linkUrl, notes } = req.body;
+
+    if (!miniQuestionId || !linkUrl) {
+      return res.status(400).json({ 
+        error: 'Mini-question ID and link URL are required' 
+      });
+    }
+
+    // Validate URL format
+    try {
+      new URL(linkUrl);
+    } catch {
+      return res.status(400).json({ 
+        error: 'Please provide a valid URL' 
+      });
+    }
+
+    // Verify mini-question exists
+    const miniQuestion = await (prisma as any).miniQuestion.findUnique({
+      where: { id: miniQuestionId },
+      include: {
+        content: {
+          include: {
+            question: true
+          }
+        }
+      }
+    });
+
+    if (!miniQuestion) {
+      return res.status(404).json({ error: 'Mini-question not found' });
+    }
+
+    // Check if user already answered this mini-question
+    const existingAnswer = await (prisma as any).miniAnswer.findUnique({
+      where: {
+        userId_miniQuestionId: {
+          userId,
+          miniQuestionId
+        }
+      }
+    });
+
+    if (existingAnswer) {
+      // Update existing answer
+      const updatedAnswer = await (prisma as any).miniAnswer.update({
+        where: { id: existingAnswer.id },
+        data: {
+          linkUrl: linkUrl.trim(),
+          notes: notes ? notes.trim() : null,
+          submittedAt: new Date()
+        }
+      });
+
+      res.json({
+        message: 'Mini-answer updated successfully',
+        miniAnswer: updatedAnswer
+      });
+    } else {
+      // Create new answer
+      const miniAnswer = await (prisma as any).miniAnswer.create({
+        data: {
+          linkUrl: linkUrl.trim(),
+          notes: notes ? notes.trim() : null,
+          userId,
+          miniQuestionId
+        }
+      });
+
+      res.status(201).json({
+        message: 'Mini-answer submitted successfully',
+        miniAnswer
+      });
+    }
+  } catch (error) {
+    console.error('Submit mini-answer error:', error);
+    res.status(500).json({ error: 'Failed to submit mini-answer' });
+  }
+});
+
+// Get user's mini-answers for a question
+router.get('/questions/:questionId/mini-answers', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const questionId = req.params.questionId;
+
+    // Get all mini-answers for this question by this user
+    const miniAnswers = await (prisma as any).miniAnswer.findMany({
+      where: {
+        userId,
+        miniQuestion: {
+          content: {
+            questionId
+          }
+        }
+      },
+      include: {
+        miniQuestion: {
+          include: {
+            content: true
+          }
+        }
+      }
+    });
+
+    res.json({ miniAnswers });
+  } catch (error) {
+    console.error('Get mini-answers error:', error);
+    res.status(500).json({ error: 'Failed to get mini-answers' });
+  }
+});
+
+// Get user's progress through content sections
+router.get('/questions/:questionId/content-progress', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const questionId = req.params.questionId;
+
+    // Get question with all content sections and mini-questions
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: {
+              include: {
+                miniAnswers: {
+                  where: { userId },
+                  select: {
+                    id: true,
+                    linkUrl: true,
+                    submittedAt: true
+                  }
+                }
+              },
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        }
+      } as any
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Calculate progress
+    const contents = (question as any).contents || [];
+    const totalMiniQuestions = contents.reduce((total: number, content: any) => 
+      total + content.miniQuestions.length, 0
+    );
+    
+    const completedMiniQuestions = contents.reduce((total: number, content: any) =>
+      total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+    );
+
+    const progress = {
+      totalContentSections: contents.length,
+      totalMiniQuestions,
+      completedMiniQuestions,
+      progressPercentage: totalMiniQuestions > 0 ? 
+        Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0,
+      contents: contents.map((content: any) => ({
+        id: content.id,
+        title: content.title,
+        orderIndex: content.orderIndex,
+        miniQuestions: content.miniQuestions.map((mq: any) => ({
+          id: mq.id,
+          title: mq.title,
+          orderIndex: mq.orderIndex,
+          hasAnswer: mq.miniAnswers.length > 0,
+          submittedAt: mq.miniAnswers.length > 0 ? mq.miniAnswers[0].submittedAt : null
+        }))
+      }))
+    };
+
+    res.json({ progress });
+  } catch (error) {
+    console.error('Get content progress error:', error);
+    res.status(500).json({ error: 'Failed to get content progress' });
   }
 });
 

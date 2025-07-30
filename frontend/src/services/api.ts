@@ -244,6 +244,15 @@ export const adminService = {
     deadline: string;
     points: number;
     bonusPoints: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+      }>;
+    }>;
   }) => {
     // Use the real topic creation endpoint
     return api.post(`/admin/modules/${moduleId}/topics`, topicData);
@@ -258,6 +267,10 @@ export const adminService = {
     points?: number;
     bonusPoints?: number;
     isReleased?: boolean;
+    contents?: Array<{
+      material: string;
+      question: string;
+    }>;
   }) => {
     // Map topic update to question update using the new endpoint
     return api.put(`/admin/questions/${topicId}`, {
@@ -268,7 +281,8 @@ export const adminService = {
       deadline: topicData.deadline,
       points: topicData.points,
       bonusPoints: topicData.bonusPoints,
-      isReleased: topicData.isReleased
+      isReleased: topicData.isReleased,
+      contents: topicData.contents
     });
   },
   
@@ -290,6 +304,15 @@ export const adminService = {
     deadline: string;
     points: number;
     bonusPoints: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+      }>;
+    }>;
   }) => api.post('/admin/questions', questionData),
 
   updateQuestion: (questionId: string, questionData: {
@@ -304,9 +327,70 @@ export const adminService = {
     isActive?: boolean;
     moduleNumber?: number;
     topicNumber?: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+      }>;
+    }>;
   }) => api.put(`/admin/questions/${questionId}`, questionData),
   
   releaseQuestion: (questionId: number) => api.post(`/admin/questions/${questionId}/release`),
   
   deleteQuestion: (questionId: number) => api.delete(`/admin/questions/${questionId}`),
+
+  // Content Management APIs
+  getQuestionContents: (questionId: string) => api.get(`/admin/questions/${questionId}/contents`),
+  
+  createContent: (questionId: string, contentData: {
+    title: string;
+    material: string;
+    miniQuestions?: Array<{
+      title: string;
+      question: string;
+      description?: string;
+    }>;
+  }) => api.post(`/admin/questions/${questionId}/contents`, contentData),
+  
+  updateContent: (contentId: string, contentData: {
+    title?: string;
+    material?: string;
+    isActive?: boolean;
+  }) => api.put(`/admin/contents/${contentId}`, contentData),
+  
+  deleteContent: (contentId: string) => api.delete(`/admin/contents/${contentId}`),
+  
+  // Mini-Question Management APIs
+  createMiniQuestion: (contentId: string, miniQuestionData: {
+    title: string;
+    question: string;
+    description?: string;
+  }) => api.post(`/admin/contents/${contentId}/mini-questions`, miniQuestionData),
+  
+  updateMiniQuestion: (miniQuestionId: string, miniQuestionData: {
+    title?: string;
+    question?: string;
+    description?: string;
+    isActive?: boolean;
+  }) => api.put(`/admin/mini-questions/${miniQuestionId}`, miniQuestionData),
+  
+  deleteMiniQuestion: (miniQuestionId: string) => api.delete(`/admin/mini-questions/${miniQuestionId}`),
+  
+  getMiniAnswers: (miniQuestionId: string) => api.get(`/admin/mini-questions/${miniQuestionId}/answers`),
+};
+
+// Game API for content and mini-questions
+export const contentService = {
+  submitMiniAnswer: (miniQuestionData: {
+    miniQuestionId: string;
+    linkUrl: string;
+    notes?: string;
+  }) => api.post('/game/mini-answer', miniQuestionData),
+  
+  getMiniAnswers: (questionId: string) => api.get(`/game/questions/${questionId}/mini-answers`),
+  
+  getContentProgress: (questionId: string) => api.get(`/game/questions/${questionId}/content-progress`),
 };

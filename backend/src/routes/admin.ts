@@ -209,8 +209,23 @@ router.get('/questions', async (req: AuthRequest, res) => {
           select: {
             answers: true
           }
+        },
+        contents: {
+          include: {
+            miniQuestions: {
+              include: {
+                _count: {
+                  select: {
+                    miniAnswers: true
+                  }
+                }
+              },
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
         }
-      },
+      } as any,
       orderBy: { questionNumber: 'asc' }
     });
 
@@ -253,7 +268,15 @@ router.get('/questions/:questionId/answers', async (req: AuthRequest, res) => {
 // Create new question
 router.post('/questions', async (req: AuthRequest, res) => {
   try {
-    const { questionNumber, title, description, deadline, points, bonusPoints } = req.body;
+    const { 
+      questionNumber, 
+      title, 
+      description, 
+      deadline, 
+      points, 
+      bonusPoints, 
+      contents 
+    } = req.body;
 
     // Check if question number already exists
     const existingQuestion = await prisma.question.findUnique({
@@ -264,21 +287,73 @@ router.post('/questions', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Question number already exists' });
     }
 
-    const question = await prisma.question.create({
-      data: {
-        questionNumber,
-        title,
-        content: description, // Use description as content for backward compatibility
-        description,
-        deadline: new Date(deadline),
-        points: points || 100,
-        bonusPoints: bonusPoints || 50,
-        isActive: false,
-        isReleased: false
+    // Create question with content sections
+    const question = await prisma.$transaction(async (tx) => {
+      // Create the main question
+      const newQuestion = await tx.question.create({
+        data: {
+          questionNumber,
+          title,
+          content: description, // Use description as content for backward compatibility
+          description,
+          deadline: new Date(deadline),
+          points: points || 100,
+          bonusPoints: bonusPoints || 50,
+          isActive: false,
+          isReleased: false
+        }
+      });
+
+      // Create content sections if provided
+      if (contents && Array.isArray(contents)) {
+        for (let i = 0; i < contents.length; i++) {
+          const contentData = contents[i];
+          const content = await (tx as any).content.create({
+            data: {
+              title: contentData.title,
+              material: contentData.material,
+              orderIndex: i + 1,
+              questionId: newQuestion.id
+            }
+          });
+
+          // Create mini-questions for this content
+          if (contentData.miniQuestions && Array.isArray(contentData.miniQuestions)) {
+            for (let j = 0; j < contentData.miniQuestions.length; j++) {
+              const miniQuestionData = contentData.miniQuestions[j];
+              await (tx as any).miniQuestion.create({
+                data: {
+                  title: miniQuestionData.title,
+                  question: miniQuestionData.question,
+                  description: miniQuestionData.description || '',
+                  orderIndex: j + 1,
+                  contentId: content.id
+                }
+              });
+            }
+          }
+        }
       }
+
+      return newQuestion;
     });
 
-    res.status(201).json({ question });
+    // Fetch the complete question with content sections for response
+    const completeQuestion = await prisma.question.findUnique({
+      where: { id: question.id },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        }
+      } as any
+    });
+
+    res.status(201).json({ question: completeQuestion });
   } catch (error) {
     console.error('Create question error:', error);
     res.status(500).json({ error: 'Failed to create question' });
@@ -348,7 +423,8 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
       isReleased,
       isActive,
       moduleNumber,
-      topicNumber
+      topicNumber,
+      contents
     } = req.body;
 
     // Find the question by ID
@@ -360,31 +436,89 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    // Prepare update data
-    const updateData: any = {};
-    if (questionNumber !== undefined) updateData.questionNumber = parseInt(questionNumber);
-    if (title !== undefined) updateData.title = title;
-    if (content !== undefined) updateData.content = content;
-    if (description !== undefined) updateData.description = description;
-    if (deadline !== undefined) updateData.deadline = new Date(deadline);
-    if (points !== undefined) updateData.points = parseInt(points);
-    if (bonusPoints !== undefined) updateData.bonusPoints = parseInt(bonusPoints);
-    if (moduleNumber !== undefined) updateData.moduleNumber = parseInt(moduleNumber);
-    if (topicNumber !== undefined) updateData.topicNumber = parseInt(topicNumber);
-    if (typeof isReleased === 'boolean') {
-      updateData.isReleased = isReleased;
-      if (isReleased && !question.isReleased) {
-        updateData.releasedAt = new Date();
+    // Use transaction to update question and content sections
+    const updatedQuestion = await prisma.$transaction(async (tx) => {
+      // Prepare update data for question
+      const updateData: any = {};
+      if (questionNumber !== undefined) updateData.questionNumber = parseInt(questionNumber);
+      if (title !== undefined) updateData.title = title;
+      if (content !== undefined) updateData.content = content;
+      if (description !== undefined) updateData.description = description;
+      if (deadline !== undefined) updateData.deadline = new Date(deadline);
+      if (points !== undefined) updateData.points = parseInt(points);
+      if (bonusPoints !== undefined) updateData.bonusPoints = parseInt(bonusPoints);
+      if (moduleNumber !== undefined) updateData.moduleNumber = parseInt(moduleNumber);
+      if (topicNumber !== undefined) updateData.topicNumber = parseInt(topicNumber);
+      if (typeof isReleased === 'boolean') {
+        updateData.isReleased = isReleased;
+        if (isReleased && !question.isReleased) {
+          updateData.releasedAt = new Date();
+        }
       }
-    }
-    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+      if (typeof isActive === 'boolean') updateData.isActive = isActive;
 
-    const updatedQuestion = await prisma.question.update({
-      where: { id: questionId },
-      data: updateData
+      // Update the question
+      const updated = await tx.question.update({
+        where: { id: questionId },
+        data: updateData
+      });
+
+      // Handle content sections if provided
+      if (contents && Array.isArray(contents)) {
+        // Delete existing content sections and their mini-questions
+        await (tx as any).content.deleteMany({
+          where: { questionId }
+        });
+
+        // Create new content sections
+        for (let i = 0; i < contents.length; i++) {
+          const contentData = contents[i];
+          const newContent = await (tx as any).content.create({
+            data: {
+              title: contentData.title,
+              material: contentData.material,
+              orderIndex: i + 1,
+              questionId
+            }
+          });
+
+          // Create mini-questions for this content
+          if (contentData.miniQuestions && Array.isArray(contentData.miniQuestions)) {
+            for (let j = 0; j < contentData.miniQuestions.length; j++) {
+              const miniQuestionData = contentData.miniQuestions[j];
+              await (tx as any).miniQuestion.create({
+                data: {
+                  title: miniQuestionData.title,
+                  question: miniQuestionData.question,
+                  description: miniQuestionData.description || '',
+                  orderIndex: j + 1,
+                  contentId: newContent.id
+                }
+              });
+            }
+          }
+        }
+      }
+
+      return updated;
     });
 
-    res.json({ question: updatedQuestion });
+    // Fetch the complete updated question with content sections
+    const completeQuestion = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        }
+      } as any
+    });
+
+    res.json({ question: completeQuestion });
   } catch (error) {
     console.error('Update question error:', error);
     res.status(500).json({ error: 'Failed to update question' });
@@ -414,6 +548,12 @@ router.get('/modules', async (req: AuthRequest, res) => {
                 }
               },
               orderBy: { submittedAt: 'desc' }
+            },
+            contents: {
+              include: {
+                miniQuestions: true
+              },
+              orderBy: { orderIndex: 'asc' }
             }
           },
           orderBy: { topicNumber: 'asc' }
@@ -449,7 +589,11 @@ router.get('/modules', async (req: AuthRequest, res) => {
         bonusPoints: question.bonusPoints,
         createdAt: question.createdAt,
         updatedAt: question.updatedAt,
-        answers: question.answers
+        answers: question.answers,
+        contents: question.contents?.map((content: any) => ({
+          content: content.material,
+          description: content.question
+        })) || []
       }))
     }));
 
@@ -998,6 +1142,300 @@ router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Delete topic error:', error);
     res.status(500).json({ error: 'Failed to delete topic' });
+  }
+});
+
+// ========================================
+// CONTENT AND MINI-QUESTION MANAGEMENT ROUTES
+// ========================================
+
+// Get content sections for a question
+router.get('/questions/:questionId/contents', async (req: AuthRequest, res) => {
+  try {
+    const questionId = req.params.questionId;
+    
+    const contents = await (prisma as any).content.findMany({
+      where: { questionId },
+      include: {
+        miniQuestions: {
+          include: {
+            _count: {
+              select: {
+                miniAnswers: true
+              }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        }
+      },
+      orderBy: { orderIndex: 'asc' }
+    });
+
+    res.json({ contents });
+  } catch (error) {
+    console.error('Get question contents error:', error);
+    res.status(500).json({ error: 'Failed to get question contents' });
+  }
+});
+
+// Create content section for a question
+router.post('/questions/:questionId/contents', async (req: AuthRequest, res) => {
+  try {
+    const questionId = req.params.questionId;
+    const { title, material, miniQuestions } = req.body;
+
+    if (!title || !material) {
+      return res.status(400).json({ 
+        error: 'Title and material are required' 
+      });
+    }
+
+    // Verify question exists
+    const question = await prisma.question.findUnique({
+      where: { id: questionId }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Get next order index
+    const lastContent = await (prisma as any).content.findFirst({
+      where: { questionId },
+      orderBy: { orderIndex: 'desc' }
+    });
+    const nextOrder = lastContent ? lastContent.orderIndex + 1 : 1;
+
+    const content = await prisma.$transaction(async (tx) => {
+      // Create content section
+      const newContent = await (tx as any).content.create({
+        data: {
+          title,
+          material,
+          orderIndex: nextOrder,
+          questionId
+        }
+      });
+
+      // Create mini-questions if provided
+      if (miniQuestions && Array.isArray(miniQuestions)) {
+        for (let i = 0; i < miniQuestions.length; i++) {
+          const miniQuestionData = miniQuestions[i];
+          await (tx as any).miniQuestion.create({
+            data: {
+              title: miniQuestionData.title,
+              question: miniQuestionData.question,
+              description: miniQuestionData.description || '',
+              orderIndex: i + 1,
+              contentId: newContent.id
+            }
+          });
+        }
+      }
+
+      return newContent;
+    });
+
+    res.status(201).json({ content });
+  } catch (error) {
+    console.error('Create content error:', error);
+    res.status(500).json({ error: 'Failed to create content' });
+  }
+});
+
+// Update content section
+router.put('/contents/:contentId', async (req: AuthRequest, res) => {
+  try {
+    const contentId = req.params.contentId;
+    const { title, material, isActive } = req.body;
+
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (material !== undefined) updateData.material = material;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+
+    const updatedContent = await (prisma as any).content.update({
+      where: { id: contentId },
+      data: updateData,
+      include: {
+        miniQuestions: {
+          orderBy: { orderIndex: 'asc' }
+        }
+      }
+    });
+
+    res.json({ content: updatedContent });
+  } catch (error) {
+    console.error('Update content error:', error);
+    res.status(500).json({ error: 'Failed to update content' });
+  }
+});
+
+// Delete content section
+router.delete('/contents/:contentId', async (req: AuthRequest, res) => {
+  try {
+    const contentId = req.params.contentId;
+    
+    const content = await (prisma as any).content.findUnique({
+      where: { id: contentId },
+      include: {
+        miniQuestions: {
+          include: {
+            miniAnswers: true
+          }
+        }
+      }
+    });
+
+    if (!content) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    // Check if there are any mini-answers
+    const hasAnswers = content.miniQuestions.some((mq: any) => mq.miniAnswers.length > 0);
+    if (hasAnswers) {
+      return res.status(400).json({ 
+        error: 'Cannot delete content with mini-questions that have answers. Please remove answers first.' 
+      });
+    }
+
+    await (prisma as any).content.delete({
+      where: { id: contentId }
+    });
+
+    res.json({ message: 'Content deleted successfully' });
+  } catch (error) {
+    console.error('Delete content error:', error);
+    res.status(500).json({ error: 'Failed to delete content' });
+  }
+});
+
+// Get mini-answers for a mini-question
+router.get('/mini-questions/:miniQuestionId/answers', async (req: AuthRequest, res) => {
+  try {
+    const miniQuestionId = req.params.miniQuestionId;
+    
+    const miniAnswers = await (prisma as any).miniAnswer.findMany({
+      where: { miniQuestionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            trainName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    res.json({ miniAnswers });
+  } catch (error) {
+    console.error('Get mini-answers error:', error);
+    res.status(500).json({ error: 'Failed to get mini-answers' });
+  }
+});
+
+// Create mini-question for content
+router.post('/contents/:contentId/mini-questions', async (req: AuthRequest, res) => {
+  try {
+    const contentId = req.params.contentId;
+    const { title, question, description } = req.body;
+
+    if (!title || !question) {
+      return res.status(400).json({ 
+        error: 'Title and question are required' 
+      });
+    }
+
+    // Verify content exists
+    const content = await (prisma as any).content.findUnique({
+      where: { id: contentId }
+    });
+
+    if (!content) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    // Get next order index
+    const lastMiniQuestion = await (prisma as any).miniQuestion.findFirst({
+      where: { contentId },
+      orderBy: { orderIndex: 'desc' }
+    });
+    const nextOrder = lastMiniQuestion ? lastMiniQuestion.orderIndex + 1 : 1;
+
+    const miniQuestion = await (prisma as any).miniQuestion.create({
+      data: {
+        title,
+        question,
+        description: description || '',
+        orderIndex: nextOrder,
+        contentId
+      }
+    });
+
+    res.status(201).json({ miniQuestion });
+  } catch (error) {
+    console.error('Create mini-question error:', error);
+    res.status(500).json({ error: 'Failed to create mini-question' });
+  }
+});
+
+// Update mini-question
+router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
+  try {
+    const miniQuestionId = req.params.miniQuestionId;
+    const { title, question, description, isActive } = req.body;
+
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (question !== undefined) updateData.question = question;
+    if (description !== undefined) updateData.description = description;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+
+    const updatedMiniQuestion = await (prisma as any).miniQuestion.update({
+      where: { id: miniQuestionId },
+      data: updateData
+    });
+
+    res.json({ miniQuestion: updatedMiniQuestion });
+  } catch (error) {
+    console.error('Update mini-question error:', error);
+    res.status(500).json({ error: 'Failed to update mini-question' });
+  }
+});
+
+// Delete mini-question
+router.delete('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
+  try {
+    const miniQuestionId = req.params.miniQuestionId;
+    
+    const miniQuestion = await (prisma as any).miniQuestion.findUnique({
+      where: { id: miniQuestionId },
+      include: {
+        miniAnswers: true
+      }
+    });
+
+    if (!miniQuestion) {
+      return res.status(404).json({ error: 'Mini-question not found' });
+    }
+
+    if (miniQuestion.miniAnswers.length > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete mini-question with existing answers. Please remove answers first.' 
+      });
+    }
+
+    await (prisma as any).miniQuestion.delete({
+      where: { id: miniQuestionId }
+    });
+
+    res.json({ message: 'Mini-question deleted successfully' });
+  } catch (error) {
+    console.error('Delete mini-question error:', error);
+    res.status(500).json({ error: 'Failed to delete mini-question' });
   }
 });
 

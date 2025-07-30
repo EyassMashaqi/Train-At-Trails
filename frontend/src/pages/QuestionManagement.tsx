@@ -3,6 +3,21 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { adminService } from '../services/api';
 
+interface MiniQuestion {
+  id?: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+}
+
+interface ContentSection {
+  id?: string;
+  title: string;
+  content: string;
+  orderIndex: number;
+  miniQuestions: MiniQuestion[];
+}
+
 interface Question {
   id: number;
   questionNumber: number;
@@ -41,6 +56,7 @@ interface QuestionFormData {
   deadline: string;
   points: number;
   bonusPoints: number;
+  contents: ContentSection[];
 }
 
 const QuestionManagement: React.FC = () => {
@@ -54,7 +70,8 @@ const QuestionManagement: React.FC = () => {
     description: '',
     deadline: '',
     points: 100,
-    bonusPoints: 50
+    bonusPoints: 50,
+    contents: []
   });
 
   const loadQuestions = useCallback(async () => {
@@ -91,7 +108,26 @@ const QuestionManagement: React.FC = () => {
   const handleCreateQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await adminService.createQuestion(formData);
+      // Transform the data to match API expectations
+      const questionData = {
+        questionNumber: formData.questionNumber,
+        title: formData.title,
+        description: formData.description,
+        deadline: formData.deadline,
+        points: formData.points,
+        bonusPoints: formData.bonusPoints,
+        contents: formData.contents.map(content => ({
+          title: content.title,
+          material: content.content, // API expects 'material' instead of 'content'
+          miniQuestions: content.miniQuestions.map(mq => ({
+            title: mq.title,
+            question: mq.description, // API expects 'question' instead of 'description'
+            description: mq.description
+          }))
+        }))
+      };
+
+      await adminService.createQuestion(questionData);
       toast.success('Question created successfully!');
       setShowCreateForm(false);
       setFormData({
@@ -100,7 +136,8 @@ const QuestionManagement: React.FC = () => {
         description: '',
         deadline: '',
         points: 100,
-        bonusPoints: 50
+        bonusPoints: 50,
+        contents: []
       });
       await loadQuestions();
     } catch (error) {
@@ -304,6 +341,179 @@ const QuestionManagement: React.FC = () => {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Self Learning Content Management */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Self Learning Content (Mini Questions)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newMiniQuestion = {
+                        id: `temp-${Date.now()}`,
+                        title: '',
+                        description: '',
+                        orderIndex: formData.contents.length
+                      };
+                      
+                      // Create a simple content section if none exists
+                      if (formData.contents.length === 0) {
+                        const newContent = {
+                          id: `content-${Date.now()}`,
+                          title: 'Learning Material',
+                          content: 'Self-learning content for students',
+                          orderIndex: 0,
+                          miniQuestions: [newMiniQuestion]
+                        };
+                        setFormData({ ...formData, contents: [newContent] });
+                      } else {
+                        // Add to first content section
+                        const updatedContents = [...formData.contents];
+                        updatedContents[0] = {
+                          ...updatedContents[0],
+                          miniQuestions: [...updatedContents[0].miniQuestions, newMiniQuestion]
+                        };
+                        setFormData({ ...formData, contents: updatedContents });
+                      }
+                    }}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center"
+                  >
+                    <span className="mr-1">➕</span>
+                    Add New Mini Question
+                  </button>
+                </div>
+
+                {formData.contents.length > 0 && formData.contents[0].miniQuestions.length > 0 ? (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-700">Mini Questions Table</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              #
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Mini Question Title
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Description/Instructions
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {formData.contents[0].miniQuestions.map((miniQuestion, index) => (
+                            <tr key={miniQuestion.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                {index + 1}
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  placeholder="Enter mini question title..."
+                                  value={miniQuestion.title}
+                                  onChange={(e) => {
+                                    const updatedContents = [...formData.contents];
+                                    updatedContents[0].miniQuestions[index] = {
+                                      ...miniQuestion,
+                                      title: e.target.value
+                                    };
+                                    setFormData({ ...formData, contents: updatedContents });
+                                  }}
+                                  className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <textarea
+                                  placeholder="Enter instructions for students..."
+                                  value={miniQuestion.description}
+                                  onChange={(e) => {
+                                    const updatedContents = [...formData.contents];
+                                    updatedContents[0].miniQuestions[index] = {
+                                      ...miniQuestion,
+                                      description: e.target.value
+                                    };
+                                    setFormData({ ...formData, contents: updatedContents });
+                                  }}
+                                  rows={2}
+                                  className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (index > 0) {
+                                        const updatedContents = [...formData.contents];
+                                        const miniQuestions = [...updatedContents[0].miniQuestions];
+                                        [miniQuestions[index], miniQuestions[index - 1]] = [miniQuestions[index - 1], miniQuestions[index]];
+                                        miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                        updatedContents[0].miniQuestions = miniQuestions;
+                                        setFormData({ ...formData, contents: updatedContents });
+                                      }
+                                    }}
+                                    disabled={index === 0}
+                                    className="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (index < formData.contents[0].miniQuestions.length - 1) {
+                                        const updatedContents = [...formData.contents];
+                                        const miniQuestions = [...updatedContents[0].miniQuestions];
+                                        [miniQuestions[index], miniQuestions[index + 1]] = [miniQuestions[index + 1], miniQuestions[index]];
+                                        miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                        updatedContents[0].miniQuestions = miniQuestions;
+                                        setFormData({ ...formData, contents: updatedContents });
+                                      }
+                                    }}
+                                    disabled={index === formData.contents[0].miniQuestions.length - 1}
+                                    className="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                    ↓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm('Are you sure you want to delete this mini question?')) {
+                                        const updatedContents = [...formData.contents];
+                                        updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
+                                          .filter((_, idx) => idx !== index)
+                                          .map((mq, idx) => ({ ...mq, orderIndex: idx }));
+                                        setFormData({ ...formData, contents: updatedContents });
+                                      }
+                                    }}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-2 text-xs text-gray-600">
+                      Students will submit links for each mini question as part of their self-learning process.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <span className="text-gray-500">No mini questions yet. Click "Add New Mini Question" to start creating self-learning content.</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3">
