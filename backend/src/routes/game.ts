@@ -108,7 +108,11 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     // Only return currentQuestion if there are no questions organized as modules
     // (legacy fallback for systems not using module/topic structure)
     const questionsWithModules = await prisma.question.findMany({
-      where: { moduleId: { not: null } } as any
+      where: { 
+        NOT: {
+          moduleId: null
+        }
+      }
     });
 
     // If we have questions organized in modules, don't return currentQuestion

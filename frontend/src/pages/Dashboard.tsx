@@ -250,6 +250,37 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Active Questions Card - Moved from right column */}
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 mt-8">
+              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <span className="mr-3">🎯</span>
+                Active Questions
+              </h3>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg mb-4">
+                  {activeQuestionsCount}
+                </div>
+                <div className="text-lg text-gray-600 mb-4">
+                  {activeQuestionsCount === 1 
+                    ? 'Question Available' 
+                    : 'Questions Available'}
+                </div>
+                {activeQuestionsCount > 0 ? (
+                  <button
+                    onClick={() => navigate('/game')}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium"
+                  >
+                    <span className="mr-2">📝</span>
+                    Start Answering
+                  </button>
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    Check back later for new questions!
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Side Panel */}
@@ -296,37 +327,6 @@ const Dashboard: React.FC = () => {
                     day: 'numeric' 
                   })}
                 </div>
-              </div>
-            </div>
-
-            {/* Active Questions */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <span className="mr-3">🎯</span>
-                Active Questions
-              </h3>
-              <div className="text-center">
-                <div className="text-5xl font-bold text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg mb-4">
-                  {activeQuestionsCount}
-                </div>
-                <div className="text-lg text-gray-600 mb-4">
-                  {activeQuestionsCount === 1 
-                    ? 'Question Available' 
-                    : 'Questions Available'}
-                </div>
-                {activeQuestionsCount > 0 ? (
-                  <button
-                    onClick={() => navigate('/game')}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium"
-                  >
-                    <span className="mr-2">📝</span>
-                    Start Answering
-                  </button>
-                ) : (
-                  <div className="text-sm text-gray-500">
-                    Check back later for new questions!
-                  </div>
-                )}
               </div>
             </div>
 
