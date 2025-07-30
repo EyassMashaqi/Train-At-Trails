@@ -99,6 +99,7 @@ interface ContentSection {
   id?: string;
   title: string;
   content: string;
+  description: string;
   orderIndex: number;
   miniQuestions: MiniQuestion[];
 }
@@ -1040,6 +1041,7 @@ const AdminDashboard: React.FC = () => {
                         id: `content-${Date.now()}`,
                         title: 'Learning Material',
                         content: 'Self-learning content for students',
+                        description: 'Learning material description',
                         orderIndex: 0,
                         miniQuestions: [newMiniQuestion]
                       };
@@ -1555,7 +1557,13 @@ const AdminDashboard: React.FC = () => {
                     const currentContents = selectedTopic.contents || [];
                     setSelectedTopic({
                       ...selectedTopic,
-                      contents: [...currentContents, { content: '', description: '' }]
+                      contents: [...currentContents, { 
+                        content: '', 
+                        description: '',
+                        title: '',
+                        orderIndex: currentContents.length,
+                        miniQuestions: []
+                      }]
                     });
                   }}
                   className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
@@ -1588,7 +1596,7 @@ const AdminDashboard: React.FC = () => {
                               type="text"
                               value={contentItem.content}
                               onChange={(e) => {
-                                const newContents = [...selectedTopic.contents];
+                                const newContents = [...(selectedTopic.contents || [])];
                                 newContents[index] = { ...newContents[index], content: e.target.value };
                                 setSelectedTopic({ ...selectedTopic, contents: newContents });
                               }}
@@ -1601,7 +1609,7 @@ const AdminDashboard: React.FC = () => {
                               type="text"
                               value={contentItem.description}
                               onChange={(e) => {
-                                const newContents = [...selectedTopic.contents];
+                                const newContents = [...(selectedTopic.contents || [])];
                                 newContents[index] = { ...newContents[index], description: e.target.value };
                                 setSelectedTopic({ ...selectedTopic, contents: newContents });
                               }}
@@ -1615,7 +1623,7 @@ const AdminDashboard: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const newContents = [...selectedTopic.contents];
+                                    const newContents = [...(selectedTopic.contents || [])];
                                     [newContents[index], newContents[index - 1]] = [newContents[index - 1], newContents[index]];
                                     setSelectedTopic({ ...selectedTopic, contents: newContents });
                                   }}
@@ -1625,11 +1633,11 @@ const AdminDashboard: React.FC = () => {
                                   ↑
                                 </button>
                               )}
-                              {index < selectedTopic.contents.length - 1 && (
+                              {index < (selectedTopic.contents?.length || 0) - 1 && (
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const newContents = [...selectedTopic.contents];
+                                    const newContents = [...(selectedTopic.contents || [])];
                                     [newContents[index], newContents[index + 1]] = [newContents[index + 1], newContents[index]];
                                     setSelectedTopic({ ...selectedTopic, contents: newContents });
                                   }}
@@ -1642,7 +1650,7 @@ const AdminDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const newContents = selectedTopic.contents.filter((_, i) => i !== index);
+                                  const newContents = (selectedTopic.contents || []).filter((_, i) => i !== index);
                                   setSelectedTopic({ ...selectedTopic, contents: newContents });
                                 }}
                                 className="p-1 text-gray-400 hover:text-red-600 transition-colors"
