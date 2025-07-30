@@ -914,7 +914,8 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
     const topicId = req.params.topicId;
     
     const question = await prisma.question.findUnique({
-      where: { id: topicId }
+      where: { id: topicId },
+      include: { module: true }
     });
 
     if (!question) {
@@ -926,7 +927,8 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
       data: { 
         isReleased: true,
         releasedAt: new Date()
-      }
+      },
+      include: { module: true }
     });
 
     // Return in topic format for compatibility
@@ -944,11 +946,17 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
       isActive: updatedQuestion.isActive,
       createdAt: updatedQuestion.createdAt,
       updatedAt: updatedQuestion.updatedAt,
-      module: {
-        id: `module-${updatedQuestion.moduleNumber || 1}`,
-        moduleNumber: updatedQuestion.moduleNumber || 1,
-        title: `Adventure ${updatedQuestion.moduleNumber || 1}`
-      }
+      module: updatedQuestion.module
+        ? {
+            id: `module-${updatedQuestion.module.moduleNumber || 1}`,
+            moduleNumber: updatedQuestion.module.moduleNumber || 1,
+            title: updatedQuestion.module.title || `Adventure ${updatedQuestion.module.moduleNumber || 1}`
+          }
+        : {
+            id: `module-1`,
+            moduleNumber: 1,
+            title: `Adventure 1`
+          }
     };
 
     res.json({ topic });
