@@ -5,6 +5,35 @@ import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Validation function to check if assignment deadline is before any mini question release date
+const validateAssignmentDeadline = (deadline: Date, contents: any[]): { isValid: boolean; errorMessage?: string } => {
+  if (!deadline || !contents || contents.length === 0) {
+    return { isValid: true };
+  }
+
+  // Check all mini questions for release dates that are after the assignment deadline
+  for (const content of contents) {
+    // Handle both nested structure (from API) and flat structure (from forms)
+    const miniQuestions = content.miniQuestions || [content];
+    
+    for (const miniQuestion of miniQuestions) {
+      if (miniQuestion.releaseDate) {
+        const releaseDate = new Date(miniQuestion.releaseDate);
+        if (releaseDate > deadline) {
+          const formattedReleaseDate = releaseDate.toLocaleDateString();
+          const formattedDeadline = deadline.toLocaleDateString();
+          return {
+            isValid: false,
+            errorMessage: `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`
+          };
+        }
+      }
+    }
+  }
+  
+  return { isValid: true };
+};
+
 // Apply authentication and admin requirement to all routes
 router.use(authenticateToken);
 router.use(requireAdmin);
@@ -434,6 +463,17 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
 
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Validate assignment deadline against mini question release dates
+    if (deadline && contents) {
+      const assignmentDeadline = new Date(deadline);
+      const validationResult = validateAssignmentDeadline(assignmentDeadline, contents);
+      if (!validationResult.isValid) {
+        return res.status(400).json({ 
+          error: validationResult.errorMessage 
+        });
+      }
     }
 
     // Use transaction to update question and content sections
@@ -939,6 +979,15 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     if (!topicNumber || !title || !content || !description || !deadline || !points) {
       return res.status(400).json({ 
         error: 'Missing required fields: topicNumber, title, content, description, deadline, points' 
+      });
+    }
+
+    // Validate assignment deadline against mini question release dates
+    const assignmentDeadline = new Date(deadline);
+    const validationResult = validateAssignmentDeadline(assignmentDeadline, contents || []);
+    if (!validationResult.isValid) {
+      return res.status(400).json({ 
+        error: validationResult.errorMessage 
       });
     }
 

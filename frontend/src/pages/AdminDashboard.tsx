@@ -174,6 +174,10 @@ const AdminDashboard: React.FC = () => {
     contents: []
   });
 
+  // Validation states
+  const [createFormValidation, setCreateFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
+  const [editFormValidation, setEditFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
+
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
@@ -217,6 +221,60 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     loadAdminData();
   }, [loadAdminData]);
+
+  // Validation function to check if assignment deadline is before any mini question release date
+  const validateAssignmentDeadline = (deadline: string, contents: any[]): { isValid: boolean; errorMessage?: string } => {
+    if (!deadline || !contents || contents.length === 0) {
+      return { isValid: true };
+    }
+
+    const assignmentDeadline = new Date(deadline);
+    
+    // Check all mini questions for release dates that are after the assignment deadline
+    for (const content of contents) {
+      // Handle both nested structure (from API) and flat structure (from forms)
+      const miniQuestions = content.miniQuestions || [content];
+      
+      for (const miniQuestion of miniQuestions) {
+        if (miniQuestion.releaseDate) {
+          const releaseDate = new Date(miniQuestion.releaseDate);
+          if (releaseDate > assignmentDeadline) {
+            const formattedReleaseDate = releaseDate.toLocaleDateString();
+            const formattedDeadline = assignmentDeadline.toLocaleDateString();
+            return {
+              isValid: false,
+              errorMessage: `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`
+            };
+          }
+        }
+      }
+    }
+    
+    return { isValid: true };
+  };
+
+  // Real-time validation for create form
+  const validateCreateForm = useCallback(() => {
+    const validation = validateAssignmentDeadline(topicForm.deadline, topicForm.contents);
+    setCreateFormValidation(validation);
+  }, [topicForm.deadline, topicForm.contents]);
+
+  // Real-time validation for edit form
+  const validateEditForm = useCallback(() => {
+    if (selectedTopic) {
+      const validation = validateAssignmentDeadline(selectedTopic.deadline, selectedTopic.contents || []);
+      setEditFormValidation(validation);
+    }
+  }, [selectedTopic?.deadline, selectedTopic?.contents]);
+
+  // Trigger validation when forms change
+  useEffect(() => {
+    validateCreateForm();
+  }, [validateCreateForm]);
+
+  useEffect(() => {
+    validateEditForm();
+  }, [validateEditForm]);
 
   const handleReviewAnswer = async (answerId: number, status: 'approved' | 'rejected') => {
     // Open feedback modal
@@ -974,8 +1032,17 @@ const AdminDashboard: React.FC = () => {
                   type="datetime-local"
                   value={topicForm.deadline}
                   onChange={(e) => setTopicForm({...topicForm, deadline: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    !createFormValidation.isValid 
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 />
+                {!createFormValidation.isValid && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {createFormValidation.errorMessage}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -1226,6 +1293,13 @@ const AdminDashboard: React.FC = () => {
                       return;
                     }
 
+                    // Validate deadline against mini question release dates
+                    const validationResult = validateAssignmentDeadline(topicForm.deadline, topicForm.contents);
+                    if (!validationResult.isValid) {
+                      toast.error(validationResult.errorMessage || 'Validation failed');
+                      return;
+                    }
+
                     // Transform the data to match API expectations
                     const topicData = {
                       ...topicForm,
@@ -1271,7 +1345,12 @@ const AdminDashboard: React.FC = () => {
                     toast.error('Failed to create assignment');
                   }
                 }}
-                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
+                disabled={!createFormValidation.isValid}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+                  createFormValidation.isValid
+                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 Create Assignment
               </button>
@@ -1517,8 +1596,17 @@ const AdminDashboard: React.FC = () => {
                   type="datetime-local"
                   value={selectedTopic.deadline.substring(0, 16)}
                   onChange={(e) => setSelectedTopic({...selectedTopic, deadline: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    !editFormValidation.isValid 
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 />
+                {!editFormValidation.isValid && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {editFormValidation.errorMessage}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -1733,6 +1821,13 @@ const AdminDashboard: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
+                    // Validate deadline against mini question release dates
+                    const validationResult = validateAssignmentDeadline(selectedTopic.deadline, selectedTopic.contents || []);
+                    if (!validationResult.isValid) {
+                      toast.error(validationResult.errorMessage || 'Validation failed');
+                      return;
+                    }
+
                     // Transform contents to the format expected by the backend
                     const transformedContents = selectedTopic.contents 
                       ? selectedTopic.contents.map(item => ({
@@ -1777,7 +1872,12 @@ const AdminDashboard: React.FC = () => {
                     toast.error('Failed to update assignment');
                   }
                 }}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+                disabled={!editFormValidation.isValid}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+                  editFormValidation.isValid
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 Save Changes
               </button>
