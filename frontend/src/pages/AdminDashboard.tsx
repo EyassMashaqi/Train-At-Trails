@@ -93,6 +93,7 @@ interface MiniQuestion {
   title: string;
   description: string;
   orderIndex: number;
+  releaseDate?: string;
 }
 
 interface ContentSection {
@@ -102,6 +103,7 @@ interface ContentSection {
   description: string;
   orderIndex: number;
   miniQuestions: MiniQuestion[];
+  releaseDate?: string;
 }
 
 interface TopicFormData {
@@ -1032,7 +1034,8 @@ const AdminDashboard: React.FC = () => {
                       id: `temp-${Date.now()}`,
                       title: '',
                       description: '',
-                      orderIndex: topicForm.contents.length
+                      orderIndex: topicForm.contents.length,
+                      releaseDate: ''
                     };
                     
                     // Create a simple content section if none exists
@@ -1074,6 +1077,9 @@ const AdminDashboard: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Question
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Release Date
+                        </th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
                           Actions
                         </th>
@@ -1112,6 +1118,21 @@ const AdminDashboard: React.FC = () => {
                               }}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="datetime-local"
+                              value={miniQuestion.releaseDate || ''}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  releaseDate: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                             />
                           </td>
                           <td className="px-6 py-4 text-center">
@@ -1214,7 +1235,8 @@ const AdminDashboard: React.FC = () => {
                         miniQuestions: content.miniQuestions.map(mq => ({
                           title: mq.title,
                           question: mq.description, // API expects 'question' instead of 'description'
-                          description: mq.description
+                          description: mq.description,
+                          releaseDate: mq.releaseDate
                         }))
                       }))
                     };
@@ -1559,7 +1581,8 @@ const AdminDashboard: React.FC = () => {
                         description: '',
                         title: '',
                         orderIndex: currentContents.length,
-                        miniQuestions: []
+                        miniQuestions: [],
+                        releaseDate: ''
                       }]
                     });
                   }}
@@ -1580,6 +1603,9 @@ const AdminDashboard: React.FC = () => {
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Question
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Release Date
                         </th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
                           Actions
@@ -1613,6 +1639,18 @@ const AdminDashboard: React.FC = () => {
                               }}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="datetime-local"
+                              value={contentItem.releaseDate || ''}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], releaseDate: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                             />
                           </td>
                           <td className="px-6 py-4 text-center">
@@ -1699,7 +1737,8 @@ const AdminDashboard: React.FC = () => {
                     const transformedContents = selectedTopic.contents 
                       ? selectedTopic.contents.map(item => ({
                           material: item.content,
-                          question: item.description
+                          question: item.description,
+                          releaseDate: item.releaseDate
                         }))
                       : [];
 

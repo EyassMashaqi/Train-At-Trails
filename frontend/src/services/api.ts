@@ -251,6 +251,7 @@ export const adminService = {
         title: string;
         question: string;
         description?: string;
+        releaseDate?: string;
       }>;
     }>;
   }) => {
@@ -270,6 +271,7 @@ export const adminService = {
     contents?: Array<{
       material: string;
       question: string;
+      releaseDate?: string;
     }>;
   }) => {
     // Map topic update to question update using the new endpoint
