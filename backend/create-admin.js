@@ -38,7 +38,7 @@ async function createAdminUser() {
     // Create admin user
     const adminUser = await prisma.user.create({
       data: {
-        email: 'admin@trainattrails.com',
+        email: 'admin@traintrails.com',
         password: hashedPassword,
         fullName: 'System Administrator',
         trainName: 'Admin Express',
@@ -48,6 +48,8 @@ async function createAdminUser() {
     });
 
     console.log('✅ Admin user created successfully!');
+    console.log('Email: admin@traintrails.com');
+    console.log('Password: admin123');
     console.log('Email: admin@trainattrails.com');
     console.log('Password: admin123');
     console.log('You can now log in to the admin dashboard.');

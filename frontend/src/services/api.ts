@@ -147,6 +147,12 @@ export const gameService = {
   getModules: () => api.get('/game/modules'),
 
   getModuleDetails: (moduleNumber: number) => api.get(`/game/modules/${moduleNumber}`),
+
+  // Mini questions
+  getContentProgress: (questionId: string) => api.get(`/game/questions/${questionId}/content-progress`),
+  
+  submitMiniAnswer: (data: { miniQuestionId: string; linkUrl: string; notes?: string }) =>
+    api.post('/game/mini-answer', data),
 };
 
 // Admin service

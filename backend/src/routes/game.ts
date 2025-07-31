@@ -210,6 +210,40 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       return res.status(400).json({ error: 'No active question available' });
     }
 
+    // Check if user has completed all released mini questions for this question
+    const contents = await (prisma as any).content.findMany({
+      where: { questionId: currentQuestion.id },
+      include: {
+        miniQuestions: {
+          where: { isReleased: true },
+          include: {
+            miniAnswers: {
+              where: { userId }
+            }
+          }
+        }
+      }
+    });
+
+    const totalReleasedMiniQuestions = contents.reduce((total: number, content: any) => 
+      total + content.miniQuestions.length, 0
+    );
+    
+    const completedMiniQuestions = contents.reduce((total: number, content: any) =>
+      total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+    );
+
+    if (totalReleasedMiniQuestions > 0 && completedMiniQuestions < totalReleasedMiniQuestions) {
+      return res.status(400).json({ 
+        error: `You must complete all mini questions before submitting your main answer. Completed: ${completedMiniQuestions}/${totalReleasedMiniQuestions}`,
+        requiresMiniQuestions: true,
+        progress: {
+          completed: completedMiniQuestions,
+          total: totalReleasedMiniQuestions
+        }
+      });
+    }
+
     // Check if user already answered with approved or pending status
     const existingAnswer = await prisma.answer.findFirst({
       where: { 
@@ -638,6 +672,9 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
         contents: {
           include: {
             miniQuestions: {
+              where: {
+                isReleased: true // Only show released mini questions
+              },
               include: {
                 miniAnswers: {
                   where: { userId },
@@ -660,7 +697,7 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    // Calculate progress
+    // Calculate progress (only for released mini questions)
     const contents = (question as any).contents || [];
     const totalMiniQuestions = contents.reduce((total: number, content: any) => 
       total + content.miniQuestions.length, 0
@@ -670,12 +707,16 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
       total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
     );
 
+    // Check if user can solve main question (all released mini questions must be completed)
+    const canSolveMainQuestion = completedMiniQuestions === totalMiniQuestions && totalMiniQuestions > 0;
+
     const progress = {
       totalContentSections: contents.length,
       totalMiniQuestions,
       completedMiniQuestions,
       progressPercentage: totalMiniQuestions > 0 ? 
         Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0,
+      canSolveMainQuestion,
       contents: contents.map((content: any) => ({
         id: content.id,
         title: content.title,
@@ -683,7 +724,11 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
         miniQuestions: content.miniQuestions.map((mq: any) => ({
           id: mq.id,
           title: mq.title,
+          question: mq.question,
+          description: mq.description,
           orderIndex: mq.orderIndex,
+          isReleased: mq.isReleased,
+          releaseDate: mq.releaseDate,
           hasAnswer: mq.miniAnswers.length > 0,
           submittedAt: mq.miniAnswers.length > 0 ? mq.miniAnswers[0].submittedAt : null
         }))

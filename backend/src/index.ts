@@ -11,6 +11,7 @@ import adminRoutes from './routes/admin';
 
 // Import services
 import { startQuestionScheduler } from './services/questionScheduler';
+import { startMiniQuestionScheduler } from './services/miniQuestionScheduler';
 // import { startModuleTopicScheduler } from './services/moduleTopicScheduler'; // Disabled - using simplified Question-based system
 
 // Load environment variables
@@ -78,6 +79,9 @@ app.listen(PORT, () => {
   
   // Start the question release scheduler
   startQuestionScheduler();
+  
+  // Start the mini question release scheduler
+  startMiniQuestionScheduler();
   
   // Module/topic scheduler disabled - using simplified Question-based system
   // startModuleTopicScheduler();

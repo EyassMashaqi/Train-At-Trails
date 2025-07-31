@@ -108,18 +108,21 @@ npm run dev:frontend  # Starts React dev server (port 5173)
 npm run dev:backend   # Starts Express server (port 3000)
 ```
 
-## 📝 Default Accounts
+## 📝 Demo Accounts
 
-After seeding, you can use these accounts:
+After running the setup, you can use these demo accounts:
 
 **Admin Account:**
-- Email: `admin@trainattrails.com`
+- Email: `admin@traintrails.com`
 - Password: `admin123`
+- Access: Full admin dashboard and system management
 
 **Test Users:**
-- Email: `alice@example.com` / Password: `password123`
-- Email: `bob@example.com` / Password: `password123`  
-- Email: `carol@example.com` / Password: `password123`
+- Email: `alice@traintrails.com` / Password: `password123` (Progress: Step 2)
+- Email: `bob@traintrails.com` / Password: `password123` (Progress: Step 1)  
+- Email: `test@traintrails.com` / Password: `test123` (Progress: Step 0)
+
+> 📋 For detailed demo account information, see [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md)
 
 ## 🎮 Game Features
 

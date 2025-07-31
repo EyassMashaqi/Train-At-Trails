@@ -102,18 +102,20 @@ model Content {
 }
 
 model MiniQuestion {
-  id          String       @id @default(cuid())
-  title       String
-  question    String       // The mini-question text
-  description String?      // Optional additional context
-  releaseDate DateTime?    // Optional release date for the mini question
-  orderIndex  Int          // Order within the content section
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  contentId   String
-  content     Content      @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  miniAnswers MiniAnswer[]
+  id                String       @id @default(cuid())
+  title             String
+  question          String       // The mini-question text
+  description       String?      // Optional additional context
+  releaseDate       DateTime?    // Optional release date for the mini question
+  isReleased        Boolean      @default(false) // Whether the mini question is released
+  actualReleaseDate DateTime?    // When it was actually released
+  orderIndex        Int          // Order within the content section
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  contentId         String
+  content           Content      @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  miniAnswers       MiniAnswer[]
 
   @@map("mini_questions")
 }

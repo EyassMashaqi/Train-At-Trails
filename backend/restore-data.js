@@ -127,49 +127,58 @@ async function restoreDataToModules() {
     if (userCount === 0) {
       console.log('Creating sample users...');
       
-      // Create admin user
-      const adminUser = await prisma.user.create({
-        data: {
-          email: 'admin@trainattrails.com',
-          password: '$2b$10$hash', // This should be properly hashed in real app
-          fullName: 'Admin User',
-          trainName: 'Express Admin',
+      // Demo accounts specification
+      const bcrypt = require('bcrypt');
+      const demoAccounts = [
+        {
+          email: 'admin@traintrails.com',
+          password: 'admin123',
+          fullName: 'System Administrator',
+          trainName: 'Admin Express',
           isAdmin: true,
           currentStep: 0
-        }
-      });
-
-      // Create sample regular users
-      const sampleUsers = [
+        },
         {
-          email: 'alice@example.com',
+          email: 'alice@traintrails.com',
+          password: 'password123',
           fullName: 'Alice Johnson',
           trainName: 'Lightning Express',
+          isAdmin: false,
           currentStep: 2
         },
         {
-          email: 'bob@example.com',
+          email: 'bob@traintrails.com',
+          password: 'password123',
           fullName: 'Bob Smith',
           trainName: 'Thunder Rail',
+          isAdmin: false,
           currentStep: 1
         },
         {
-          email: 'charlie@example.com',
-          fullName: 'Charlie Brown',
-          trainName: 'Steam Pioneer',
-          currentStep: 3
+          email: 'test@traintrails.com',
+          password: 'test123',
+          fullName: 'Test User',
+          trainName: 'Test Express',
+          isAdmin: false,
+          currentStep: 0
         }
       ];
 
-      for (const userData of sampleUsers) {
+      for (const userData of demoAccounts) {
+        // Hash the password properly
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
+        
         await prisma.user.create({
           data: {
-            ...userData,
-            password: '$2b$10$hash', // This should be properly hashed in real app
-            isAdmin: false
+            email: userData.email,
+            password: hashedPassword,
+            fullName: userData.fullName,
+            trainName: userData.trainName,
+            isAdmin: userData.isAdmin,
+            currentStep: userData.currentStep
           }
         });
-        console.log(`Created user: ${userData.fullName}`);
+        console.log(`Created user: ${userData.fullName} (${userData.email})`);
       }
     }
 

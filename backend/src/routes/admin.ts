@@ -394,6 +394,22 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
   try {
     const questionId = req.params.questionId;
     
+    // Get the question with its contents and mini questions
+    const questionWithContents = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: true
+          }
+        }
+      }
+    });
+
+    if (!questionWithContents) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    
     const question = await prisma.question.update({
       where: { id: questionId },
       data: {
@@ -402,6 +418,32 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
         releaseDate: new Date()
       }
     });
+
+    // Start releasing mini questions based on their individual release dates
+    if (questionWithContents.contents) {
+      for (const content of questionWithContents.contents) {
+        if (content.miniQuestions) {
+          for (const miniQuestion of content.miniQuestions) {
+            if (miniQuestion.releaseDate) {
+              const releaseDate = new Date(miniQuestion.releaseDate);
+              const now = new Date();
+              
+              // If the release date is now or in the past, release immediately
+              if (releaseDate <= now) {
+                await (prisma as any).miniQuestion.update({
+                  where: { id: miniQuestion.id },
+                  data: { 
+                    isReleased: true,
+                    actualReleaseDate: new Date()
+                  }
+                });
+              }
+              // Note: Future releases will be handled by the scheduler
+            }
+          }
+        }
+      }
+    }
 
     res.json({ question });
   } catch (error) {

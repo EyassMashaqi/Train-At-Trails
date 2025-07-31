@@ -223,15 +223,18 @@ const AdminDashboard: React.FC = () => {
   }, [loadAdminData]);
 
   // Validation function to check if assignment deadline is before any mini question release date
-  const validateAssignmentDeadline = (deadline: string, contents: any[]): { isValid: boolean; errorMessage?: string } => {
+  const validateAssignmentDeadline = (deadline: string, contents: any[]): { isValid: boolean; errorMessage?: string; conflictingIndices?: number[] } => {
     if (!deadline || !contents || contents.length === 0) {
       return { isValid: true };
     }
 
     const assignmentDeadline = new Date(deadline);
+    const conflictingIndices: number[] = [];
+    let firstConflictMessage = '';
     
     // Check all mini questions for release dates that are after the assignment deadline
-    for (const content of contents) {
+    for (let i = 0; i < contents.length; i++) {
+      const content = contents[i];
       // Handle both nested structure (from API) and flat structure (from forms)
       const miniQuestions = content.miniQuestions || [content];
       
@@ -239,18 +242,34 @@ const AdminDashboard: React.FC = () => {
         if (miniQuestion.releaseDate) {
           const releaseDate = new Date(miniQuestion.releaseDate);
           if (releaseDate > assignmentDeadline) {
-            const formattedReleaseDate = releaseDate.toLocaleDateString();
-            const formattedDeadline = assignmentDeadline.toLocaleDateString();
-            return {
-              isValid: false,
-              errorMessage: `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`
-            };
+            conflictingIndices.push(i);
+            if (!firstConflictMessage) {
+              const formattedReleaseDate = releaseDate.toLocaleDateString();
+              const formattedDeadline = assignmentDeadline.toLocaleDateString();
+              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`;
+            }
           }
         }
       }
     }
     
+    if (conflictingIndices.length > 0) {
+      return {
+        isValid: false,
+        errorMessage: firstConflictMessage,
+        conflictingIndices
+      };
+    }
+    
     return { isValid: true };
+  };
+
+  // Function to check if a specific mini question has a date conflict
+  const validateMiniQuestionDate = (deadline: string, releaseDate: string): boolean => {
+    if (!deadline || !releaseDate) return true;
+    const assignmentDeadline = new Date(deadline);
+    const miniReleaseDate = new Date(releaseDate);
+    return miniReleaseDate <= assignmentDeadline;
   };
 
   // Real-time validation for create form
@@ -1199,8 +1218,17 @@ const AdminDashboard: React.FC = () => {
                                 };
                                 setTopicForm({ ...topicForm, contents: updatedContents });
                               }}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                                miniQuestion.releaseDate && !validateMiniQuestionDate(topicForm.deadline, miniQuestion.releaseDate)
+                                  ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                              }`}
                             />
+                            {miniQuestion.releaseDate && !validateMiniQuestionDate(topicForm.deadline, miniQuestion.releaseDate) && (
+                              <p className="mt-1 text-xs text-red-600">
+                                Release date must be before assignment deadline
+                              </p>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex justify-center items-center space-x-2">
@@ -1738,8 +1766,17 @@ const AdminDashboard: React.FC = () => {
                                 newContents[index] = { ...newContents[index], releaseDate: e.target.value };
                                 setSelectedTopic({ ...selectedTopic, contents: newContents });
                               }}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                                contentItem.releaseDate && selectedTopic && !validateMiniQuestionDate(selectedTopic.deadline, contentItem.releaseDate)
+                                  ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                              }`}
                             />
+                            {contentItem.releaseDate && selectedTopic && !validateMiniQuestionDate(selectedTopic.deadline, contentItem.releaseDate) && (
+                              <p className="mt-1 text-xs text-red-600">
+                                Release date must be before assignment deadline
+                              </p>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex justify-center items-center space-x-2">
