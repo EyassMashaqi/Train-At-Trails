@@ -914,7 +914,7 @@ const AdminDashboard: React.FC = () => {
       {/* Create Topic Modal */}
       {showCreateTopicModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Create New Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1023,7 +1023,7 @@ const AdminDashboard: React.FC = () => {
             <div className="mb-6 space-y-4">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-gray-700">
-                  Self Learning Content (Mini Questions)
+                  Mini Questions
                 </label>
                 <button
                   type="button"
@@ -1040,8 +1040,8 @@ const AdminDashboard: React.FC = () => {
                       const newContent = {
                         id: `content-${Date.now()}`,
                         title: 'Learning Material',
-                        content: 'Self-learning content for students',
-                        description: 'Learning material description',
+                        content: '',
+                        description: '',
                         orderIndex: 0,
                         miniQuestions: [newMiniQuestion]
                       };
@@ -1056,139 +1056,136 @@ const AdminDashboard: React.FC = () => {
                       setTopicForm({ ...topicForm, contents: updatedContents });
                     }
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-md hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md flex items-center"
                 >
-                  <span className="mr-1">➕</span>
-                  Add New Mini Question
+                  <span className="mr-2">➕</span>
+                  Add New
                 </button>
               </div>
 
               {topicForm.contents.length > 0 && topicForm.contents[0].miniQuestions.length > 0 ? (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                    <h4 className="text-sm font-medium text-gray-700">Mini Questions Table</h4>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            #
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Mini Question Title
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Description/Instructions
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {topicForm.contents[0].miniQuestions.map((miniQuestion, index) => (
-                          <tr key={miniQuestion.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {index + 1}
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                placeholder="Enter mini question title..."
-                                value={miniQuestion.title}
-                                onChange={(e) => {
-                                  const updatedContents = [...topicForm.contents];
-                                  updatedContents[0].miniQuestions[index] = {
-                                    ...miniQuestion,
-                                    title: e.target.value
-                                  };
-                                  setTopicForm({ ...topicForm, contents: updatedContents });
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <textarea
-                                placeholder="Enter instructions for students..."
-                                value={miniQuestion.description}
-                                onChange={(e) => {
-                                  const updatedContents = [...topicForm.contents];
-                                  updatedContents[0].miniQuestions[index] = {
-                                    ...miniQuestion,
-                                    description: e.target.value
-                                  };
-                                  setTopicForm({ ...topicForm, contents: updatedContents });
-                                }}
-                                rows={2}
-                                className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              <div className="flex items-center space-x-2">
+                <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Material
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Question
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {topicForm.contents[0].miniQuestions.map((miniQuestion, index) => (
+                        <tr key={miniQuestion.id} className="hover:bg-blue-50 transition-colors duration-200">
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={miniQuestion.title}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  title: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Material content..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={miniQuestion.description}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  description: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex justify-center items-center space-x-2">
+                              {index > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (index > 0) {
-                                      const updatedContents = [...topicForm.contents];
-                                      const miniQuestions = [...updatedContents[0].miniQuestions];
-                                      [miniQuestions[index], miniQuestions[index - 1]] = [miniQuestions[index - 1], miniQuestions[index]];
-                                      miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
-                                      updatedContents[0].miniQuestions = miniQuestions;
-                                      setTopicForm({ ...topicForm, contents: updatedContents });
-                                    }
+                                    const updatedContents = [...topicForm.contents];
+                                    const miniQuestions = [...updatedContents[0].miniQuestions];
+                                    [miniQuestions[index], miniQuestions[index - 1]] = [miniQuestions[index - 1], miniQuestions[index]];
+                                    miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                    updatedContents[0].miniQuestions = miniQuestions;
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
                                   }}
-                                  disabled={index === 0}
-                                  className="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move up"
                                 >
                                   ↑
                                 </button>
+                              )}
+                              {index < topicForm.contents[0].miniQuestions.length - 1 && (
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (index < topicForm.contents[0].miniQuestions.length - 1) {
-                                      const updatedContents = [...topicForm.contents];
-                                      const miniQuestions = [...updatedContents[0].miniQuestions];
-                                      [miniQuestions[index], miniQuestions[index + 1]] = [miniQuestions[index + 1], miniQuestions[index]];
-                                      miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
-                                      updatedContents[0].miniQuestions = miniQuestions;
-                                      setTopicForm({ ...topicForm, contents: updatedContents });
-                                    }
+                                    const updatedContents = [...topicForm.contents];
+                                    const miniQuestions = [...updatedContents[0].miniQuestions];
+                                    [miniQuestions[index], miniQuestions[index + 1]] = [miniQuestions[index + 1], miniQuestions[index]];
+                                    miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                    updatedContents[0].miniQuestions = miniQuestions;
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
                                   }}
-                                  disabled={index === topicForm.contents[0].miniQuestions.length - 1}
-                                  className="text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move down"
                                 >
                                   ↓
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm('Are you sure you want to delete this mini question?')) {
-                                      const updatedContents = [...topicForm.contents];
-                                      updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
-                                        .filter((_, idx) => idx !== index)
-                                        .map((mq, idx) => ({ ...mq, orderIndex: idx }));
-                                      setTopicForm({ ...topicForm, contents: updatedContents });
-                                    }
-                                  }}
-                                  className="text-red-600 hover:text-red-800"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="bg-gray-50 px-4 py-2 text-xs text-gray-600">
-                    Students will submit links for each mini question as part of their self-learning process.
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to delete this mini question?')) {
+                                    const updatedContents = [...topicForm.contents];
+                                    updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
+                                      .filter((_, idx) => idx !== index)
+                                      .map((mq, idx) => ({ ...mq, orderIndex: idx }));
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
+                                  }
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-all duration-200"
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-700 flex items-center">
+                      <span className="text-blue-600 mr-2">💡</span>
+                      Students will submit links for each mini question as part of their self-learning process.
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <span className="text-gray-500">No mini questions yet. Click "Add New Mini Question" to start creating self-learning content.</span>
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
+                  <div className="mb-4">
+                    <span className="text-4xl">📝</span>
+                  </div>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No mini questions added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first mini question for self-learning content.</p>
                 </div>
               )}
             </div>
@@ -1264,7 +1261,7 @@ const AdminDashboard: React.FC = () => {
       {/* Edit Module Modal */}
       {showEditModuleModal && selectedModule && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Edit Module</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1431,7 +1428,7 @@ const AdminDashboard: React.FC = () => {
       {/* Edit Topic Modal */}
       {showEditTopicModal && selectedTopic && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Edit Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1566,32 +1563,33 @@ const AdminDashboard: React.FC = () => {
                       }]
                     });
                   }}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-md hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md flex items-center"
                 >
+                  <span className="mr-2">➕</span>
                   Add New
                 </button>
               </div>
               
               {selectedTopic.contents && selectedTopic.contents.length > 0 && (
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Material
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Question
                         </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
                           Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {selectedTopic.contents.map((contentItem, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-2">
+                        <tr key={index} className="hover:bg-blue-50 transition-colors duration-200">
+                          <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="text"
                               value={contentItem.content}
@@ -1600,11 +1598,11 @@ const AdminDashboard: React.FC = () => {
                                 newContents[index] = { ...newContents[index], content: e.target.value };
                                 setSelectedTopic({ ...selectedTopic, contents: newContents });
                               }}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Material content..."
                             />
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="text"
                               value={contentItem.description}
@@ -1613,12 +1611,12 @@ const AdminDashboard: React.FC = () => {
                                 newContents[index] = { ...newContents[index], description: e.target.value };
                                 setSelectedTopic({ ...selectedTopic, contents: newContents });
                               }}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Question..."
                             />
                           </td>
-                          <td className="px-4 py-2 text-center">
-                            <div className="flex justify-center space-x-1">
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex justify-center items-center space-x-2">
                               {index > 0 && (
                                 <button
                                   type="button"
@@ -1627,7 +1625,7 @@ const AdminDashboard: React.FC = () => {
                                     [newContents[index], newContents[index - 1]] = [newContents[index - 1], newContents[index]];
                                     setSelectedTopic({ ...selectedTopic, contents: newContents });
                                   }}
-                                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
                                   title="Move up"
                                 >
                                   ↑
@@ -1641,7 +1639,7 @@ const AdminDashboard: React.FC = () => {
                                     [newContents[index], newContents[index + 1]] = [newContents[index + 1], newContents[index]];
                                     setSelectedTopic({ ...selectedTopic, contents: newContents });
                                   }}
-                                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
                                   title="Move down"
                                 >
                                   ↓
@@ -1653,7 +1651,7 @@ const AdminDashboard: React.FC = () => {
                                   const newContents = (selectedTopic.contents || []).filter((_, i) => i !== index);
                                   setSelectedTopic({ ...selectedTopic, contents: newContents });
                                 }}
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-all duration-200"
                                 title="Delete"
                               >
                                 ×
@@ -1664,12 +1662,22 @@ const AdminDashboard: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-700 flex items-center">
+                      <span className="text-blue-600 mr-2">💡</span>
+                      Students will submit links for each mini question as part of their self-learning process.
+                    </p>
+                  </div>
                 </div>
               )}
               
               {(!selectedTopic.contents || selectedTopic.contents.length === 0) && (
-                <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-                  No mini questions added yet. Click "Add New" to create one.
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
+                  <div className="mb-4">
+                    <span className="text-4xl">📝</span>
+                  </div>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No mini questions added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first mini question for self-learning content.</p>
                 </div>
               )}
             </div>
@@ -1769,7 +1777,7 @@ const AdminDashboard: React.FC = () => {
       {/* Create Module Modal */}
       {showCreateModuleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Create New Module</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
