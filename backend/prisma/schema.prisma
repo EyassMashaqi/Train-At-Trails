@@ -106,6 +106,7 @@ model MiniQuestion {
   title       String
   question    String       // The mini-question text
   description String?      // Optional additional context
+  releaseDate DateTime?    // Optional release date for the mini question
   orderIndex  Int          // Order within the content section
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())

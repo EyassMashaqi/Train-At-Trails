@@ -470,31 +470,65 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
           where: { questionId }
         });
 
-        // Create new content sections
-        for (let i = 0; i < contents.length; i++) {
-          const contentData = contents[i];
-          const newContent = await (tx as any).content.create({
-            data: {
-              title: contentData.title,
-              material: contentData.material,
-              orderIndex: i + 1,
-              questionId
-            }
-          });
+        // Check if contents is in the flat structure (each item has material, question, releaseDate)
+        // or nested structure (each item has title, material, miniQuestions array)
+        const isFlat = contents.length > 0 && contents[0].hasOwnProperty('material') && contents[0].hasOwnProperty('question');
+        
+        if (isFlat) {
+          // Handle flat structure - create one content section with multiple mini questions
+          if (contents.length > 0) {
+            const newContent = await (tx as any).content.create({
+              data: {
+                title: 'Learning Material',
+                material: 'Self-learning content',
+                orderIndex: 1,
+                questionId
+              }
+            });
 
-          // Create mini-questions for this content
-          if (contentData.miniQuestions && Array.isArray(contentData.miniQuestions)) {
-            for (let j = 0; j < contentData.miniQuestions.length; j++) {
-              const miniQuestionData = contentData.miniQuestions[j];
+            // Create mini-questions from the flat structure
+            for (let i = 0; i < contents.length; i++) {
+              const contentData = contents[i];
               await (tx as any).miniQuestion.create({
                 data: {
-                  title: miniQuestionData.title,
-                  question: miniQuestionData.question,
-                  description: miniQuestionData.description || '',
-                  orderIndex: j + 1,
+                  title: contentData.material || `Mini Question ${i + 1}`,
+                  question: contentData.question,
+                  description: contentData.question,
+                  releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
+                  orderIndex: i + 1,
                   contentId: newContent.id
                 }
               });
+            }
+          }
+        } else {
+          // Handle nested structure - original logic
+          for (let i = 0; i < contents.length; i++) {
+            const contentData = contents[i];
+            const newContent = await (tx as any).content.create({
+              data: {
+                title: contentData.title,
+                material: contentData.material,
+                orderIndex: i + 1,
+                questionId
+              }
+            });
+
+            // Create mini-questions for this content
+            if (contentData.miniQuestions && Array.isArray(contentData.miniQuestions)) {
+              for (let j = 0; j < contentData.miniQuestions.length; j++) {
+                const miniQuestionData = contentData.miniQuestions[j];
+                await (tx as any).miniQuestion.create({
+                  data: {
+                    title: miniQuestionData.title,
+                    question: miniQuestionData.question,
+                    description: miniQuestionData.description || '',
+                    releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
+                    orderIndex: j + 1,
+                    contentId: newContent.id
+                  }
+                });
+              }
             }
           }
         }
@@ -551,7 +585,9 @@ router.get('/modules', async (req: AuthRequest, res) => {
             },
             contents: {
               include: {
-                miniQuestions: true
+                miniQuestions: {
+                  orderBy: { orderIndex: 'asc' }
+                }
               },
               orderBy: { orderIndex: 'asc' }
             }
@@ -590,10 +626,16 @@ router.get('/modules', async (req: AuthRequest, res) => {
         createdAt: question.createdAt,
         updatedAt: question.updatedAt,
         answers: question.answers,
-        contents: question.contents?.map((content: any) => ({
-          content: content.material,
-          description: content.question
-        })) || []
+        contents: question.contents?.reduce((acc: any[], content: any) => {
+          // Flatten mini questions into content items for the frontend
+          const miniQuestions = content.miniQuestions || [];
+          const contentItems = miniQuestions.map((miniQ: any) => ({
+            content: miniQ.title,
+            description: miniQ.question,
+            releaseDate: miniQ.releaseDate
+          }));
+          return acc.concat(contentItems);
+        }, []) || []
       }))
     }));
 
