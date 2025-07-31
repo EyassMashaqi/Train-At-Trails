@@ -404,7 +404,7 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
           }
         }
       }
-    });
+    }) as any;
 
     if (!questionWithContents) {
       return res.status(404).json({ error: 'Question not found' });

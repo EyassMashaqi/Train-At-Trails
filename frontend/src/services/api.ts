@@ -123,7 +123,7 @@ export const authService = {
 
 // Game service
 export const gameService = {
-  getProgress: () => api.get('/game/status'),
+  getProgress: () => api.get('/game/progress'),
   
   submitAnswer: (content: string, file?: File | null) => {
     if (file) {

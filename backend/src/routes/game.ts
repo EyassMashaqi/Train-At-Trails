@@ -421,18 +421,166 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get current active question
-    const currentQuestion = await prisma.question.findFirst({
+    // Get all released questions with their mini questions
+    const releasedQuestions = await prisma.question.findMany({
       where: { 
         isReleased: true,
-        isActive: true,
-        deadline: { gt: new Date() }
+        questionNumber: { lte: user.currentStep + 1 } // Show current and next available question
       },
+      include: {
+        contents: {
+          include: {
+            miniQuestions: {
+              where: {
+                isReleased: true
+              },
+              include: {
+                miniAnswers: {
+                  where: { userId },
+                  select: {
+                    id: true,
+                    linkUrl: true,
+                    notes: true,
+                    submittedAt: true
+                  }
+                }
+              },
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
+          orderBy: { orderIndex: 'asc' }
+        },
+        answers: {
+          where: { userId },
+          select: {
+            id: true,
+            content: true,
+            status: true,
+            submittedAt: true,
+            reviewedAt: true,
+            feedback: true
+          },
+          orderBy: { submittedAt: 'desc' },
+          take: 1
+        }
+      } as any,
       orderBy: { questionNumber: 'asc' }
     });
 
-    // Get user's answers
-    const answers = await prisma.answer.findMany({
+    // Process questions to determine availability and mini question progress
+    const processedQuestions = releasedQuestions.map((question: any) => {
+      const contents = question.contents || [];
+      const totalMiniQuestions = contents.reduce((total: number, content: any) => 
+        total + content.miniQuestions.length, 0
+      );
+      
+      const completedMiniQuestions = contents.reduce((total: number, content: any) =>
+        total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+      );
+
+      const canSolveMainQuestion = totalMiniQuestions === 0 || completedMiniQuestions === totalMiniQuestions;
+      const hasMainAnswer = question.answers.length > 0;
+      const mainAnswerStatus = hasMainAnswer ? question.answers[0].status : null;
+
+      // Determine question availability
+      let questionStatus = 'locked';
+      if (question.questionNumber <= user.currentStep + 1) {
+        if (totalMiniQuestions > 0) {
+          if (completedMiniQuestions < totalMiniQuestions) {
+            questionStatus = 'mini_questions_required';
+          } else if (canSolveMainQuestion && !hasMainAnswer) {
+            questionStatus = 'available';
+          } else if (hasMainAnswer) {
+            questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+          }
+        } else {
+          // No mini questions
+          if (!hasMainAnswer) {
+            questionStatus = 'available';
+          } else {
+            questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+          }
+        }
+      }
+
+      return {
+        id: question.id,
+        questionNumber: question.questionNumber,
+        title: question.title,
+        content: question.content,
+        description: question.description,
+        deadline: question.deadline,
+        points: question.points,
+        bonusPoints: question.bonusPoints,
+        status: questionStatus,
+        canSolveMainQuestion,
+        hasMainAnswer,
+        mainAnswer: hasMainAnswer ? question.answers[0] : null,
+        miniQuestionProgress: {
+          total: totalMiniQuestions,
+          completed: completedMiniQuestions,
+          percentage: totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0
+        },
+        contents: contents.map((content: any) => ({
+          id: content.id,
+          title: content.title,
+          material: content.material,
+          orderIndex: content.orderIndex,
+          miniQuestions: content.miniQuestions.map((mq: any) => ({
+            id: mq.id,
+            title: mq.title,
+            question: mq.question,
+            description: mq.description,
+            orderIndex: mq.orderIndex,
+            isReleased: mq.isReleased,
+            releaseDate: mq.releaseDate,
+            hasAnswer: mq.miniAnswers.length > 0,
+            answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
+          }))
+        }))
+      };
+    });
+
+    // Get total questions count
+    const totalQuestions = await prisma.question.count();
+
+    // For backward compatibility with original GameView, also provide currentQuestion
+    let currentQuestion = null;
+    let currentQuestionMiniQuestions = [];
+    
+    if (processedQuestions.length > 0) {
+      // Find the current active question (first available or mini_questions_required)
+      const activeQuestion = processedQuestions.find(q => 
+        q.status === 'available' || q.status === 'mini_questions_required'
+      ) || processedQuestions[0];
+      
+      if (activeQuestion) {
+        currentQuestion = {
+          id: activeQuestion.id,
+          questionNumber: activeQuestion.questionNumber,
+          title: activeQuestion.title,
+          content: activeQuestion.content,
+          description: activeQuestion.description,
+          deadline: activeQuestion.deadline,
+          points: activeQuestion.points,
+          bonusPoints: activeQuestion.bonusPoints,
+          hasAnswered: activeQuestion.hasMainAnswer,
+          contents: activeQuestion.contents
+        };
+        
+        // Flatten mini questions for easy access
+        currentQuestionMiniQuestions = activeQuestion.contents.flatMap((content: any) => 
+          content.miniQuestions.map((mq: any) => ({
+            ...mq,
+            contentId: content.id,
+            contentTitle: content.title
+          }))
+        );
+      }
+    }
+
+    // Get user's answers in the format expected by original GameView
+    const allAnswers = await prisma.answer.findMany({
       where: { userId },
       include: {
         question: {
@@ -446,37 +594,19 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Check if user has answered current question
-    let hasAnsweredCurrent = false;
-    if (currentQuestion) {
-      const currentQuestionAnswers = answers.filter(answer => answer.questionId === currentQuestion.id);
-      if (currentQuestionAnswers.length > 0) {
-        const latestAnswer = currentQuestionAnswers[0];
-        hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
-      }
-    }
-
-    // Get total questions count
-    const totalQuestions = await prisma.question.count();
-
     res.json({
+      // New structure for enhanced features
       user,
       currentStep: user.currentStep,
       totalSteps: 12,
       totalQuestions,
       isComplete: user.currentStep >= 12,
-      currentQuestion: currentQuestion ? {
-        id: currentQuestion.id,
-        questionNumber: currentQuestion.questionNumber,
-        title: currentQuestion.title,
-        content: currentQuestion.content,
-        description: currentQuestion.description,
-        deadline: currentQuestion.deadline,
-        points: currentQuestion.points,
-        bonusPoints: currentQuestion.bonusPoints,
-        hasAnswered: hasAnsweredCurrent
-      } : null,
-      answers: answers.map((answer: any) => ({
+      questions: processedQuestions,
+      
+      // Backward compatibility for original GameView
+      currentQuestion,
+      currentQuestionMiniQuestions,
+      answers: allAnswers.map((answer: any) => ({
         id: answer.id,
         content: answer.content,
         status: answer.status,
