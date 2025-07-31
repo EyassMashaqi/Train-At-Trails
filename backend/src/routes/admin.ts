@@ -632,7 +632,7 @@ router.get('/modules', async (req: AuthRequest, res) => {
           const contentItems = miniQuestions.map((miniQ: any) => ({
             content: miniQ.title,
             description: miniQ.question,
-            releaseDate: miniQ.releaseDate
+            releaseDate: miniQ.releaseDate ? miniQ.releaseDate.toISOString().slice(0, 16) : null
           }));
           return acc.concat(contentItems);
         }, []) || []
@@ -931,7 +931,8 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       description, 
       deadline, 
       points, 
-      bonusPoints 
+      bonusPoints,
+      contents
     } = req.body;
 
     // Validate required fields
@@ -964,7 +965,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       });
     }
 
-    // Use a transaction to safely get the next unique questionNumber
+    // Use a transaction to safely get the next unique questionNumber and create contents
     const question = await prisma.$transaction(async (tx) => {
       // Get the highest questionNumber to generate a unique one
       const lastQuestion = await tx.question.findFirst({
@@ -972,7 +973,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       });
       const nextQuestionNumber = lastQuestion ? lastQuestion.questionNumber + 1 : 1;
 
-      return await tx.question.create({
+      const createdQuestion = await tx.question.create({
         data: {
           questionNumber: nextQuestionNumber, // Use auto-generated unique questionNumber
           title,
@@ -987,6 +988,73 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
           topicNumber: parseInt(topicNumber)
         } as any
       });
+
+      // Handle content sections and mini questions if provided
+      if (contents && Array.isArray(contents)) {
+        // Check if contents is in the flat structure or nested structure
+        const isFlat = contents.length > 0 && contents[0].hasOwnProperty('material') && contents[0].hasOwnProperty('question');
+        
+        if (isFlat) {
+          // Handle flat structure - create one content section with multiple mini questions
+          if (contents.length > 0) {
+            const newContent = await (tx as any).content.create({
+              data: {
+                title: 'Learning Material',
+                material: 'Self-learning content',
+                orderIndex: 1,
+                questionId: createdQuestion.id
+              }
+            });
+
+            // Create mini-questions from the flat structure
+            for (let i = 0; i < contents.length; i++) {
+              const contentData = contents[i];
+              await (tx as any).miniQuestion.create({
+                data: {
+                  title: contentData.material || `Mini Question ${i + 1}`,
+                  question: contentData.question,
+                  description: contentData.question,
+                  releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
+                  orderIndex: i + 1,
+                  contentId: newContent.id
+                }
+              });
+            }
+          }
+        } else {
+          // Handle nested structure - original logic
+          for (let i = 0; i < contents.length; i++) {
+            const contentData = contents[i];
+            const newContent = await (tx as any).content.create({
+              data: {
+                title: contentData.title,
+                material: contentData.material,
+                orderIndex: i + 1,
+                questionId: createdQuestion.id
+              }
+            });
+
+            // Create mini-questions for this content
+            if (contentData.miniQuestions && Array.isArray(contentData.miniQuestions)) {
+              for (let j = 0; j < contentData.miniQuestions.length; j++) {
+                const miniQuestionData = contentData.miniQuestions[j];
+                await (tx as any).miniQuestion.create({
+                  data: {
+                    title: miniQuestionData.title,
+                    question: miniQuestionData.question,
+                    description: miniQuestionData.description || '',
+                    releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
+                    orderIndex: j + 1,
+                    contentId: newContent.id
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+
+      return createdQuestion;
     });
 
     // Return in topic format for compatibility
