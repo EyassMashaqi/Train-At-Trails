@@ -920,7 +920,7 @@ const GameView: React.FC = () => {
               <span className="text-3xl mr-3">🎯</span>
               <div>
                 <h3 className="text-xl font-bold text-purple-800">Mini Questions</h3>
-                <p className="text-purple-600">Complete these first to unlock the main assignment</p>
+                <p className="text-purple-600">Answer these learning activities with relevant links</p>
               </div>
             </div>
             <div className="bg-purple-100 rounded-lg px-3 py-1">
@@ -1028,8 +1028,8 @@ const GameView: React.FC = () => {
               <div className="flex items-center">
                 <span className="text-green-600 text-xl mr-3">🎉</span>
                 <div>
-                  <p className="text-green-800 font-medium">Great job!</p>
-                  <p className="text-green-700 text-sm">You've completed all mini questions. The main assignment is now unlocked below.</p>
+                  <p className="text-green-800 font-medium">Excellent work!</p>
+                  <p className="text-green-700 text-sm">You've completed all available mini questions for this assignment.</p>
                 </div>
               </div>
             </div>
@@ -1266,94 +1266,8 @@ const GameView: React.FC = () => {
         {/* Mini Questions Section */}
         {renderMiniQuestions()}
 
-        {/* Main Question - Only show if mini questions are completed */}
-        {!hasMiniQuestions || allMiniQuestionsCompleted ? (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 shadow-lg">
-        <div className="flex items-center mb-6">
-          <span className="text-4xl mr-4">❓</span>
-          <div>
-            <h3 className="text-2xl font-bold text-blue-800">Question {currentQuestion.questionNumber}</h3>
-            <p className="text-blue-600">Ready for your answer</p>
-          </div>
-        </div>
-
-        <h4 className="text-xl font-semibold text-blue-800 mb-3">{currentQuestion.title}</h4>
-        <p className="text-blue-700 mb-6 leading-relaxed">{currentQuestion.content}</p>
-
-        {/* Show notice if user has blocking answer */}
-        {currentQuestion && hasBlockingAnswerForQuestion(currentQuestion.questionNumber).hasBlocking && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center">
-              <span className="text-yellow-600 text-xl mr-3">⚠️</span>
-              <div>
-                <p className="text-yellow-800 font-medium">
-                  {hasBlockingAnswerForQuestion(currentQuestion.questionNumber).status === 'PENDING' 
-                    ? 'Your answer is under review' 
-                    : 'Question completed'}
-                </p>
-                <p className="text-yellow-700 text-sm">
-                  {hasBlockingAnswerForQuestion(currentQuestion.questionNumber).status === 'PENDING'
-                    ? 'Please wait for admin review before submitting a new answer.'
-                    : 'You have successfully completed this question.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmitAnswer} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-blue-800 mb-2">
-              Your Answer
-            </label>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Share your thoughts and experiences..."
-              rows={6}
-              className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={
-              submitting || 
-              !answer.trim() || 
-              (currentQuestion && hasBlockingAnswerForQuestion(currentQuestion.questionNumber).hasBlocking)
-            }
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 font-medium text-lg shadow-lg"
-          >
-            {submitting ? (
-              <div className="flex items-center justify-center">
-                <span className="animate-spin text-2xl mr-2">🔄</span>
-                <span>Submitting Answer...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center">
-                <span className="mr-2">🚀</span>
-                <span>Submit Answer</span>
-              </div>
-            )}
-          </button>
-        </form>
-      </div>
-        ) : (
-          // Show message when mini questions need to be completed
-          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-8 text-center shadow-lg">
-            <div className="text-4xl mb-4">🔒</div>
-            <h3 className="text-2xl font-bold text-yellow-800 mb-2">
-              Complete Mini Questions First
-            </h3>
-            <p className="text-yellow-700 mb-4">
-              You need to complete all mini questions above before you can access the main assignment.
-            </p>
-            <div className="bg-yellow-100 rounded-lg p-3 text-yellow-800">
-              <span className="font-semibold">Progress: {completedMiniQuestions}/{miniQuestions.length} completed</span>
-            </div>
-          </div>
-        )}
+        {/* Main Question Section is hidden as per user requirements */}
+        {/* The main question will not be displayed, only mini questions */}
       </div>
     );
   };

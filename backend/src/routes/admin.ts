@@ -1538,6 +1538,51 @@ router.get('/mini-questions/:miniQuestionId/answers', async (req: AuthRequest, r
   }
 });
 
+// Get all mini-answers for admin dashboard
+router.get('/mini-answers', async (req: AuthRequest, res) => {
+  try {
+    const miniAnswers = await (prisma as any).miniAnswer.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            trainName: true,
+            email: true
+          }
+        },
+        miniQuestion: {
+          select: {
+            id: true,
+            title: true,
+            question: true,
+            description: true,
+            content: {
+              select: {
+                id: true,
+                title: true,
+                question: {
+                  select: {
+                    id: true,
+                    questionNumber: true,
+                    title: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    res.json({ miniAnswers });
+  } catch (error) {
+    console.error('Get all mini-answers error:', error);
+    res.status(500).json({ error: 'Failed to get mini-answers' });
+  }
+});
+
 // Create mini-question for content
 router.post('/contents/:contentId/mini-questions', async (req: AuthRequest, res) => {
   try {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
+import MiniAnswersView from '../components/MiniAnswersView';
 
 interface User {
   id: number;
@@ -129,7 +130,7 @@ const AdminDashboard: React.FC = () => {
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions'>('overview');
   
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -910,10 +911,11 @@ const AdminDashboard: React.FC = () => {
               { id: 'users', name: 'Users', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
+              { id: 'mini-questions', name: 'Mini Questions', icon: '🎯' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules')}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules' | 'mini-questions')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -940,6 +942,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'answers' && renderPendingAnswers()}
           {activeTab === 'modules' && renderModules()}
+          {activeTab === 'mini-questions' && <MiniAnswersView />}
         </div>
       </div>
 

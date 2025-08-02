@@ -388,6 +388,9 @@ export const adminService = {
   deleteMiniQuestion: (miniQuestionId: string) => api.delete(`/admin/mini-questions/${miniQuestionId}`),
   
   getMiniAnswers: (miniQuestionId: string) => api.get(`/admin/mini-questions/${miniQuestionId}/answers`),
+
+  // Get all mini-answers for admin dashboard
+  getAllMiniAnswers: () => api.get('/admin/mini-answers'),
 };
 
 // Game API for content and mini-questions
