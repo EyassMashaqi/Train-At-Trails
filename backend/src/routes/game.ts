@@ -421,11 +421,15 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Update mini question release status based on current time
+    await updateMiniQuestionReleaseStatus();
+
     // Get all released questions with their mini questions
     const releasedQuestions = await prisma.question.findMany({
       where: { 
-        isReleased: true,
-        questionNumber: { lte: user.currentStep + 1 } // Show current and next available question
+        // Remove the isReleased requirement - we want ALL questions that user can see
+        // because mini questions can be released independently of main questions
+        questionNumber: { lte: user.currentStep + 1 } // Show current and next available questions
       },
       include: {
         contents: {
@@ -567,16 +571,24 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           hasAnswered: activeQuestion.hasMainAnswer,
           contents: activeQuestion.contents
         };
-        
-        // Flatten mini questions for easy access
-        currentQuestionMiniQuestions = activeQuestion.contents.flatMap((content: any) => 
-          content.miniQuestions.map((mq: any) => ({
-            ...mq,
-            contentId: content.id,
-            contentTitle: content.title
-          }))
-        );
       }
+      
+      // Collect ALL released mini questions that haven't been answered from ALL questions
+      // This is the key change: show mini questions from ALL questions, not just the active one
+      currentQuestionMiniQuestions = processedQuestions.flatMap((question: any) => 
+        question.contents.flatMap((content: any) => 
+          content.miniQuestions
+            .filter((mq: any) => mq.isReleased && !mq.hasAnswer)
+            .map((mq: any) => ({
+              ...mq,
+              contentId: content.id,
+              contentTitle: content.title,
+              questionId: question.id,
+              questionTitle: question.title,
+              questionNumber: question.questionNumber
+            }))
+        )
+      );
     }
 
     // Get user's answers in the format expected by original GameView
@@ -871,5 +883,39 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
     res.status(500).json({ error: 'Failed to get content progress' });
   }
 });
+
+// Helper function to update mini question release status
+async function updateMiniQuestionReleaseStatus() {
+  try {
+    const now = new Date();
+    
+    // Find all mini questions that should be released but aren't yet
+    const miniQuestionsToRelease = await (prisma as any).miniQuestion.findMany({
+      where: {
+        isReleased: false,
+        releaseDate: {
+          lte: now
+        }
+      }
+    });
+
+    // Update their release status
+    for (const miniQ of miniQuestionsToRelease) {
+      await (prisma as any).miniQuestion.update({
+        where: { id: miniQ.id },
+        data: {
+          isReleased: true,
+          actualReleaseDate: now
+        }
+      });
+    }
+
+    if (miniQuestionsToRelease.length > 0) {
+      console.log(`Released ${miniQuestionsToRelease.length} mini questions`);
+    }
+  } catch (error) {
+    console.error('Error updating mini question release status:', error);
+  }
+}
 
 export default router;

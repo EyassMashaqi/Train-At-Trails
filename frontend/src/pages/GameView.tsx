@@ -67,6 +67,9 @@ interface MiniQuestion {
   };
   contentId: string;
   contentTitle: string;
+  questionId?: string;
+  questionTitle?: string;
+  questionNumber?: number;
 }
 
 interface TrailProgress {
@@ -187,7 +190,9 @@ const GameView: React.FC = () => {
       setCurrentQuestion(data.currentQuestion);
 
       // Set mini questions if available
+      console.log('Checking currentQuestionMiniQuestions:', data.currentQuestionMiniQuestions);
       if (data.currentQuestionMiniQuestions) {
+        console.log('Setting mini questions:', data.currentQuestionMiniQuestions.length);
         setMiniQuestions(data.currentQuestionMiniQuestions);
         
         // Initialize mini answers state with existing answers
@@ -203,6 +208,9 @@ const GameView: React.FC = () => {
           }
         });
         setMiniAnswers(initialMiniAnswers);
+      } else {
+        console.log('No currentQuestionMiniQuestions in response');
+        setMiniQuestions([]);
       }
 
       // Set current topic data if available
@@ -904,8 +912,28 @@ const GameView: React.FC = () => {
 
   // Render mini questions
   const renderMiniQuestions = () => {
+    console.log('renderMiniQuestions called');
+    console.log('miniQuestions:', miniQuestions);
+    console.log('miniQuestions length:', miniQuestions?.length || 0);
+    
     if (!miniQuestions || miniQuestions.length === 0) {
-      return null;
+      console.log('No mini questions to render');
+      return (
+        <div className="mb-8">
+          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 shadow-lg">
+            <div className="flex items-center justify-center mb-4">
+              <span className="text-4xl mr-3">🎯</span>
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-yellow-800">Learning Activities</h3>
+                <p className="text-yellow-600">No mini questions available yet</p>
+              </div>
+            </div>
+            <p className="text-yellow-700 text-center">
+              Mini questions will appear here when they are released. Check back soon!
+            </p>
+          </div>
+        </div>
+      );
     }
 
     const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
@@ -919,8 +947,8 @@ const GameView: React.FC = () => {
             <div className="flex items-center">
               <span className="text-3xl mr-3">🎯</span>
               <div>
-                <h3 className="text-xl font-bold text-purple-800">Mini Questions</h3>
-                <p className="text-purple-600">Answer these learning activities with relevant links</p>
+                <h3 className="text-xl font-bold text-purple-800">Learning Activities</h3>
+                <p className="text-purple-600">Complete these activities by providing relevant links</p>
               </div>
             </div>
             <div className="bg-purple-100 rounded-lg px-3 py-1">
@@ -959,10 +987,18 @@ const GameView: React.FC = () => {
                       {miniQuestion.hasAnswer ? '✅' : '❓'}
                     </span>
                     <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                          Q{miniQuestion.questionNumber}: {miniQuestion.questionTitle}
+                        </span>
+                      </div>
                       <h4 className="font-semibold text-gray-800">
                         #{index + 1}: {miniQuestion.title}
                       </h4>
                       <p className="text-sm text-gray-600">{miniQuestion.question}</p>
+                      {miniQuestion.description && (
+                        <p className="text-xs text-gray-500 mt-1">{miniQuestion.description}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1040,234 +1076,96 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
-    console.log('renderCurrentQuestion called');
-    console.log('currentTopic:', currentTopic);
-    console.log('currentQuestion:', currentQuestion);
-    console.log('modules:', modules);
-
-    // Check if we have mini questions to complete first
-    const hasMiniQuestions = miniQuestions && miniQuestions.length > 0;
-    const completedMiniQuestions = hasMiniQuestions ? miniQuestions.filter(mq => mq.hasAnswer).length : 0;
-    const allMiniQuestionsCompleted = hasMiniQuestions ? completedMiniQuestions === miniQuestions.length : true;
-
-    // Check if we have a current topic (assignment) selected
-    const hasCurrentTopic = currentTopic && currentTopic.isReleased;
-    console.log('hasCurrentTopic:', hasCurrentTopic);
-
-    // If no current topic is selected, try to auto-select the first available assignment
-    if (!hasCurrentTopic && modules && modules.length > 0) {
-      for (const module of modules) {
-        if (module.isReleased) {
-          for (const topic of module.topics) {
-            if (topic.isReleased) {
-              // Check if this topic has been answered
-              const hasAnswered = progress?.answers?.some(
-                answer => answer.topic?.id === topic.id &&
-                  (answer.status === 'APPROVED' || answer.status === 'PENDING')
-              );
-
-              if (!hasAnswered) {
-                console.log('Auto-selecting first available topic:', topic);
-                // Ensure the topic has the module information
-                const topicWithModule = { ...topic, module };
-                setCurrentTopic(topicWithModule);
-                return renderCurrentTopic();
-              }
-            }
-          }
-        }
-      }
-    }
+    // DISABLED: Hide all main questions until mini questions are completed
+    // Only show mini questions as per user requirements
+    console.log('renderCurrentQuestion called - returning null to hide main questions');
     
-    // Handle current topic (assignment) if available - this is the main case now
-    if (hasCurrentTopic) {
-      console.log('Rendering current topic');
-      return renderCurrentTopic();
-    }
-
-    // Handle legacy current question if available and no modules exist
-    if (currentQuestion && (!modules || modules.length === 0)) {
-      console.log('Rendering legacy question');
-      // This will go to the legacy question rendering logic below
-    } 
-    else {
-      console.log('No assignments available');
-      // No assignments available
-      return (
-        <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-8 text-center shadow-lg">
-          <div className="text-6xl mb-4">🎉</div>
-          <h3 className="text-2xl font-bold text-yellow-800 mb-2">
-            No Assignments Available
-          </h3>
-          <p className="text-yellow-700 mb-4">
-            Great job! Either you've completed all available assignments or new ones will be released soon.
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="bg-yellow-600 text-white px-6 py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-          >
-            Return to Dashboard
-          </button>
-        </div>
-      );
-    }
-
-    // Check for rejected answers for this question
-    const rejectedAnswers = progress?.answers?.filter(
-      answer => answer.question.questionNumber === currentQuestion.questionNumber &&
-        answer.status === 'REJECTED'
-    ) || [];
-
-    const latestRejectedAnswer = rejectedAnswers.length > 0 ? rejectedAnswers[0] : null;
-
-    if (currentQuestion.hasAnswered) {
-      return (
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-8 shadow-lg">
-          <div className="flex items-center mb-6">
-            <span className="text-4xl mr-4">✅</span>
-            <div>
-              <h3 className="text-2xl font-bold text-green-800">Question {currentQuestion.questionNumber}</h3>
-              <p className="text-green-600">Answer submitted - awaiting review</p>
-            </div>
-          </div>
-          <h4 className="text-xl font-semibold text-green-800 mb-3">{currentQuestion.title}</h4>
-          <p className="text-green-700 mb-6">{currentQuestion.content}</p>
-          <div className="bg-green-100 rounded-lg p-4">
-            <p className="text-green-800 font-medium">
-              🎯 Your answer has been submitted and is being reviewed by our administrators.
-              You'll be notified once it's approved and you can move to the next station!
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // If there's a rejected answer, show it and allow resubmission
-    if (latestRejectedAnswer) {
-      return (
-        <div className="space-y-6">
-          {/* Rejected Answer Display */}
-          <div className="bg-gradient-to-br from-red-50 to-pink-50 border border-red-200 rounded-xl p-8 shadow-lg">
-            <div className="flex items-center mb-6">
-              <span className="text-4xl mr-4">❌</span>
-              <div>
-                <h3 className="text-2xl font-bold text-red-800">Question {currentQuestion.questionNumber}</h3>
-                <p className="text-red-600">Previous answer was not approved</p>
-              </div>
-            </div>
-            <h4 className="text-xl font-semibold text-red-800 mb-3">{currentQuestion.title}</h4>
-            <p className="text-red-700 mb-4">{currentQuestion.content}</p>
-
-            {/* Show rejected answer */}
-            <div className="bg-red-100 rounded-lg p-4 mb-4">
-              <h5 className="font-semibold text-red-800 mb-2">Your Previous Answer:</h5>
-              <p className="text-red-700 italic mb-2">"{latestRejectedAnswer.content}"</p>
-              <p className="text-sm text-red-600">
-                Submitted: {new Date(latestRejectedAnswer.submittedAt).toLocaleDateString()}
-              </p>
-            </div>
-
-            <div className="bg-orange-100 rounded-lg p-4">
-              <p className="text-orange-800 font-medium">
-                📝 Your answer needs improvement. Please review the question and provide a new answer below.
-              </p>
-            </div>
-          </div>
-
-          {/* New Answer Form */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 shadow-lg">
-            <div className="flex items-center mb-6">
-              <span className="text-4xl mr-4">🔄</span>
-              <div>
-                <h3 className="text-2xl font-bold text-blue-800">Resubmit Your Answer</h3>
-                <p className="text-blue-600">Try again with a better response</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmitAnswer} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-blue-800 mb-2">
-                  Your New Answer
-                </label>
-                <textarea
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  placeholder="Share your thoughts and experiences... (Try to be more detailed and thoughtful)"
-                  rows={6}
-                  className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-blue-800 mb-2">
-                  File Attachment (Optional)
-                </label>
-                <div className="space-y-3">
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.txt"
-                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Supported files: PDF, Word documents, images (JPG, PNG, GIF), text files. Max size: 10MB
-                  </p>
-                  {attachedFile && (
-                    <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg border border-blue-200">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-blue-600">📎</span>
-                        <span className="text-sm text-blue-800 font-medium">{attachedFile.name}</span>
-                        <span className="text-xs text-gray-500">
-                          ({(attachedFile.size / 1024 / 1024).toFixed(2)} MB)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={removeAttachment}
-                        className="text-red-500 hover:text-red-700 font-bold text-lg"
-                        title="Remove attachment"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                  {fileError && (
-                    <p className="text-red-500 text-sm">{fileError}</p>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting || !answer.trim()}
-                className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white py-4 px-6 rounded-lg hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 font-medium text-lg shadow-lg"
-              >
-                {submitting ? (
-                  <div className="flex items-center justify-center">
-                    <span className="animate-spin text-2xl mr-2">🔄</span>
-                    <span>Resubmitting Answer...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center">
-                    <span className="mr-2">🔄</span>
-                    <span>Resubmit Answer</span>
-                  </div>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      );
-    }
-
+    // TEMPORARY: Force show mini questions for debugging
+    const testMiniQuestions = [
+      {
+        id: '1',
+        title: 'Test Mini Question 1',
+        question: 'This is a test mini question to verify the UI is working',
+        description: 'Test description',
+        orderIndex: 1,
+        isReleased: true,
+        releaseDate: '2024-01-01',
+        hasAnswer: false,
+        contentId: '1',
+        contentTitle: 'Test Content',
+        questionId: '1',
+        questionTitle: 'Test Question',
+        questionNumber: 1
+      }
+    ];
+    
     return (
       <div>
-        {/* Mini Questions Section */}
+        <h2 className="text-2xl font-bold mb-4">DEBUG: Testing Mini Questions</h2>
+        <p className="mb-4">miniQuestions length: {miniQuestions?.length || 0}</p>
+        <p className="mb-4">Test mini questions: {testMiniQuestions.length}</p>
+        
+        {/* Show actual mini questions if available */}
         {renderMiniQuestions()}
-
-        {/* Main Question Section is hidden as per user requirements */}
-        {/* The main question will not be displayed, only mini questions */}
+        
+        {/* Also show test mini questions */}
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4">Test Mini Questions (Force Rendered):</h3>
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <span className="text-3xl mr-3">🎯</span>
+                <div>
+                  <h3 className="text-xl font-bold text-purple-800">Learning Activities (TEST)</h3>
+                  <p className="text-purple-600">Complete these activities by providing relevant links</p>
+                </div>
+              </div>
+            </div>
+            
+            {testMiniQuestions.map((mq, index) => (
+              <div key={mq.id} className="border rounded-lg p-4 bg-white border-purple-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center">
+                    <span className="text-lg mr-2">❓</span>
+                    <div>
+                      <h4 className="font-semibold text-gray-800">
+                        #{index + 1}: {mq.title}
+                      </h4>
+                      <p className="text-sm text-gray-600">{mq.question}</p>
+                      <p className="text-xs text-blue-600">Q{mq.questionNumber}: {mq.questionTitle}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Link URL *
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/article"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Notes (optional)
+                    </label>
+                    <textarea
+                      placeholder="Add any notes or comments..."
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+                  <button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 font-medium">
+                    Submit Answer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   };
@@ -1540,13 +1438,56 @@ const GameView: React.FC = () => {
                         <div className="space-y-3">
                           {module.topics.map((topic) => {
                             const topicIsReleased = topic.isReleased;
+                            
+                            // Get mini questions for this topic/question
+                            const topicMiniQuestions = miniQuestions.filter(mq => 
+                              mq.questionId === topic.id || mq.questionNumber === topic.topicNumber
+                            );
+                            
+                            const hasMiniQuestions = topicMiniQuestions.length > 0;
+                            const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
+                            const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
+                            
+                            // Hide main question based on user requirements:
+                            // 1. If has mini questions and not all completed: hide completely
+                            // 2. If has mini questions and all completed but main not released: hide
+                            // 3. If has mini questions and all completed and main released: show as enabled
+                            // 4. If no mini questions and main released: show as enabled
+                            
+                            let shouldShow = false;
+                            let isDisabled = false;
+                            
+                            if (hasMiniQuestions) {
+                              if (allMiniQuestionsCompleted && topicIsReleased) {
+                                shouldShow = true;
+                                isDisabled = false;
+                              } else if (allMiniQuestionsCompleted && !topicIsReleased) {
+                                shouldShow = false; // Hide until main question is released
+                              } else {
+                                shouldShow = false; // Hide until all mini questions completed
+                              }
+                            } else if (topicIsReleased) {
+                              shouldShow = true;
+                              isDisabled = false;
+                            }
+                            
+                            // For now, hide all main questions as per user's current requirement
+                            shouldShow = false;
+                            
+                            if (!shouldShow) {
+                              return null;
+                            }
+                            
                             return (
                               <div
                                 key={topic.id}
-                                className={`rounded-lg p-4 border transition-all duration-200 ${topicIsReleased
-                                    ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                                    : 'bg-gray-50 border-gray-200 opacity-60'
-                                  }`}
+                                className={`rounded-lg p-4 border transition-all duration-200 ${
+                                  isDisabled 
+                                    ? 'bg-yellow-50 border-yellow-200 opacity-75' 
+                                    : topicIsReleased
+                                      ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                                      : 'bg-gray-50 border-gray-200 opacity-60'
+                                }`}
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center">
@@ -1618,18 +1559,26 @@ const GameView: React.FC = () => {
 
     // Add current question if available and no modules exist (legacy mode)
     if (currentQuestion && (!modules || modules.length === 0)) {
-      activeItems.push({
-        type: 'question',
-        id: currentQuestion.id,
-        title: currentQuestion.title,
-        description: currentQuestion.description || currentQuestion.content,
-        content: currentQuestion.content,
-        deadline: currentQuestion.deadline,
-        points: currentQuestion.points,
-        bonusPoints: currentQuestion.bonusPoints,
-        moduleTitle: 'Legacy Questions',
-        identifier: `Question ${currentQuestion.questionNumber}`
-      });
+      // Check if mini questions are completed for this question
+      const totalMiniQuestions = miniQuestions.length;
+      const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
+      const allMiniQuestionsCompleted = totalMiniQuestions === 0 || completedMiniQuestions === totalMiniQuestions;
+      
+      // Only show main question if all mini questions are completed
+      if (allMiniQuestionsCompleted) {
+        activeItems.push({
+          type: 'question',
+          id: currentQuestion.id,
+          title: currentQuestion.title,
+          description: currentQuestion.description || currentQuestion.content,
+          content: currentQuestion.content,
+          deadline: currentQuestion.deadline,
+          points: currentQuestion.points,
+          bonusPoints: currentQuestion.bonusPoints,
+          moduleTitle: 'Legacy Questions',
+          identifier: `Question ${currentQuestion.questionNumber}`
+        });
+      }
     }
 
     // Add ALL released topics from modules that haven't been answered
@@ -1637,26 +1586,31 @@ const GameView: React.FC = () => {
       if (module.isReleased) {
         module.topics.forEach(topic => {
           if (topic.isReleased) {
+            // For now, we'll hide ALL main questions since we're focusing on mini questions only
+            // This follows the user's requirement to hide main questions and show only mini questions
+            // We'll re-enable this logic later when mini questions integration is complete
+            
             // Check if this topic has been answered
-            const hasAnswered = progress?.answers?.some(
-              answer => answer.topic?.id === topic.id &&
-                (answer.status === 'APPROVED' || answer.status === 'PENDING')
-            );
-
-            if (!hasAnswered) {
-              activeItems.push({
-                type: 'topic',
-                id: topic.id,
-                title: topic.title,
-                description: topic.description,
-                content: topic.content,
-                deadline: topic.deadline,
-                points: topic.points,
-                bonusPoints: topic.bonusPoints,
-                moduleTitle: `Module ${module.moduleNumber}`,
-                identifier: `Topic ${topic.topicNumber}`
-              });
-            }
+            // const hasAnswered = progress?.answers?.some(
+            //   answer => answer.topic?.id === topic.id &&
+            //     (answer.status === 'APPROVED' || answer.status === 'PENDING')
+            // );
+            
+            // if (!hasAnswered) {
+            //   activeItems.push({
+            //     type: 'topic',
+            //     id: topic.id,
+            //     title: topic.title,
+            //     description: topic.description,
+            //     content: topic.content,
+            //     deadline: topic.deadline,
+            //     points: topic.points,
+            //     bonusPoints: topic.bonusPoints,
+            //     moduleTitle: `Module ${module.moduleNumber}`,
+            //     identifier: `Topic ${topic.topicNumber}`,
+            //     hasAnswered: hasAnswered
+            //   });
+            // }
           }
         });
       }
@@ -1841,6 +1795,7 @@ const GameView: React.FC = () => {
   };
 
   if (loading) {
+    console.log('GameView: Still loading...');
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
@@ -1860,6 +1815,9 @@ const GameView: React.FC = () => {
       </div>
     );
   }
+
+  console.log('GameView: Rendering main content');
+  console.log('GameView: miniQuestions length:', miniQuestions?.length || 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -1917,8 +1875,8 @@ const GameView: React.FC = () => {
         {/* Individual Trail Progress */}
         {renderTrailProgress()}
 
-        {/* Active Questions Section */}
-        {renderActiveQuestions()}
+        {/* Active Questions Section - Hidden as per user requirements */}
+        {/* {renderActiveQuestions()} */}
 
         {/* Current Question */}
         <div id="current-question-section">
