@@ -573,22 +573,22 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         };
       }
       
-      // Collect ALL released mini questions that haven't been answered from ALL questions
-      // This is the key change: show mini questions from ALL questions, not just the active one
-      currentQuestionMiniQuestions = processedQuestions.flatMap((question: any) => 
-        question.contents.flatMap((content: any) => 
-          content.miniQuestions
-            .filter((mq: any) => mq.isReleased && !mq.hasAnswer)
-            .map((mq: any) => ({
-              ...mq,
-              contentId: content.id,
-              contentTitle: content.title,
-              questionId: question.id,
-              questionTitle: question.title,
-              questionNumber: question.questionNumber
-            }))
-        )
-      );
+      // Collect released mini questions from ALL processed questions (already filtered by released)
+      currentQuestionMiniQuestions = processedQuestions
+        .flatMap((question: any) => 
+          question.contents.flatMap((content: any) => 
+            content.miniQuestions
+              .filter((mq: any) => mq.isReleased && !mq.hasAnswer)
+              .map((mq: any) => ({
+                ...mq,
+                contentId: content.id,
+                contentTitle: content.title,
+                questionId: question.id,
+                questionTitle: question.title,
+                questionNumber: question.questionNumber
+              }))
+          )
+        );
     }
 
     // Get user's answers in the format expected by original GameView

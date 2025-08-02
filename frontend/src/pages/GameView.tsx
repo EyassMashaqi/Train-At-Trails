@@ -1076,98 +1076,9 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
-    // DISABLED: Hide all main questions until mini questions are completed
+    // Hide main questions until mini questions are completed
     // Only show mini questions as per user requirements
-    console.log('renderCurrentQuestion called - returning null to hide main questions');
-    
-    // TEMPORARY: Force show mini questions for debugging
-    const testMiniQuestions = [
-      {
-        id: '1',
-        title: 'Test Mini Question 1',
-        question: 'This is a test mini question to verify the UI is working',
-        description: 'Test description',
-        orderIndex: 1,
-        isReleased: true,
-        releaseDate: '2024-01-01',
-        hasAnswer: false,
-        contentId: '1',
-        contentTitle: 'Test Content',
-        questionId: '1',
-        questionTitle: 'Test Question',
-        questionNumber: 1
-      }
-    ];
-    
-    return (
-      <div>
-        <h2 className="text-2xl font-bold mb-4">DEBUG: Testing Mini Questions</h2>
-        <p className="mb-4">miniQuestions length: {miniQuestions?.length || 0}</p>
-        <p className="mb-4">Test mini questions: {testMiniQuestions.length}</p>
-        
-        {/* Show actual mini questions if available */}
-        {renderMiniQuestions()}
-        
-        {/* Also show test mini questions */}
-        <div className="mt-8">
-          <h3 className="text-xl font-bold mb-4">Test Mini Questions (Force Rendered):</h3>
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <span className="text-3xl mr-3">🎯</span>
-                <div>
-                  <h3 className="text-xl font-bold text-purple-800">Learning Activities (TEST)</h3>
-                  <p className="text-purple-600">Complete these activities by providing relevant links</p>
-                </div>
-              </div>
-            </div>
-            
-            {testMiniQuestions.map((mq, index) => (
-              <div key={mq.id} className="border rounded-lg p-4 bg-white border-purple-200">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center">
-                    <span className="text-lg mr-2">❓</span>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        #{index + 1}: {mq.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">{mq.question}</p>
-                      <p className="text-xs text-blue-600">Q{mq.questionNumber}: {mq.questionTitle}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Link URL *
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://example.com/article"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Notes (optional)
-                    </label>
-                    <textarea
-                      placeholder="Add any notes or comments..."
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                    />
-                  </div>
-                  <button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 font-medium">
-                    Submit Answer
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   };
 
   const renderLeaderboard = () => {
@@ -1878,7 +1789,12 @@ const GameView: React.FC = () => {
         {/* Active Questions Section - Hidden as per user requirements */}
         {/* {renderActiveQuestions()} */}
 
-        {/* Current Question */}
+        {/* Mini Questions Section */}
+        <div id="mini-questions-section">
+          {renderMiniQuestions()}
+        </div>
+
+        {/* Current Question - Hidden until mini questions completed */}
         <div id="current-question-section">
           {renderCurrentQuestion()}
         </div>
