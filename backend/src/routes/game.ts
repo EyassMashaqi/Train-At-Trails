@@ -643,6 +643,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         id: question.id,
         topicNumber: question.topicNumber || 1,
         title: question.title,
+        content: question.content, // Add content at the topic level
         description: question.description,
         isReleased: question.isReleased,
         isActive: question.isActive,
@@ -658,6 +659,16 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         }
       }))
     }));
+
+    // Debug logging for first module's first topic
+    if (formattedModules.length > 0 && formattedModules[0].topics.length > 0) {
+      console.log('Backend - First topic content:', {
+        title: formattedModules[0].topics[0].title,
+        content: formattedModules[0].topics[0].content,
+        contentLength: formattedModules[0].topics[0].content?.length || 0,
+        isReleased: formattedModules[0].topics[0].isReleased
+      });
+    }
 
     res.json({ modules: formattedModules });
   } catch (error) {

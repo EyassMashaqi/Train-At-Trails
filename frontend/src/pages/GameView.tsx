@@ -103,6 +103,11 @@ const GameView: React.FC = () => {
   const [submittingMini, setSubmittingMini] = useState<string | null>(null);
   const [urlValidation, setUrlValidation] = useState<{[key: string]: {isValid: boolean, message: string}}>({});
   
+  // Main question answer state
+  const [answerContent, setAnswerContent] = useState('');
+  const [answerFile, setAnswerFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  
   const navigate = useNavigate();
 
   // URL validation function
@@ -227,6 +232,16 @@ const GameView: React.FC = () => {
 
       // Set modules data
       setModules(modulesResponse.data.modules || []);
+      console.log('Modules loaded:', modulesResponse.data.modules?.length || 0);
+      
+      // Debug first module topics
+      if (modulesResponse.data.modules && modulesResponse.data.modules.length > 0) {
+        const firstModule = modulesResponse.data.modules[0];
+        console.log('First module:', firstModule.title, 'Topics:', firstModule.topics?.length || 0);
+        if (firstModule.topics && firstModule.topics.length > 0) {
+          console.log('First topic:', firstModule.topics[0]);
+        }
+      }
 
       // Auto-expand released modules
       const initialExpanded: Record<string, boolean> = {};
@@ -312,6 +327,34 @@ const GameView: React.FC = () => {
       toast.error(errorMessage);
     } finally {
       setSubmittingMini(null);
+    }
+  };
+
+  // Main question submission handler
+  const handleMainAnswerSubmit = async () => {
+    if (!answerContent.trim()) {
+      toast.error('Please provide an answer');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await gameService.submitAnswer(answerContent.trim(), answerFile);
+      toast.success('Answer submitted successfully!');
+      
+      // Clear form
+      setAnswerContent('');
+      setAnswerFile(null);
+      
+      // Refresh data
+      await loadGameData();
+    } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to submit answer';
+      toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -578,9 +621,115 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
-    // Hide main questions until mini questions are completed
-    // Only show mini questions as per user requirements
-    return null;
+    // Check if all mini questions are completed
+    const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
+    const totalMiniQuestions = miniQuestions.length;
+    const allMiniQuestionsCompleted = totalMiniQuestions > 0 && completedMiniQuestions === totalMiniQuestions;
+
+    // Only show main question form if all mini questions are completed
+    if (!allMiniQuestionsCompleted || !currentQuestion || totalMiniQuestions === 0) {
+      return null;
+    }
+
+    // Check if user has already answered this question
+    const hasAnswered = progress?.answers?.some(answer => 
+      answer.question.id === currentQuestion.id
+    );
+
+    return (
+      <div className="mb-8">
+        <div className="bg-gradient-to-br from-accent-50 to-accent-100 border border-accent-200 rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center">
+              <span className="text-3xl mr-3">📝</span>
+              <div>
+                <h3 className="text-xl font-bold text-accent-800">Main Assignment</h3>
+                <p className="text-accent-600">Ready to submit your main answer</p>
+              </div>
+            </div>
+            <div className="bg-accent-100 rounded-lg px-3 py-1">
+              <span className="text-accent-800 font-semibold">
+                {hasAnswered ? 'Completed' : 'Available'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-4 mb-6 border border-accent-200">
+            <h4 className="font-semibold text-gray-800 mb-2">
+              Question {currentQuestion.questionNumber}: {currentQuestion.title}
+            </h4>
+            <p className="text-gray-700 mb-2">{currentQuestion.description}</p>
+            {currentQuestion.content && (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <p className="text-sm text-gray-600">{currentQuestion.content}</p>
+              </div>
+            )}
+          </div>
+
+          {hasAnswered ? (
+            <div className="bg-green-100 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <span className="text-green-600 text-xl mr-3">✅</span>
+                <div>
+                  <p className="text-green-800 font-medium">Answer Submitted</p>
+                  <p className="text-green-700 text-sm">Your answer has been submitted and is awaiting review.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Answer *
+                </label>
+                <textarea
+                  value={answerContent}
+                  onChange={(e) => setAnswerContent(e.target.value)}
+                  placeholder="Write your detailed answer here..."
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-vertical"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Attachment (optional)
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => setAnswerFile(e.target.files?.[0] || null)}
+                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                />
+                {answerFile && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Selected: {answerFile.name} ({Math.round(answerFile.size / 1024)} KB)
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, GIF (Max 10MB)
+                </p>
+              </div>
+
+              <button
+                onClick={handleMainAnswerSubmit}
+                disabled={submitting || !answerContent.trim()}
+                className="bg-accent-600 text-white px-6 py-3 rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {submitting ? (
+                  <div className="flex items-center">
+                    <span className="animate-spin mr-2">⏳</span>
+                    Submitting Answer...
+                  </div>
+                ) : (
+                  'Submit Main Answer'
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const renderLeaderboard = () => {
@@ -877,26 +1026,42 @@ const GameView: React.FC = () => {
                             
                             // Get mini questions for this topic/question
                             const topicMiniQuestions = miniQuestions.filter(mq => 
-                              mq.questionId === topic.id || mq.questionNumber === topic.topicNumber
+                              mq.questionId === topic.id || 
+                              mq.questionNumber === topic.topicNumber ||
+                              mq.contentId === topic.id
                             );
                             
                             const hasMiniQuestions = topicMiniQuestions.length > 0;
                             const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
                             const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
                             
-                            // Updated logic: Show first question in first module if released, 
-                            // but disable if mini questions not completed
+                            // Fixed logic: Show first question in first module if released, 
+                            // enable if mini questions completed or no mini questions
                             let shouldShow = false;
                             let isDisabled = false;
                             
                             if (topicIsReleased) {
                               shouldShow = true; // Always show if the topic is released
                               
+                              // Only disable if there are mini questions AND they're not all completed
                               if (hasMiniQuestions && !allMiniQuestionsCompleted) {
                                 isDisabled = true; // Disable if has mini questions but not all completed
                               } else {
                                 isDisabled = false; // Enable if no mini questions or all completed
                               }
+                            }
+                            
+                            // Debug logging for Topic 1 only (can be removed later)
+                            if (topic.topicNumber === 1) {
+                              console.log('✅ Topic 1 Status:', {
+                                title: topic.title,
+                                hasContent: !!topic.content,
+                                contentLength: topic.content?.length || 0,
+                                isReleased: topicIsReleased,
+                                isDisabled: isDisabled,
+                                miniQuestionsCompleted: `${completedMiniQuestions}/${topicMiniQuestions.length}`,
+                                willShowContent: topicIsReleased && topic.content && !isDisabled
+                              });
                             }
                             
                             if (!shouldShow) {
