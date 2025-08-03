@@ -96,6 +96,7 @@ const GameView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showTrainAnimation] = useState(false); // Static false - animation triggered by main questions which are disabled
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
   
   // Mini questions state
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
@@ -440,7 +441,7 @@ const GameView: React.FC = () => {
     );
   };
 
-  // Render mini questions
+  // Render mini questions grouped by main question
   const renderMiniQuestions = () => {
     console.log('renderMiniQuestions called');
     console.log('miniQuestions:', miniQuestions);
@@ -466,9 +467,39 @@ const GameView: React.FC = () => {
       );
     }
 
+    // Group mini questions by their main question
+    const groupedMiniQuestions = miniQuestions.reduce((groups, miniQuestion) => {
+      const questionKey = `Q${miniQuestion.questionNumber}`;
+      const questionTitle = miniQuestion.questionTitle || `Question ${miniQuestion.questionNumber}`;
+      
+      if (!groups[questionKey]) {
+        groups[questionKey] = {
+          questionNumber: miniQuestion.questionNumber,
+          questionTitle: questionTitle,
+          miniQuestions: []
+        };
+      }
+      
+      groups[questionKey].miniQuestions.push(miniQuestion);
+      return groups;
+    }, {} as Record<string, { questionNumber: number; questionTitle: string; miniQuestions: MiniQuestion[] }>);
+
+    // Auto-expand the first question group by default
+    const firstQuestionKey = Object.keys(groupedMiniQuestions)[0];
+    if (firstQuestionKey && expandedQuestions[firstQuestionKey] === undefined) {
+      setExpandedQuestions(prev => ({ ...prev, [firstQuestionKey]: true }));
+    }
+
     const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
     const totalMiniQuestions = miniQuestions.length;
     const allMiniQuestionsCompleted = completedMiniQuestions === totalMiniQuestions;
+
+    const toggleQuestionGroup = (questionKey: string) => {
+      setExpandedQuestions(prev => ({
+        ...prev,
+        [questionKey]: !prev[questionKey]
+      }));
+    };
 
     return (
       <div className="mb-8">
@@ -488,10 +519,10 @@ const GameView: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar */}
+          {/* Overall Progress Bar */}
           <div className="mb-6">
             <div className="flex justify-between text-sm text-primary-600 mb-1">
-              <span>Progress</span>
+              <span>Overall Progress</span>
               <span>{totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0}%</span>
             </div>
             <div className="w-full bg-primary-200 rounded-full h-2">
@@ -502,106 +533,171 @@ const GameView: React.FC = () => {
             </div>
           </div>
 
-          {/* Mini Questions List */}
+          {/* Grouped Mini Questions */}
           <div className="space-y-4">
-            {miniQuestions.map((miniQuestion, index) => (
-              <div 
-                key={miniQuestion.id}
-                className={`border rounded-lg p-4 ${
-                  miniQuestion.hasAnswer ? 'bg-accent-50 border-accent-200' : 'bg-white border-primary-200'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center">
-                    <span className="text-lg mr-2">
-                      {miniQuestion.hasAnswer ? '✅' : '❓'}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-primary-100 text-primary-800 text-xs px-2 py-1 rounded-full font-medium">
-                          Q{miniQuestion.questionNumber}: {miniQuestion.questionTitle}
-                        </span>
-                      </div>
-                      <h4 className="font-semibold text-gray-800">
-                        #{index + 1}: {miniQuestion.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">{miniQuestion.question}</p>
-                      {miniQuestion.description && (
-                        <p className="text-xs text-gray-500 mt-1">{miniQuestion.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            {Object.entries(groupedMiniQuestions).map(([questionKey, group]) => {
+              const isExpanded = expandedQuestions[questionKey];
+              const groupCompleted = group.miniQuestions.filter(mq => mq.hasAnswer).length;
+              const groupTotal = group.miniQuestions.length;
+              const isFullyCompleted = groupCompleted === groupTotal;
 
-                {miniQuestion.hasAnswer ? (
-                  <div className="bg-accent-100 rounded-lg p-3">
-                    <p className="text-accent-800 font-medium mb-2">✅ Completed</p>
-                    <div className="text-sm text-accent-700">
-                      <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">{miniQuestion.answer?.linkUrl}</a></p>
-                      {miniQuestion.answer?.notes && (
-                        <p className="mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Link URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
-                        onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
-                        placeholder="https://example.com/article"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                          urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
-                            ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                            : urlValidation[miniQuestion.id]?.isValid === true
-                              ? 'border-accent-300 focus:ring-accent-500 focus:border-accent-500'
-                              : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
-                        }`}
-                      />
-                      {urlValidation[miniQuestion.id]?.message && (
-                        <p className={`text-xs mt-1 ${
-                          urlValidation[miniQuestion.id]?.isValid 
-                            ? 'text-accent-600' 
-                            : 'text-red-500'
-                        }`}>
-                          {urlValidation[miniQuestion.id]?.message}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Notes (optional)
-                      </label>
-                      <textarea
-                        value={miniAnswers[miniQuestion.id]?.notes || ''}
-                        onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'notes', e.target.value)}
-                        placeholder="Add any additional notes or thoughts..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleMiniAnswerSubmit(miniQuestion.id)}
-                      disabled={submittingMini === miniQuestion.id || !miniAnswers[miniQuestion.id]?.linkUrl?.trim()}
-                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {submittingMini === miniQuestion.id ? (
-                        <div className="flex items-center">
-                          <span className="animate-spin mr-2">⏳</span>
-                          Submitting...
+              return (
+                <div key={questionKey} className="border border-primary-200 rounded-lg overflow-hidden">
+                  {/* Question Group Header */}
+                  <div
+                    className={`p-4 cursor-pointer transition-colors ${
+                      isFullyCompleted 
+                        ? 'bg-accent-50 hover:bg-accent-100 border-accent-200' 
+                        : 'bg-white hover:bg-primary-50'
+                    }`}
+                    onClick={() => toggleQuestionGroup(questionKey)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <span className="text-xl mr-3">
+                          {isFullyCompleted ? '✅' : '📝'}
+                        </span>
+                        <div>
+                          <h4 className={`font-semibold ${
+                            isFullyCompleted ? 'text-accent-800' : 'text-primary-800'
+                          }`}>
+                            {questionKey}: {group.questionTitle}
+                          </h4>
+                          <p className={`text-sm ${
+                            isFullyCompleted ? 'text-accent-600' : 'text-primary-600'
+                          }`}>
+                            {groupCompleted}/{groupTotal} activities completed
+                          </p>
                         </div>
-                      ) : (
-                        'Submit Answer'
-                      )}
-                    </button>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        {/* Progress indicator */}
+                        <div className="flex items-center space-x-2">
+                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                isFullyCompleted ? 'bg-accent-500' : 'bg-primary-500'
+                              }`}
+                              style={{ width: `${(groupCompleted / groupTotal) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 min-w-[3rem]">
+                            {Math.round((groupCompleted / groupTotal) * 100)}%
+                          </span>
+                        </div>
+                        {/* Expand/Collapse Icon */}
+                        <div className={`transform transition-transform duration-200 ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}>
+                          <span className="text-primary-600 text-xl">▼</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Question Group Content */}
+                  {isExpanded && (
+                    <div className="border-t border-primary-100 bg-gray-50">
+                      <div className="p-4 space-y-3">
+                        {group.miniQuestions.map((miniQuestion, index) => (
+                          <div 
+                            key={miniQuestion.id}
+                            className={`border rounded-lg p-4 ${
+                              miniQuestion.hasAnswer ? 'bg-accent-50 border-accent-200' : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center">
+                                <span className="text-lg mr-2">
+                                  {miniQuestion.hasAnswer ? '✅' : '❓'}
+                                </span>
+                                <div>
+                                  <h5 className="font-semibold text-gray-800">
+                                    #{index + 1}: {miniQuestion.title}
+                                  </h5>
+                                  <p className="text-sm text-gray-600">{miniQuestion.question}</p>
+                                  {miniQuestion.description && (
+                                    <p className="text-xs text-gray-500 mt-1">{miniQuestion.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {miniQuestion.hasAnswer ? (
+                              <div className="bg-accent-100 rounded-lg p-3">
+                                <p className="text-accent-800 font-medium mb-2">✅ Completed</p>
+                                <div className="text-sm text-accent-700">
+                                  <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">{miniQuestion.answer?.linkUrl}</a></p>
+                                  {miniQuestion.answer?.notes && (
+                                    <p className="mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Link URL *
+                                  </label>
+                                  <input
+                                    type="url"
+                                    value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
+                                    onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
+                                    placeholder="https://example.com/article"
+                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                                      urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
+                                        ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                        : urlValidation[miniQuestion.id]?.isValid === true
+                                          ? 'border-accent-300 focus:ring-accent-500 focus:border-accent-500'
+                                          : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
+                                    }`}
+                                  />
+                                  {urlValidation[miniQuestion.id]?.message && (
+                                    <p className={`text-xs mt-1 ${
+                                      urlValidation[miniQuestion.id]?.isValid 
+                                        ? 'text-accent-600' 
+                                        : 'text-red-500'
+                                    }`}>
+                                      {urlValidation[miniQuestion.id]?.message}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Notes (optional)
+                                  </label>
+                                  <textarea
+                                    value={miniAnswers[miniQuestion.id]?.notes || ''}
+                                    onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'notes', e.target.value)}
+                                    placeholder="Add any additional notes or thoughts..."
+                                    rows={3}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => handleMiniAnswerSubmit(miniQuestion.id)}
+                                  disabled={submittingMini === miniQuestion.id || !miniAnswers[miniQuestion.id]?.linkUrl?.trim()}
+                                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {submittingMini === miniQuestion.id ? (
+                                    <div className="flex items-center">
+                                      <span className="animate-spin mr-2">⏳</span>
+                                      Submitting...
+                                    </div>
+                                  ) : (
+                                    'Submit Answer'
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {allMiniQuestionsCompleted && (
