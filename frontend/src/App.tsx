@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import QuestionManagement from './pages/QuestionManagement';
 import GameView from './pages/GameView';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -56,6 +57,8 @@ function App() {
               } 
             />
             <Route path="/" element={<SmartRedirect />} />
+            {/* Catch-all route for 404 pages */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </Router>
