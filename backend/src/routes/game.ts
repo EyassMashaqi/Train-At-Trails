@@ -127,13 +127,16 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
 
     // If we have questions organized in modules, don't return currentQuestion
     // to avoid duplication with the module/topic system
+    // Get total questions count for dynamic total steps
+    const totalQuestions = await prisma.question.count();
+
     const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
 
     res.json({
       user,
       currentStep: user.currentStep,
-      totalSteps: 12, // Keep for compatibility
-      isComplete: user.currentStep >= 12,
+      totalSteps: totalQuestions, // Dynamic total based on actual questions in database
+      isComplete: user.currentStep >= totalQuestions,
       currentQuestion: shouldReturnCurrentQuestion ? (currentQuestion ? {
         id: currentQuestion.id,
         questionNumber: currentQuestion.questionNumber,
@@ -299,10 +302,10 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
   }
 });
 
-// Get leaderboard (optional enhancement)
+// Get leaderboard (users with progress > 0)
 router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const leaderboard = await prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: {
         isAdmin: false,
         currentStep: { gt: 0 }
@@ -321,7 +324,8 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       take: 20
     });
 
-    res.json({ leaderboard });
+    console.log('Leaderboard API: Found', users.length, 'users with progress');
+    res.json({ users });
   } catch (error) {
     console.error('Get leaderboard error:', error);
     res.status(500).json({ error: 'Failed to get leaderboard' });
@@ -370,33 +374,6 @@ router.get('/next-question', authenticateToken, async (req: AuthRequest, res) =>
   } catch (error) {
     console.error('Get next question time error:', error);
     res.status(500).json({ error: 'Failed to get next question time' });
-  }
-});
-
-// Get leaderboard - all users' progress for train animation
-router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      where: { isAdmin: false },
-      select: {
-        id: true,
-        fullName: true,
-        trainName: true,
-        currentStep: true,
-        createdAt: true
-      },
-      orderBy: [
-        { currentStep: 'desc' },
-        { createdAt: 'asc' }
-      ]
-    });
-
-    console.log('Leaderboard API: Found', users.length, 'users');
-    console.log('Leaderboard API: Returning:', { users });
-    res.json({ users });
-  } catch (error) {
-    console.error('Get leaderboard error:', error);
-    res.status(500).json({ error: 'Failed to get leaderboard' });
   }
 });
 
@@ -610,9 +587,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       // New structure for enhanced features
       user,
       currentStep: user.currentStep,
-      totalSteps: 12,
+      totalSteps: totalQuestions, // Dynamic total based on actual questions in database
       totalQuestions,
-      isComplete: user.currentStep >= 12,
+      isComplete: user.currentStep >= totalQuestions,
       questions: processedQuestions,
       
       // Backward compatibility for original GameView

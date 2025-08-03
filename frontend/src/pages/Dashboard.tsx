@@ -24,6 +24,7 @@ const Dashboard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTrainAnimation, setShowTrainAnimation] = useState(false);
   const [activeQuestionsCount, setActiveQuestionsCount] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(12); // Default fallback, will be updated from API
 
   useEffect(() => {
     // Redirect admin users to admin dashboard
@@ -44,6 +45,11 @@ const Dashboard: React.FC = () => {
         let count = 0;
         
         const data = progressResponse.data;
+        
+        // Set total steps from API response
+        if (data.totalSteps) {
+          setTotalSteps(data.totalSteps);
+        }
         
         // Count ALL released topics that haven't been answered (don't double count)
         const modules = modulesResponse.data.modules || [];
@@ -196,7 +202,7 @@ const Dashboard: React.FC = () => {
                   <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-2">
                     {user.trainName || 'Your Train'}
                   </h2>
-                  <p className="text-xl text-gray-600">Station {user.currentStep} of 12</p>
+                  <p className="text-xl text-gray-600">Station {user.currentStep} of {totalSteps}</p>
                 </div>
               </div>
 
@@ -205,14 +211,14 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between text-lg font-medium text-gray-600 mb-4">
                   <span>Trail Progress</span>
                   <span className="text-2xl font-bold text-secondary-600">
-                    {Math.round((user.currentStep / 12) * 100)}%
+                    {Math.round((user.currentStep / totalSteps) * 100)}%
                   </span>
                 </div>
                 <div className="relative">
                   <div className="w-full bg-gray-200 rounded-full h-6 shadow-inner">
                     <div
                       className="bg-gradient-to-r from-primary-500 to-secondary-500 h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden"
-                      style={{ width: `${(user.currentStep / 12) * 100}%` }}
+                      style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
                     </div>
@@ -220,7 +226,7 @@ const Dashboard: React.FC = () => {
                   {/* Progress sparkles */}
                   <div 
                     className="absolute top-0 h-6 flex items-center"
-                    style={{ left: `${(user.currentStep / 12) * 100}%` }}
+                    style={{ left: `${(user.currentStep / totalSteps) * 100}%` }}
                   >
                     <span className="text-2xl animate-pulse">⭐</span>
                   </div>
@@ -237,7 +243,7 @@ const Dashboard: React.FC = () => {
                   Continue Your Journey
                 </button>
 
-                {user.currentStep === 12 && (
+                {user.currentStep === totalSteps && (
                   <div className="bg-gradient-to-br from-accent-50 to-accent-100 border-2 border-accent-200 rounded-xl p-8 text-center shadow-lg">
                     <span className="text-8xl mb-4 block animate-bounce">🏆</span>
                     <h3 className="text-3xl font-bold text-accent-800 mb-2">
@@ -294,7 +300,7 @@ const Dashboard: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg">
                   <span className="text-gray-700 font-medium">Current Station</span>
-                  <span className="text-2xl font-bold text-primary-600">{user.currentStep}/12</span>
+                  <span className="text-2xl font-bold text-primary-600">{user.currentStep}/{totalSteps}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 bg-gradient-to-r from-secondary-50 to-secondary-100 rounded-lg">
                   <span className="text-gray-700 font-medium">Train Name</span>
@@ -336,7 +342,7 @@ const Dashboard: React.FC = () => {
                 <span className="mr-3">🗺️</span>
                 Journey Guide
               </h3>
-              {user.currentStep < 12 ? (
+              {user.currentStep < totalSteps ? (
                 <div className="space-y-3 text-sm text-gray-600">
                   <div className="flex items-start">
                     <span className="mr-2">🎯</span>
@@ -352,7 +358,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex items-start">
                     <span className="mr-2">🎉</span>
-                    <p>Complete all 12 stations to finish your journey!</p>
+                    <p>Complete all {totalSteps} stations to finish your journey!</p>
                   </div>
                 </div>
               ) : (

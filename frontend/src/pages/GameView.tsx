@@ -92,6 +92,7 @@ const GameView: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showTrainAnimation] = useState(false); // Static false - animation triggered by main questions which are disabled
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
@@ -155,8 +156,8 @@ const GameView: React.FC = () => {
       totalReleased = Math.max(totalReleased, currentQuestion.questionNumber);
     }
 
-    // Default to 12 if no released questions found (fallback)
-    return Math.max(totalReleased, 12);
+    // Return calculated total or minimum of 1 (no hardcoded fallback to 12)
+    return Math.max(totalReleased, 1);
   };
 
   useEffect(() => {
@@ -240,12 +241,14 @@ const GameView: React.FC = () => {
 
       console.log('Extracted leaderboard data:', possibleData);
       setLeaderboard(possibleData);
+      setLeaderboardLoading(false);
     } catch (error) {
       console.error('Failed to load game data:', error);
       const errorMessage = error instanceof Error
         ? error.message
         : ((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to load game data');
       toast.error(errorMessage);
+      setLeaderboardLoading(false);
     } finally {
       setLoading(false);
     }
@@ -577,8 +580,7 @@ const GameView: React.FC = () => {
     console.log('renderLeaderboard called, leaderboard:', leaderboard);
     console.log('leaderboard length:', leaderboard?.length);
 
-    if (!leaderboard || leaderboard.length === 0) {
-      console.log('No leaderboard data, returning null');
+    if (leaderboardLoading) {
       return (
         <div className="mt-12 mb-8">
           <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
@@ -588,6 +590,30 @@ const GameView: React.FC = () => {
           </h3>
           <div className="text-center text-gray-500">
             Loading leaderboard...
+          </div>
+        </div>
+      );
+    }
+
+    if (!leaderboard || leaderboard.length === 0) {
+      console.log('No leaderboard data, showing empty state');
+      return (
+        <div className="mt-12 mb-8">
+          <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+            <span className="mr-3">🏆</span>
+            Trail Leaderboard
+            <span className="ml-3">🚂</span>
+          </h3>
+          <div className="text-center py-12 bg-gradient-to-r from-primary-50 via-primary-100 to-secondary-50 rounded-2xl shadow-xl border border-primary-100">
+            <div className="text-6xl mb-4">🚂</div>
+            <h4 className="text-xl font-semibold text-gray-700 mb-2">All Trains Are Still at the Station!</h4>
+            <p className="text-gray-600 max-w-md mx-auto">
+              The journey hasn't begun yet. Be the first to answer questions and start your adventure on the trail!
+            </p>
+            <div className="mt-6 inline-flex items-center px-4 py-2 bg-secondary-100 text-secondary-800 rounded-full text-sm font-medium">
+              <span>🎯</span>
+              <span className="ml-2">Ready to embark? Answer your first question above!</span>
+            </div>
           </div>
         </div>
       );

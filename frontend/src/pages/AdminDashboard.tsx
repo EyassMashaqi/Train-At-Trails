@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { adminService } from '../services/api';
+import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
 
@@ -130,6 +130,7 @@ const AdminDashboard: React.FC = () => {
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions'>('overview');
   
   // Feedback modal state
@@ -183,17 +184,23 @@ const AdminDashboard: React.FC = () => {
     try {
       setLoading(true);
       console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
-      const [usersResponse, pendingResponse, statsResponse, modulesResponse] = await Promise.all([
+      const [usersResponse, pendingResponse, statsResponse, modulesResponse, progressResponse] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getPendingAnswers(),
         adminService.getGameStats(),
-        adminService.getAllModules()
+        adminService.getAllModules(),
+        gameService.getProgress() // Get totalSteps
       ]);
 
       setUsers(usersResponse.data.users);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
+      
+      // Set dynamic total steps from progress response
+      if (progressResponse.data.totalSteps) {
+        setTotalSteps(progressResponse.data.totalSteps);
+      }
     } catch (error: unknown) {
       console.error('Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
@@ -490,11 +497,11 @@ const AdminDashboard: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="text-sm text-gray-900">Step {user.currentStep}/12</div>
+                      <div className="text-sm text-gray-900">Step {user.currentStep}/{totalSteps}</div>
                       <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-primary-600 h-2 rounded-full"
-                          style={{ width: `${(user.currentStep / 12) * 100}%` }}
+                          style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
                         ></div>
                       </div>
                     </div>
