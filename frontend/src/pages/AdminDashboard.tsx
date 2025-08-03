@@ -664,11 +664,11 @@ const AdminDashboard: React.FC = () => {
 
                 {/* Module Assignments - Expandable */}
                 {expandedModule === module.id && (
-                  <div className="border-t-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <div className="p-6 border-l-4 border-blue-400">
+                  <div className="border-t-2 border-primary-200 bg-gradient-to-r from-primary-50 to-primary-100">
+                    <div className="p-6 border-l-4 border-primary-400">
                       <h5 className="font-medium text-gray-900 mb-4 flex items-center bg-white/70 rounded-lg p-3 shadow-sm">
                         <span className="mr-2 text-lg">📋</span>
-                        <span className="text-blue-800 font-semibold">Assignments ({module.topics?.length || 0})</span>
+                        <span className="text-primary-800 font-semibold">Assignments ({module.topics?.length || 0})</span>
                       </h5>
                       
                       {!module.topics || module.topics.length === 0 ? (
@@ -701,7 +701,7 @@ const AdminDashboard: React.FC = () => {
                                 });
                                 setShowCreateTopicModal(true);
                               }}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                              className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors shadow-md"
                             >
                               ➕ Create First Assignment
                             </button>
@@ -841,7 +841,7 @@ const AdminDashboard: React.FC = () => {
                                   });
                                   setShowCreateTopicModal(true);
                                 }}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                                className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors shadow-md"
                               >
                                 ➕ Add Another Assignment
                               </button>
@@ -882,7 +882,7 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center">
               <span className="text-6xl mr-4 drop-shadow-lg">🔧</span>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   Admin Dashboard
                 </h1>
                 <p className="text-lg text-gray-600">Manage users and review answers</p>
@@ -918,7 +918,7 @@ const AdminDashboard: React.FC = () => {
                 onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules' | 'mini-questions')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -961,7 +961,7 @@ const AdminDashboard: React.FC = () => {
               <textarea
                 id="feedback"
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder={`Please provide feedback for ${feedbackForm.status === 'approved' ? 'approving' : 'rejecting'} this answer...`}
                 value={feedbackForm.feedback}
                 onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedback: e.target.value }))}
@@ -1014,7 +1014,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.topicNumber}
                   onChange={(e) => setTopicForm({...topicForm, topicNumber: parseInt(e.target.value) || 1})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="1"
                   required
                 />
@@ -1028,7 +1028,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.points}
                   onChange={(e) => setTopicForm({...topicForm, points: parseInt(e.target.value) || 100})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="1"
                 />
               </div>
@@ -1041,7 +1041,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.bonusPoints}
                   onChange={(e) => setTopicForm({...topicForm, bonusPoints: parseInt(e.target.value) || 50})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="0"
                 />
               </div>
@@ -1057,7 +1057,7 @@ const AdminDashboard: React.FC = () => {
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                     !createFormValidation.isValid 
                       ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                      : 'border-gray-300 focus:ring-blue-500'
+                      : 'border-gray-300 focus:ring-primary-500'
                   }`}
                 />
                 {!createFormValidation.isValid && (
@@ -1076,7 +1076,7 @@ const AdminDashboard: React.FC = () => {
                 type="text"
                 value={topicForm.title}
                 onChange={(e) => setTopicForm({...topicForm, title: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter topic title..."
                 required
               />
@@ -1089,7 +1089,7 @@ const AdminDashboard: React.FC = () => {
               <textarea
                 value={topicForm.description}
                 onChange={(e) => setTopicForm({...topicForm, description: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 rows={3}
                 placeholder="Enter topic description..."
                 required
@@ -1148,7 +1148,7 @@ const AdminDashboard: React.FC = () => {
                       setTopicForm({ ...topicForm, contents: updatedContents });
                     }
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-md hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md flex items-center"
+                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-sm rounded-md hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-md flex items-center"
                 >
                   <span className="mr-2">➕</span>
                   Add New
@@ -1524,7 +1524,7 @@ const AdminDashboard: React.FC = () => {
                     toast.error('Failed to update module');
                   }
                 }}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-2 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200"
               >
                 Save Changes
               </button>
@@ -1705,7 +1705,7 @@ const AdminDashboard: React.FC = () => {
                       }]
                     });
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-md hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md flex items-center"
+                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-sm rounded-md hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-md flex items-center"
                 >
                   <span className="mr-2">➕</span>
                   Add New
@@ -1915,7 +1915,7 @@ const AdminDashboard: React.FC = () => {
                 disabled={!editFormValidation.isValid}
                 className={`px-4 py-2 rounded-lg transition-all duration-200 ${
                   editFormValidation.isValid
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+                    ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
