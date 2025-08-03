@@ -469,12 +469,13 @@ const GameView: React.FC = () => {
 
     // Group self learning activities by their main question
     const groupedMiniQuestions = miniQuestions.reduce((groups, miniQuestion) => {
-      const questionKey = `Q${miniQuestion.questionNumber}`;
-      const questionTitle = miniQuestion.questionTitle || `Question ${miniQuestion.questionNumber}`;
+      const questionNumber = miniQuestion.questionNumber || 1; // Fallback to 1 if undefined
+      const questionKey = `Q${questionNumber}`;
+      const questionTitle = miniQuestion.questionTitle || `Question ${questionNumber}`;
       
       if (!groups[questionKey]) {
         groups[questionKey] = {
-          questionNumber: miniQuestion.questionNumber ?? 0,
+          questionNumber: questionNumber,
           questionTitle: questionTitle,
           miniQuestions: []
         };

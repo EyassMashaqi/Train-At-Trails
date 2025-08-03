@@ -596,7 +596,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
           // Process each mini question from the update request
           for (let i = 0; i < contents.length; i++) {
             const contentData = contents[i];
-            const existingMiniQuestion = existingMiniQuestions.find(mq => mq.orderIndex === i + 1);
+            const existingMiniQuestion = existingMiniQuestions.find((mq: any) => mq.orderIndex === i + 1);
 
             if (existingMiniQuestion) {
               // Update existing mini question (preserve answers)
@@ -626,7 +626,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
           }
 
           // Only delete mini questions that are no longer needed AND have no answers
-          const miniQuestionsToDelete = existingMiniQuestions.filter(mq => 
+          const miniQuestionsToDelete = existingMiniQuestions.filter((mq: any) => 
             mq.orderIndex > contents.length && mq.miniAnswers.length === 0
           );
 
