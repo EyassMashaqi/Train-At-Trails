@@ -81,14 +81,18 @@ const MiniAnswersView: React.FC = () => {
       const miniAnswersData = miniAnswersResponse.data.miniAnswers;
       const questionsData = questionsResponse.data.questions;
 
-      // Extract all released mini questions from all questions
+      // Extract all released mini questions from released questions only
       const releasedMiniQuestions: MiniQuestion[] = [];
       questionsData.forEach((question: any) => {
-        if (question.contents) {
+        console.log(`📋 Processing Question ${question.questionNumber}: "${question.title}" - Released: ${question.isReleased}`);
+        
+        // Only process mini questions if the parent main question is also released
+        if (question.isReleased && question.contents) {
           question.contents.forEach((content: any) => {
             if (content.miniQuestions) {
               content.miniQuestions.forEach((miniQ: any) => {
                 if (miniQ.isReleased) {
+                  console.log(`  ✅ Adding mini question: "${miniQ.title}" from Q${question.questionNumber}`);
                   releasedMiniQuestions.push({
                     id: miniQ.id,
                     title: miniQ.title,
@@ -104,12 +108,18 @@ const MiniAnswersView: React.FC = () => {
                       }
                     }
                   });
+                } else {
+                  console.log(`  ❌ Skipping unreleased mini question: "${miniQ.title}" from Q${question.questionNumber}`);
                 }
               });
             }
           });
+        } else if (!question.isReleased) {
+          console.log(`  🔒 Skipping unreleased main question Q${question.questionNumber}`);
         }
       });
+
+      console.log(`📊 Total released mini questions from released main questions: ${releasedMiniQuestions.length}`);
 
       // Create user-mini-question mapping
       const userMiniQuestionsMap: UserWithMiniQuestions[] = usersData.map((user: User) => {

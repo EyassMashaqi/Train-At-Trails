@@ -547,10 +547,25 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
 
       // Handle content sections if provided
       if (contents && Array.isArray(contents)) {
-        // Delete existing content sections and their mini-questions
-        await (tx as any).content.deleteMany({
-          where: { questionId }
+        console.log('🔄 Updating question content, preserving mini answers...');
+        
+        // Get existing content sections and mini questions with their answers
+        const existingContent = await (tx as any).content.findMany({
+          where: { questionId },
+          include: {
+            miniQuestions: {
+              include: {
+                miniAnswers: true
+              }
+            }
+          }
         });
+
+        console.log(`📊 Found ${existingContent.length} existing content sections`);
+        const totalExistingAnswers = existingContent.reduce((total: number, content: any) => 
+          total + content.miniQuestions.reduce((subtotal: number, mq: any) => subtotal + mq.miniAnswers.length, 0), 0
+        );
+        console.log(`💾 Preserving ${totalExistingAnswers} existing mini answers`);
 
         // Check if contents is in the flat structure (each item has material, question, releaseDate)
         // or nested structure (each item has title, material, miniQuestions array)
@@ -558,8 +573,11 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
         
         if (isFlat) {
           // Handle flat structure - create one content section with multiple mini questions
-          if (contents.length > 0) {
-            const newContent = await (tx as any).content.create({
+          let contentSection = existingContent[0];
+          
+          if (!contentSection) {
+            // Create new content section if none exists
+            contentSection = await (tx as any).content.create({
               data: {
                 title: 'Learning Material',
                 material: 'Self-learning content',
@@ -567,10 +585,33 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                 questionId
               }
             });
+          }
 
-            // Create mini-questions from the flat structure
-            for (let i = 0; i < contents.length; i++) {
-              const contentData = contents[i];
+          // Get existing mini questions for this content
+          const existingMiniQuestions = await (tx as any).miniQuestion.findMany({
+            where: { contentId: contentSection.id },
+            include: { miniAnswers: true }
+          });
+
+          // Process each mini question from the update request
+          for (let i = 0; i < contents.length; i++) {
+            const contentData = contents[i];
+            const existingMiniQuestion = existingMiniQuestions.find(mq => mq.orderIndex === i + 1);
+
+            if (existingMiniQuestion) {
+              // Update existing mini question (preserve answers)
+              await (tx as any).miniQuestion.update({
+                where: { id: existingMiniQuestion.id },
+                data: {
+                  title: contentData.material || `Mini Question ${i + 1}`,
+                  question: contentData.question,
+                  description: contentData.question,
+                  releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
+                  orderIndex: i + 1
+                }
+              });
+            } else {
+              // Create new mini question
               await (tx as any).miniQuestion.create({
                 data: {
                   title: contentData.material || `Mini Question ${i + 1}`,
@@ -578,13 +619,36 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                   description: contentData.question,
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
                   orderIndex: i + 1,
-                  contentId: newContent.id
+                  contentId: contentSection.id
                 }
               });
             }
           }
+
+          // Only delete mini questions that are no longer needed AND have no answers
+          const miniQuestionsToDelete = existingMiniQuestions.filter(mq => 
+            mq.orderIndex > contents.length && mq.miniAnswers.length === 0
+          );
+
+          for (const mq of miniQuestionsToDelete) {
+            await (tx as any).miniQuestion.delete({
+              where: { id: mq.id }
+            });
+          }
+
         } else {
-          // Handle nested structure - original logic
+          // Handle nested structure - preserve existing mini answers
+          // Delete only content sections that have no mini questions with answers
+          for (const existingContentItem of existingContent) {
+            const hasAnswers = existingContentItem.miniQuestions.some((mq: any) => mq.miniAnswers.length > 0);
+            if (!hasAnswers) {
+              await (tx as any).content.delete({
+                where: { id: existingContentItem.id }
+              });
+            }
+          }
+
+          // Create new content sections (this is safer for nested structure)
           for (let i = 0; i < contents.length; i++) {
             const contentData = contents[i];
             const newContent = await (tx as any).content.create({
