@@ -240,7 +240,7 @@ const AdminDashboard: React.FC = () => {
     const conflictingIndices: number[] = [];
     let firstConflictMessage = '';
     
-    // Check all mini questions for release dates that are after the assignment deadline
+    // Check all self learning activities for release dates that are after the assignment deadline
     for (let i = 0; i < contents.length; i++) {
       const content = contents[i];
       // Handle both nested structure (from API) and flat structure (from forms)
@@ -918,7 +918,7 @@ const AdminDashboard: React.FC = () => {
               { id: 'users', name: 'Users', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
-              { id: 'mini-questions', name: 'Mini Questions', icon: '🎯' },
+              { id: 'mini-questions', name: 'Self Learning', icon: '🎯' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1117,11 +1117,11 @@ const AdminDashboard: React.FC = () => {
               />
             </div>
 
-            {/* Mini Questions Section */}
+            {/* Self Learning Section */}
             <div className="mb-6 space-y-4">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-gray-700">
-                  Mini Questions
+                  Self Learning
                 </label>
                 <button
                   type="button"
@@ -1279,7 +1279,7 @@ const AdminDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (confirm('Are you sure you want to delete this mini question?')) {
+                                  if (confirm('Are you sure you want to delete this self learning activity?')) {
                                     const updatedContents = [...topicForm.contents];
                                     updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
                                       .filter((_, idx) => idx !== index)
@@ -1301,7 +1301,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
                     <p className="text-xs text-gray-700 flex items-center">
                       <span className="text-blue-600 mr-2">💡</span>
-                      Students will submit links for each mini question as part of their self-learning process.
+                      Students will submit links for each self learning activity as part of their enhanced learning process.
                     </p>
                   </div>
                 </div>
@@ -1310,8 +1310,8 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-4">
                     <span className="text-4xl">📝</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-600 mb-2">No mini questions added yet</p>
-                  <p className="text-sm text-gray-500">Click "Add New" to create your first mini question for self-learning content.</p>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No self learning activities added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first self learning activity for enhanced learning content.</p>
                 </div>
               )}
             </div>
@@ -1690,11 +1690,11 @@ const AdminDashboard: React.FC = () => {
               />
             </div>
 
-            {/* Mini Questions Section for Edit */}
+            {/* Self Learning Section for Edit */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-3">
                 <label className="block text-sm font-medium text-gray-700">
-                  Mini Questions
+                  Self Learning
                 </label>
                 <button
                   type="button"
@@ -1838,7 +1838,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
                     <p className="text-xs text-gray-700 flex items-center">
                       <span className="text-blue-600 mr-2">💡</span>
-                      Students will submit links for each mini question as part of their self-learning process.
+                      Students will submit links for each self learning activity as part of their enhanced learning process.
                     </p>
                   </div>
                 </div>
@@ -1849,8 +1849,8 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-4">
                     <span className="text-4xl">📝</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-600 mb-2">No mini questions added yet</p>
-                  <p className="text-sm text-gray-500">Click "Add New" to create your first mini question for self-learning content.</p>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No self learning activities added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first self learning activity for enhanced learning content.</p>
                 </div>
               )}
             </div>

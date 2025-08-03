@@ -98,7 +98,7 @@ const GameView: React.FC = () => {
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
   
-  // Mini questions state
+  // Self learning activities state
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
   const [miniAnswers, setMiniAnswers] = useState<Record<string, { linkUrl: string; notes: string }>>({});
   const [submittingMini, setSubmittingMini] = useState<string | null>(null);
@@ -194,10 +194,10 @@ const GameView: React.FC = () => {
       });
       setCurrentQuestion(data.currentQuestion);
 
-      // Set mini questions if available
+      // Set self learning activities if available
       console.log('Checking currentQuestionMiniQuestions:', data.currentQuestionMiniQuestions);
       if (data.currentQuestionMiniQuestions) {
-        console.log('Setting mini questions:', data.currentQuestionMiniQuestions.length);
+        console.log('Setting self learning activities:', data.currentQuestionMiniQuestions.length);
         setMiniQuestions(data.currentQuestionMiniQuestions);
         
         // Initialize mini answers state with existing answers, preserving current form state
@@ -226,7 +226,7 @@ const GameView: React.FC = () => {
       }
 
       // Set current topic data if available
-      // Note: currentTopic functionality is disabled as we focus on mini questions only
+      // Note: currentTopic functionality is disabled as we focus on self learning activities only
       // if (data.currentTopicData) {
       //   setCurrentTopic(data.currentTopicData);
       // }
@@ -277,7 +277,7 @@ const GameView: React.FC = () => {
     }
   };
 
-  // Mini questions handlers
+  // Self learning activity handlers
   const handleMiniAnswerChange = (miniQuestionId: string, field: 'linkUrl' | 'notes', value: string) => {
     setMiniAnswers(prev => ({
       ...prev,
@@ -319,7 +319,7 @@ const GameView: React.FC = () => {
         notes: answerData.notes.trim()
       });
 
-      toast.success('Mini question answer submitted successfully!');
+      toast.success('Self learning activity answer submitted successfully!');
       await loadGameData(); // Refresh data
     } catch (error) {
       const errorMessage = error instanceof Error 
@@ -441,14 +441,14 @@ const GameView: React.FC = () => {
     );
   };
 
-  // Render mini questions grouped by main question
+  // Render self learning activities grouped by main question
   const renderMiniQuestions = () => {
     console.log('renderMiniQuestions called');
     console.log('miniQuestions:', miniQuestions);
     console.log('miniQuestions length:', miniQuestions?.length || 0);
     
     if (!miniQuestions || miniQuestions.length === 0) {
-      console.log('No mini questions to render');
+      console.log('No self learning activities to render');
       return (
         <div className="mb-8">
           <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 border border-secondary-200 rounded-xl p-6 shadow-lg">
@@ -456,25 +456,25 @@ const GameView: React.FC = () => {
               <span className="text-4xl mr-3">🎯</span>
               <div className="text-center">
                 <h3 className="text-xl font-bold text-secondary-800">Learning Activities</h3>
-                <p className="text-secondary-600">No mini questions available yet</p>
+                <p className="text-secondary-600">No self learning activities available yet</p>
               </div>
             </div>
             <p className="text-secondary-700 text-center">
-              Mini questions will appear here when they are released. Check back soon!
+              Self learning activities will appear here when they are released. Check back soon!
             </p>
           </div>
         </div>
       );
     }
 
-    // Group mini questions by their main question
+    // Group self learning activities by their main question
     const groupedMiniQuestions = miniQuestions.reduce((groups, miniQuestion) => {
       const questionKey = `Q${miniQuestion.questionNumber}`;
       const questionTitle = miniQuestion.questionTitle || `Question ${miniQuestion.questionNumber}`;
       
       if (!groups[questionKey]) {
         groups[questionKey] = {
-          questionNumber: miniQuestion.questionNumber,
+          questionNumber: miniQuestion.questionNumber ?? 0,
           questionTitle: questionTitle,
           miniQuestions: []
         };
@@ -533,7 +533,7 @@ const GameView: React.FC = () => {
             </div>
           </div>
 
-          {/* Grouped Mini Questions */}
+          {/* Grouped Self Learning Activities */}
           <div className="space-y-4">
             {Object.entries(groupedMiniQuestions).map(([questionKey, group]) => {
               const isExpanded = expandedQuestions[questionKey];
@@ -706,7 +706,7 @@ const GameView: React.FC = () => {
                 <span className="text-accent-600 text-xl mr-3">🎉</span>
                 <div>
                   <p className="text-accent-800 font-medium">Excellent work!</p>
-                  <p className="text-accent-700 text-sm">You've completed all available mini questions for this assignment.</p>
+                  <p className="text-accent-700 text-sm">You've completed all available self learning activities for this assignment.</p>
                 </div>
               </div>
             </div>
@@ -717,12 +717,12 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
-    // Check if all mini questions are completed
+    // Check if all self learning activities are completed
     const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
     const totalMiniQuestions = miniQuestions.length;
     const allMiniQuestionsCompleted = totalMiniQuestions > 0 && completedMiniQuestions === totalMiniQuestions;
 
-    // Only show main question form if all mini questions are completed
+    // Only show main question form if all self learning activities are completed
     if (!allMiniQuestionsCompleted || !currentQuestion || totalMiniQuestions === 0) {
       return null;
     }
@@ -1120,7 +1120,7 @@ const GameView: React.FC = () => {
                           {module.topics.map((topic) => {
                             const topicIsReleased = topic.isReleased;
                             
-                            // Get mini questions for this topic/question
+                            // Get self learning activities for this topic/question
                             const topicMiniQuestions = miniQuestions.filter(mq => 
                               mq.questionId === topic.id || 
                               mq.questionNumber === topic.topicNumber ||
@@ -1132,18 +1132,18 @@ const GameView: React.FC = () => {
                             const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
                             
                             // Fixed logic: Show first question in first module if released, 
-                            // enable if mini questions completed or no mini questions
+                            // enable if self learning activities completed or no self learning activities
                             let shouldShow = false;
                             let isDisabled = false;
                             
                             if (topicIsReleased) {
                               shouldShow = true; // Always show if the topic is released
                               
-                              // Only disable if there are mini questions AND they're not all completed
+                              // Only disable if there are self learning activities AND they're not all completed
                               if (hasMiniQuestions && !allMiniQuestionsCompleted) {
-                                isDisabled = true; // Disable if has mini questions but not all completed
+                                isDisabled = true; // Disable if has self learning activities but not all completed
                               } else {
-                                isDisabled = false; // Enable if no mini questions or all completed
+                                isDisabled = false; // Enable if no self learning activities or all completed
                               }
                             }
                             
@@ -1198,7 +1198,7 @@ const GameView: React.FC = () => {
                                             : 'text-gray-400'
                                       }`}>
                                         {isDisabled 
-                                          ? `Complete ${topicMiniQuestions.length - completedMiniQuestions} more mini question${topicMiniQuestions.length - completedMiniQuestions !== 1 ? 's' : ''} to unlock`
+                                          ? `Complete ${topicMiniQuestions.length - completedMiniQuestions} more activity${topicMiniQuestions.length - completedMiniQuestions !== 1 ? 'ies' : 'y'} to unlock`
                                           : topicIsReleased 
                                             ? topic.description 
                                             : 'Topic not yet released'
@@ -1219,7 +1219,7 @@ const GameView: React.FC = () => {
                                                 ? 'text-green-600' 
                                                 : 'text-orange-600'
                                             }`}>
-                                              Mini Questions: {completedMiniQuestions}/{topicMiniQuestions.length}
+                                              Self Learning: {completedMiniQuestions}/{topicMiniQuestions.length}
                                             </span>
                                           )}
                                         </div>
@@ -1251,10 +1251,10 @@ const GameView: React.FC = () => {
                                   <div className="mt-3 p-3 bg-orange-100 rounded border border-orange-200">
                                     <div className="flex items-center text-orange-800 text-sm font-medium mb-2">
                                       <span className="mr-2">🎯</span>
-                                      Complete Mini Questions First
+                                      Complete Self Learning Activities First
                                     </div>
                                     <p className="text-xs text-orange-700">
-                                      You need to complete all {topicMiniQuestions.length} mini questions above before you can access this main question.
+                                      You need to complete all {topicMiniQuestions.length} self learning activities above before you can access this main question.
                                     </p>
                                     <div className="mt-2">
                                       <div className="w-full bg-orange-200 rounded-full h-2">
@@ -1264,7 +1264,7 @@ const GameView: React.FC = () => {
                                         />
                                       </div>
                                       <p className="text-xs text-orange-600 mt-1">
-                                        Progress: {completedMiniQuestions}/{topicMiniQuestions.length} mini questions completed
+                                        Progress: {completedMiniQuestions}/{topicMiniQuestions.length} activities completed
                                       </p>
                                     </div>
                                   </div>
@@ -1437,12 +1437,12 @@ const GameView: React.FC = () => {
         {/* Active Questions Section - Hidden as per user requirements */}
         {/* {renderActiveQuestions()} */}
 
-        {/* Mini Questions Section */}
+        {/* Self Learning Activities Section */}
         <div id="mini-questions-section">
           {renderMiniQuestions()}
         </div>
 
-        {/* Current Question - Hidden until mini questions completed */}
+        {/* Current Question - Hidden until self learning activities completed */}
         <div id="current-question-section">
           {renderCurrentQuestion()}
         </div>

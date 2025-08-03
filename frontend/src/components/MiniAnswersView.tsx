@@ -81,18 +81,18 @@ const MiniAnswersView: React.FC = () => {
       const miniAnswersData = miniAnswersResponse.data.miniAnswers;
       const questionsData = questionsResponse.data.questions;
 
-      // Extract all released mini questions from released questions only
+      // Extract all released self learning activities from released questions only
       const releasedMiniQuestions: MiniQuestion[] = [];
       questionsData.forEach((question: any) => {
         console.log(`📋 Processing Question ${question.questionNumber}: "${question.title}" - Released: ${question.isReleased}`);
         
-        // Only process mini questions if the parent main question is also released
+        // Only process self learning activities if the parent main question is also released
         if (question.isReleased && question.contents) {
           question.contents.forEach((content: any) => {
             if (content.miniQuestions) {
               content.miniQuestions.forEach((miniQ: any) => {
                 if (miniQ.isReleased) {
-                  console.log(`  ✅ Adding mini question: "${miniQ.title}" from Q${question.questionNumber}`);
+                  console.log(`  ✅ Adding self learning activity: "${miniQ.title}" from Q${question.questionNumber}`);
                   releasedMiniQuestions.push({
                     id: miniQ.id,
                     title: miniQ.title,
@@ -109,7 +109,7 @@ const MiniAnswersView: React.FC = () => {
                     }
                   });
                 } else {
-                  console.log(`  ❌ Skipping unreleased mini question: "${miniQ.title}" from Q${question.questionNumber}`);
+                  console.log(`  ❌ Skipping unreleased self learning activity: "${miniQ.title}" from Q${question.questionNumber}`);
                 }
               });
             }
@@ -119,9 +119,9 @@ const MiniAnswersView: React.FC = () => {
         }
       });
 
-      console.log(`📊 Total released mini questions from released main questions: ${releasedMiniQuestions.length}`);
+      console.log(`📊 Total released self learning activities from released main questions: ${releasedMiniQuestions.length}`);
 
-      // Create user-mini-question mapping
+      // Create user-self-learning mapping
       const userMiniQuestionsMap: UserWithMiniQuestions[] = usersData.map((user: User) => {
         const userMiniQuestions = releasedMiniQuestions.map((miniQ) => {
           const userAnswer = miniAnswersData.find(
@@ -158,7 +158,7 @@ const MiniAnswersView: React.FC = () => {
       setUserMiniQuestions(userMiniQuestionsMap);
     } catch (error) {
       console.error('Failed to load data:', error);
-      toast.error('Failed to load mini answers data');
+      toast.error('Failed to load self learning data');
     } finally {
       setLoading(false);
     }
@@ -203,13 +203,13 @@ const MiniAnswersView: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Mini Questions Overview</h2>
-          <p className="text-gray-600">View all users and their mini question submissions</p>
+          <h2 className="text-2xl font-bold text-gray-900">Self Learning Overview</h2>
+          <p className="text-gray-600">View all users and their self learning submissions</p>
         </div>
         <div className="bg-primary-50 rounded-lg px-4 py-2">
           <div className="text-sm text-primary-800">
             <div>Total Users: <span className="font-semibold">{users.length}</span></div>
-            <div>Released Mini Questions: <span className="font-semibold">{allReleasedMiniQuestions.length}</span></div>
+            <div>Released Self Learning: <span className="font-semibold">{allReleasedMiniQuestions.length}</span></div>
             <div>Total Submissions: <span className="font-semibold">{allMiniAnswers.length}</span></div>
           </div>
         </div>
@@ -282,13 +282,13 @@ const MiniAnswersView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Mini Questions List */}
+              {/* Self Learning List */}
               {isExpanded && (
                 <div className="border-t border-gray-200">
                   <div className="p-4 space-y-3">
                     {item.miniQuestions.length === 0 ? (
                       <div className="text-center py-4 text-gray-500">
-                        No released mini questions available
+                        No released self learning activities available
                       </div>
                     ) : (
                       item.miniQuestions.map((miniQ) => (
@@ -406,7 +406,7 @@ const MiniAnswersView: React.FC = () => {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Mini Question Answer</h3>
+                  <h3 className="text-xl font-bold text-gray-900">Self Learning Activity Answer</h3>
                   <p className="text-gray-600">
                     {selectedAnswer.user.fullName} ({selectedAnswer.user.trainName})
                   </p>

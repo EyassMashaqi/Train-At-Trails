@@ -1,4 +1,4 @@
-# 🚂 Train at Trails - Mini Questions Integration Complete
+# 🚂 Train at Trails - Self Learning Activities Integration Complete
 
 ## ✅ Work Completed
 
@@ -15,19 +15,19 @@
 - ✅ Added backward compatibility for original GameView
 - ✅ Enhanced progress tracking with mini question status
 
-### 3. **Added Mini Questions to Original GameView**
-- ✅ Added `MiniQuestion` interface and state management
+### 3. **Added Self Learning Activities to Original GameView**
+- ✅ Added `MiniQuestion` interface and state management  
 - ✅ Created `renderMiniQuestions()` function with:
-  - 🎯 Progress indicator showing completed/total mini questions
-  - 📝 Individual mini question forms with URL and notes fields
+  - 🎯 Progress indicator showing completed/total self learning activities
+  - 📝 Individual activity forms with URL and notes fields
   - ✅ Submission handling with loading states
   - 🎉 Success messages and UI feedback
 - ✅ Modified `renderCurrentQuestion()` to:
-  - Show mini questions FIRST
-  - Hide main assignment until mini questions are completed
-  - Display lock message when mini questions are pending
+  - Show self learning activities FIRST
+  - Hide main assignment until activities are completed
+  - Display lock message when activities are pending
 
-### 4. **Mini Questions UI Features**
+### 4. **Self Learning Activities UI Features**
 - ✅ **Progress Tracking**: Visual progress bar and completion counter
 - ✅ **Form Handling**: URL input (required) and notes (optional)
 - ✅ **Status Display**: Green checkmarks for completed, forms for pending

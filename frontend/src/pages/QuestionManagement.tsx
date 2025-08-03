@@ -347,7 +347,7 @@ const QuestionManagement: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-medium text-gray-700">
-                    Self Learning Content (Mini Questions)
+                    Self Learning Content (Activities)
                   </label>
                   <button
                     type="button"
@@ -382,14 +382,14 @@ const QuestionManagement: React.FC = () => {
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center"
                   >
                     <span className="mr-1">➕</span>
-                    Add New Mini Question
+                    Add New Self Learning Activity
                   </button>
                 </div>
 
                 {formData.contents.length > 0 && formData.contents[0].miniQuestions.length > 0 ? (
                   <div className="border border-gray-200 rounded-lg overflow-hidden">
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                      <h4 className="text-sm font-medium text-gray-700">Mini Questions Table</h4>
+                      <h4 className="text-sm font-medium text-gray-700">Self Learning Activities Table</h4>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
@@ -399,7 +399,7 @@ const QuestionManagement: React.FC = () => {
                               #
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Mini Question Title
+                              Self Learning Activity Title
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Description/Instructions
@@ -418,7 +418,7 @@ const QuestionManagement: React.FC = () => {
                               <td className="px-4 py-3">
                                 <input
                                   type="text"
-                                  placeholder="Enter mini question title..."
+                                  placeholder="Enter self learning activity title..."
                                   value={miniQuestion.title}
                                   onChange={(e) => {
                                     const updatedContents = [...formData.contents];
@@ -486,7 +486,7 @@ const QuestionManagement: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (confirm('Are you sure you want to delete this mini question?')) {
+                                      if (confirm('Are you sure you want to delete this self learning activity?')) {
                                         const updatedContents = [...formData.contents];
                                         updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
                                           .filter((_, idx) => idx !== index)
@@ -506,12 +506,12 @@ const QuestionManagement: React.FC = () => {
                       </table>
                     </div>
                     <div className="bg-gray-50 px-4 py-2 text-xs text-gray-600">
-                      Students will submit links for each mini question as part of their self-learning process.
+                      Students will submit links for each self learning activity as part of their enhanced learning process.
                     </div>
                   </div>
                 ) : (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    <span className="text-gray-500">No mini questions yet. Click "Add New Mini Question" to start creating self-learning content.</span>
+                    <span className="text-gray-500">No self learning activities yet. Click "Add New Self Learning Activity" to start creating enhanced learning content.</span>
                   </div>
                 )}
               </div>

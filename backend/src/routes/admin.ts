@@ -5,13 +5,13 @@ import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Validation function to check if assignment deadline is before any mini question release date
+  // Validation function to check if assignment deadline is before any self learning activity release date
 const validateAssignmentDeadline = (deadline: Date, contents: any[]): { isValid: boolean; errorMessage?: string } => {
   if (!deadline || !contents || contents.length === 0) {
     return { isValid: true };
   }
 
-  // Check all mini questions for release dates that are after the assignment deadline
+  // Check all self learning activities for release dates that are after the assignment deadline
   for (const content of contents) {
     // Handle both nested structure (from API) and flat structure (from forms)
     const miniQuestions = content.miniQuestions || [content];
@@ -24,7 +24,7 @@ const validateAssignmentDeadline = (deadline: Date, contents: any[]): { isValid:
           const formattedDeadline = deadline.toLocaleDateString();
           return {
             isValid: false,
-            errorMessage: `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`
+            errorMessage: `Assignment deadline (${formattedDeadline}) cannot be before self learning activity release date (${formattedReleaseDate}). Please adjust the deadline or the activity release dates.`
           };
         }
       }
@@ -507,7 +507,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    // Validate assignment deadline against mini question release dates
+    // Validate assignment deadline against self learning activity release dates
     if (deadline && contents) {
       const assignmentDeadline = new Date(deadline);
       const validationResult = validateAssignmentDeadline(assignmentDeadline, contents);
@@ -603,7 +603,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
               await (tx as any).miniQuestion.update({
                 where: { id: existingMiniQuestion.id },
                 data: {
-                  title: contentData.material || `Mini Question ${i + 1}`,
+                  title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
@@ -614,7 +614,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
               // Create new mini question
               await (tx as any).miniQuestion.create({
                 data: {
-                  title: contentData.material || `Mini Question ${i + 1}`,
+                  title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
@@ -1088,7 +1088,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       });
     }
 
-    // Validate assignment deadline against mini question release dates
+    // Validate assignment deadline against self learning activity release dates
     const assignmentDeadline = new Date(deadline);
     const validationResult = validateAssignmentDeadline(assignmentDeadline, contents || []);
     if (!validationResult.isValid) {
@@ -1166,7 +1166,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
               const contentData = contents[i];
               await (tx as any).miniQuestion.create({
                 data: {
-                  title: contentData.material || `Mini Question ${i + 1}`,
+                  title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
