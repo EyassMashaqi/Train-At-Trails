@@ -100,8 +100,34 @@ const GameView: React.FC = () => {
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
   const [miniAnswers, setMiniAnswers] = useState<Record<string, { linkUrl: string; notes: string }>>({});
   const [submittingMini, setSubmittingMini] = useState<string | null>(null);
+  const [urlValidation, setUrlValidation] = useState<{[key: string]: {isValid: boolean, message: string}}>({});
   
   const navigate = useNavigate();
+
+  // URL validation function
+  const validateUrl = (url: string): {isValid: boolean, message: string} => {
+    if (!url.trim()) {
+      return { isValid: false, message: '' };
+    }
+
+    try {
+      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+      const isValidPattern = urlPattern.test(url);
+      
+      if (!isValidPattern) {
+        return { isValid: false, message: 'Please enter a valid URL (e.g., https://example.com)' };
+      }
+      
+      // Check if URL has protocol
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return { isValid: true, message: 'URL looks good! (Protocol will be added automatically)' };
+      }
+      
+      return { isValid: true, message: 'Valid URL format ✓' };
+    } catch (error) {
+      return { isValid: false, message: 'Invalid URL format' };
+    }
+  };
 
   // Helper function to calculate total released questions
   const getTotalReleasedQuestions = (): number => {
@@ -234,6 +260,15 @@ const GameView: React.FC = () => {
         [field]: value
       }
     }));
+
+    // Validate URL in real-time if it's the linkUrl field
+    if (field === 'linkUrl') {
+      const validation = validateUrl(value);
+      setUrlValidation(prev => ({
+        ...prev,
+        [miniQuestionId]: validation
+      }));
+    }
   };
 
   const handleMiniAnswerSubmit = async (miniQuestionId: string) => {
@@ -246,9 +281,15 @@ const GameView: React.FC = () => {
         return;
       }
 
+      // Auto-add protocol if missing
+      let linkUrl = answerData.linkUrl.trim();
+      if (!linkUrl.startsWith('http://') && !linkUrl.startsWith('https://')) {
+        linkUrl = 'https://' + linkUrl;
+      }
+
       await gameService.submitMiniAnswer({
         miniQuestionId,
-        linkUrl: answerData.linkUrl.trim(),
+        linkUrl: linkUrl,
         notes: answerData.notes.trim()
       });
 
@@ -313,9 +354,9 @@ const GameView: React.FC = () => {
               style={{ left: `${(step / progress.totalSteps) * 100}%` }}
             >
               <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
-                  ? 'bg-green-500 border-green-600 text-white shadow-lg'
+                  ? 'bg-accent-500 border-accent-600 text-white shadow-lg'
                   : step === progress.currentStep + 1
-                    ? 'bg-blue-500 border-blue-600 text-white animate-pulse shadow-lg'
+                    ? 'bg-secondary-500 border-secondary-600 text-white animate-pulse shadow-lg'
                     : 'bg-gray-200 border-gray-300 text-gray-500'
                 }`}>
                 {step}
@@ -329,16 +370,16 @@ const GameView: React.FC = () => {
 
         {/* Progress Stats */}
         <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg p-4 shadow-lg border border-blue-100">
-            <div className="text-2xl font-bold text-blue-600">{progress.currentStep}</div>
+          <div className="bg-white rounded-lg p-4 shadow-lg border border-primary-100">
+            <div className="text-2xl font-bold text-primary-600">{progress.currentStep}</div>
             <div className="text-sm text-gray-600">Steps Completed</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-lg border border-green-100">
-            <div className="text-2xl font-bold text-green-600">{Math.round((progress.currentStep / progress.totalSteps) * 100)}%</div>
+            <div className="text-2xl font-bold text-accent-600">{Math.round((progress.currentStep / progress.totalSteps) * 100)}%</div>
             <div className="text-sm text-gray-600">Progress</div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-lg border border-purple-100">
-            <div className="text-2xl font-bold text-purple-600">{progress.totalSteps - progress.currentStep}</div>
+          <div className="bg-white rounded-lg p-4 shadow-lg border border-primary-100">
+            <div className="text-2xl font-bold text-primary-600">{progress.totalSteps - progress.currentStep}</div>
             <div className="text-sm text-gray-600">Steps Remaining</div>
           </div>
         </div>
@@ -356,15 +397,15 @@ const GameView: React.FC = () => {
       console.log('No mini questions to render');
       return (
         <div className="mb-8">
-          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 shadow-lg">
+          <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 border border-secondary-200 rounded-xl p-6 shadow-lg">
             <div className="flex items-center justify-center mb-4">
               <span className="text-4xl mr-3">🎯</span>
               <div className="text-center">
-                <h3 className="text-xl font-bold text-yellow-800">Learning Activities</h3>
-                <p className="text-yellow-600">No mini questions available yet</p>
+                <h3 className="text-xl font-bold text-secondary-800">Learning Activities</h3>
+                <p className="text-secondary-600">No mini questions available yet</p>
               </div>
             </div>
-            <p className="text-yellow-700 text-center">
+            <p className="text-secondary-700 text-center">
               Mini questions will appear here when they are released. Check back soon!
             </p>
           </div>
@@ -378,17 +419,17 @@ const GameView: React.FC = () => {
 
     return (
       <div className="mb-8">
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 rounded-xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <span className="text-3xl mr-3">🎯</span>
               <div>
-                <h3 className="text-xl font-bold text-purple-800">Learning Activities</h3>
-                <p className="text-purple-600">Complete these activities by providing relevant links</p>
+                <h3 className="text-xl font-bold text-primary-800">Learning Activities</h3>
+                <p className="text-primary-600">Complete these activities by providing relevant links</p>
               </div>
             </div>
-            <div className="bg-purple-100 rounded-lg px-3 py-1">
-              <span className="text-purple-800 font-semibold">
+            <div className="bg-primary-100 rounded-lg px-3 py-1">
+              <span className="text-primary-800 font-semibold">
                 {completedMiniQuestions}/{totalMiniQuestions} completed
               </span>
             </div>
@@ -396,13 +437,13 @@ const GameView: React.FC = () => {
 
           {/* Progress Bar */}
           <div className="mb-6">
-            <div className="flex justify-between text-sm text-purple-600 mb-1">
+            <div className="flex justify-between text-sm text-primary-600 mb-1">
               <span>Progress</span>
               <span>{totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0}%</span>
             </div>
-            <div className="w-full bg-purple-200 rounded-full h-2">
-              <div 
-                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+            <div className="w-full bg-primary-200 rounded-full h-2">
+              <div
+                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${totalMiniQuestions > 0 ? (completedMiniQuestions / totalMiniQuestions) * 100 : 0}%` }}
               />
             </div>
@@ -414,7 +455,7 @@ const GameView: React.FC = () => {
               <div 
                 key={miniQuestion.id}
                 className={`border rounded-lg p-4 ${
-                  miniQuestion.hasAnswer ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'
+                  miniQuestion.hasAnswer ? 'bg-accent-50 border-accent-200' : 'bg-white border-primary-200'
                 }`}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -424,7 +465,7 @@ const GameView: React.FC = () => {
                     </span>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                        <span className="bg-primary-100 text-primary-800 text-xs px-2 py-1 rounded-full font-medium">
                           Q{miniQuestion.questionNumber}: {miniQuestion.questionTitle}
                         </span>
                       </div>
@@ -440,10 +481,10 @@ const GameView: React.FC = () => {
                 </div>
 
                 {miniQuestion.hasAnswer ? (
-                  <div className="bg-green-100 rounded-lg p-3">
-                    <p className="text-green-800 font-medium mb-2">✅ Completed</p>
-                    <div className="text-sm text-green-700">
-                      <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{miniQuestion.answer?.linkUrl}</a></p>
+                  <div className="bg-accent-100 rounded-lg p-3">
+                    <p className="text-accent-800 font-medium mb-2">✅ Completed</p>
+                    <div className="text-sm text-accent-700">
+                      <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">{miniQuestion.answer?.linkUrl}</a></p>
                       {miniQuestion.answer?.notes && (
                         <p className="mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
                       )}
@@ -460,8 +501,23 @@ const GameView: React.FC = () => {
                         value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
                         onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
                         placeholder="https://example.com/article"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                          urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
+                            ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                            : urlValidation[miniQuestion.id]?.isValid === true
+                              ? 'border-accent-300 focus:ring-accent-500 focus:border-accent-500'
+                              : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
+                        }`}
                       />
+                      {urlValidation[miniQuestion.id]?.message && (
+                        <p className={`text-xs mt-1 ${
+                          urlValidation[miniQuestion.id]?.isValid 
+                            ? 'text-accent-600' 
+                            : 'text-red-500'
+                        }`}>
+                          {urlValidation[miniQuestion.id]?.message}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -472,13 +528,13 @@ const GameView: React.FC = () => {
                         onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'notes', e.target.value)}
                         placeholder="Add any additional notes or thoughts..."
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
                     <button
                       onClick={() => handleMiniAnswerSubmit(miniQuestion.id)}
                       disabled={submittingMini === miniQuestion.id || !miniAnswers[miniQuestion.id]?.linkUrl?.trim()}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {submittingMini === miniQuestion.id ? (
                         <div className="flex items-center">
@@ -496,12 +552,12 @@ const GameView: React.FC = () => {
           </div>
 
           {allMiniQuestionsCompleted && (
-            <div className="mt-6 bg-green-100 border border-green-200 rounded-lg p-4">
+            <div className="mt-6 bg-accent-100 border border-accent-200 rounded-lg p-4">
               <div className="flex items-center">
-                <span className="text-green-600 text-xl mr-3">🎉</span>
+                <span className="text-accent-600 text-xl mr-3">🎉</span>
                 <div>
-                  <p className="text-green-800 font-medium">Excellent work!</p>
-                  <p className="text-green-700 text-sm">You've completed all available mini questions for this assignment.</p>
+                  <p className="text-accent-800 font-medium">Excellent work!</p>
+                  <p className="text-accent-700 text-sm">You've completed all available mini questions for this assignment.</p>
                 </div>
               </div>
             </div>
@@ -550,7 +606,7 @@ const GameView: React.FC = () => {
         </h3>
 
         {/* Leaderboard Railway Track */}
-        <div className="relative bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 shadow-xl border border-blue-100">
+        <div className="relative bg-gradient-to-r from-primary-50 via-primary-100 to-secondary-50 rounded-2xl p-8 shadow-xl border border-primary-100">
           <div className="relative h-32 bg-gradient-to-r from-amber-100 to-amber-50 rounded-xl overflow-hidden shadow-inner">
             {/* Rails */}
             <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
@@ -603,7 +659,7 @@ const GameView: React.FC = () => {
                     <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max">
                       <div className="text-xs font-bold text-gray-800">{user.trainName}</div>
                       <div className="text-xs text-gray-600">{user.fullName}</div>
-                      <div className="text-xs font-semibold text-blue-600">Step {user.currentStep}/{totalReleasedQuestions}</div>
+                      <div className="text-xs font-semibold text-primary-600">Step {user.currentStep}/{totalReleasedQuestions}</div>
                     </div>
 
                     {/* Rank Badge */}
@@ -618,7 +674,7 @@ const GameView: React.FC = () => {
 
           {/* Leaderboard Table */}
           <div className="mt-8 bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-6 py-4">
               <h4 className="text-xl font-bold text-white flex items-center">
                 <span className="mr-2">📊</span>
                 Current Rankings
@@ -631,25 +687,25 @@ const GameView: React.FC = () => {
                   <div
                     key={user.id}
                     className={`px-6 py-4 transition-colors ${isCurrentUser
-                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500'
+                        ? 'bg-gradient-to-r from-primary-50 to-primary-100 border-l-4 border-primary-500'
                         : 'hover:bg-gray-50'
                       }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold mr-4 ${index === 0 ? 'bg-yellow-500' :
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold mr-4 ${index === 0 ? 'bg-secondary-500' :
                             index === 1 ? 'bg-gray-400' :
-                              index === 2 ? 'bg-amber-600' : 'bg-blue-500'
+                              index === 2 ? 'bg-secondary-600' : 'bg-primary-500'
                           }`}>
                           {index + 1}
                         </div>
                         <div>
-                          <div className={`font-semibold flex items-center ${isCurrentUser ? 'text-blue-800' : 'text-gray-800'
+                          <div className={`font-semibold flex items-center ${isCurrentUser ? 'text-primary-800' : 'text-gray-800'
                             }`}>
                             🚂 {user.trainName}
                             <span className="ml-2 text-sm text-gray-500">({user.fullName})</span>
                             {isCurrentUser && (
-                              <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">
+                              <span className="ml-2 bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs font-bold">
                                 YOU
                               </span>
                             )}
@@ -657,7 +713,7 @@ const GameView: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`font-bold text-lg ${isCurrentUser ? 'text-blue-700' : 'text-blue-600'
+                        <div className={`font-bold text-lg ${isCurrentUser ? 'text-primary-700' : 'text-primary-600'
                           }`}>
                           {user.currentStep}/{totalReleasedQuestions}
                         </div>
@@ -686,10 +742,10 @@ const GameView: React.FC = () => {
           </h2>
           <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-8 text-center shadow-lg">
             <div className="text-6xl mb-4">📝</div>
-            <h3 className="text-2xl font-bold text-yellow-800 mb-2">
+            <h3 className="text-2xl font-bold text-secondary-800 mb-2">
               No Assignments Available
             </h3>
-            <p className="text-yellow-700">
+            <p className="text-secondary-700">
               Assignments will be released soon. Check back later!
             </p>
           </div>
@@ -719,14 +775,14 @@ const GameView: React.FC = () => {
               <div
                 key={module.id}
                 className={`rounded-xl shadow-lg border transition-all duration-300 ${isReleased
-                    ? 'bg-white border-blue-200 hover:shadow-xl'
+                    ? 'bg-white border-primary-200 hover:shadow-xl'
                     : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
               >
                 {/* Module Header */}
                 <div
                   className={`p-6 ${isReleased
-                      ? 'cursor-pointer hover:bg-blue-50'
+                      ? 'cursor-pointer hover:bg-primary-50'
                       : 'cursor-not-allowed'
                     } transition-colors duration-200`}
                   onClick={() => isReleased && toggleModule(module.id)}
@@ -737,11 +793,11 @@ const GameView: React.FC = () => {
                         {isReleased ? '📘' : '🔒'}
                       </span>
                       <div>
-                        <h3 className={`text-xl font-bold ${isReleased ? 'text-blue-800' : 'text-gray-500'
+                        <h3 className={`text-xl font-bold ${isReleased ? 'text-primary-800' : 'text-gray-500'
                           }`}>
                           Module {module.moduleNumber}: {module.title}
                         </h3>
-                        <p className={`text-sm ${isReleased ? 'text-blue-600' : 'text-gray-400'
+                        <p className={`text-sm ${isReleased ? 'text-primary-600' : 'text-gray-400'
                           }`}>
                           {isReleased ? module.description : 'Module not yet released'}
                         </p>
@@ -967,7 +1023,7 @@ const GameView: React.FC = () => {
   if (loading) {
     console.log('GameView: Still loading...');
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
         <div className="text-center">
           <div className="relative">
             <span className="text-8xl animate-bounce">🚂</span>
@@ -990,7 +1046,7 @@ const GameView: React.FC = () => {
   console.log('GameView: miniQuestions length:', miniQuestions?.length || 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50">
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 animate-float">
@@ -1017,7 +1073,7 @@ const GameView: React.FC = () => {
               className="w-44 h-16 px-3 py-2 bvisionary-logo"
             />
             <div className="flex-1">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                 BVisionRY Lighthouse
               </h1>
               <p className="text-xl text-gray-600">Your Adventure Journey</p>

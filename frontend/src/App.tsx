@@ -16,7 +16,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">
           <Toaster position="top-right" />
           <Routes>
             <Route path="/login" element={<Login />} />

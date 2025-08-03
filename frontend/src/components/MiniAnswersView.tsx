@@ -183,7 +183,7 @@ const MiniAnswersView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         <span className="ml-2 text-gray-600">Loading mini answers...</span>
       </div>
     );
@@ -196,8 +196,8 @@ const MiniAnswersView: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-900">Mini Questions Overview</h2>
           <p className="text-gray-600">View all users and their mini question submissions</p>
         </div>
-        <div className="bg-blue-50 rounded-lg px-4 py-2">
-          <div className="text-sm text-blue-800">
+        <div className="bg-primary-50 rounded-lg px-4 py-2">
+          <div className="text-sm text-primary-800">
             <div>Total Users: <span className="font-semibold">{users.length}</span></div>
             <div>Released Mini Questions: <span className="font-semibold">{allReleasedMiniQuestions.length}</span></div>
             <div>Total Submissions: <span className="font-semibold">{allMiniAnswers.length}</span></div>
@@ -238,14 +238,14 @@ const MiniAnswersView: React.FC = () => {
               {/* User Header */}
               <div
                 className={`p-4 cursor-pointer ${
-                  hasAnySubmissions ? 'bg-green-50 hover:bg-green-100' : 'bg-gray-50 hover:bg-gray-100'
+                  hasAnySubmissions ? 'bg-accent-50 hover:bg-accent-100' : 'bg-gray-50 hover:bg-gray-100'
                 }`}
                 onClick={() => toggleUserExpansion(item.user.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className={`w-3 h-3 rounded-full ${
-                      hasAnySubmissions ? 'bg-green-500' : 'bg-gray-400'
+                      hasAnySubmissions ? 'bg-accent-500' : 'bg-gray-400'
                     }`}></div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">
@@ -285,13 +285,13 @@ const MiniAnswersView: React.FC = () => {
                         <div
                           key={miniQ.id}
                           className={`border rounded-lg p-3 ${
-                            miniQ.hasAnswer ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                            miniQ.hasAnswer ? 'bg-accent-50 border-accent-200' : 'bg-gray-50 border-gray-200'
                           }`}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center space-x-2 mb-2">
-                                <span className="text-sm font-medium text-blue-600">
+                                <span className="text-sm font-medium text-primary-600">
                                   Q{miniQ.questionNumber}
                                 </span>
                                 <span className="text-sm text-gray-500">•</span>
@@ -307,7 +307,7 @@ const MiniAnswersView: React.FC = () => {
                               </p>
                               {miniQ.hasAnswer && miniQ.answer && (
                                 <div className="mt-2 p-2 bg-white rounded border border-green-200">
-                                  <div className="text-xs text-green-600 font-medium mb-1">
+                                  <div className="text-xs text-accent-600 font-medium mb-1">
                                     Submitted on {formatDate(miniQ.answer.submittedAt)}
                                   </div>
                                   <div className="text-sm">
@@ -317,7 +317,7 @@ const MiniAnswersView: React.FC = () => {
                                         href={miniQ.answer.linkUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-blue-600 hover:underline break-all"
+                                        className="text-primary-600 hover:underline break-all"
                                       >
                                         {miniQ.answer.linkUrl}
                                       </a>

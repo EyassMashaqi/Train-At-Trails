@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin text-6xl mb-4">🔄</div>
           <p className="text-gray-600">Loading...</p>
@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50">
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 animate-float">
@@ -142,7 +142,7 @@ const Dashboard: React.FC = () => {
                 className="w-40 h-14 px-4 py-2 bvisionary-logo"
               />
               <div className="flex-1">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   BVisionRY Lighthouse
                 </h1>
                 <p className="text-lg text-gray-600">Welcome back, {user.fullName}!</p>
@@ -193,7 +193,7 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-2">
                     {user.trainName || 'Your Train'}
                   </h2>
                   <p className="text-xl text-gray-600">Station {user.currentStep} of 12</p>
@@ -204,14 +204,14 @@ const Dashboard: React.FC = () => {
               <div className="mb-8">
                 <div className="flex justify-between text-lg font-medium text-gray-600 mb-4">
                   <span>Trail Progress</span>
-                  <span className="text-2xl font-bold text-blue-600">
+                  <span className="text-2xl font-bold text-secondary-600">
                     {Math.round((user.currentStep / 12) * 100)}%
                   </span>
                 </div>
                 <div className="relative">
                   <div className="w-full bg-gray-200 rounded-full h-6 shadow-inner">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden"
+                      className="bg-gradient-to-r from-primary-500 to-secondary-500 h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden"
                       style={{ width: `${(user.currentStep / 12) * 100}%` }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
@@ -231,19 +231,19 @@ const Dashboard: React.FC = () => {
               <div className="space-y-6">
                 <button
                   onClick={handleStartGame}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-6 px-8 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105"
+                  className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-6 px-8 rounded-xl hover:from-primary-700 hover:to-secondary-700 transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105"
                 >
                   <span className="mr-3 text-3xl">🎮</span>
                   Continue Your Journey
                 </button>
 
                 {user.currentStep === 12 && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-8 text-center shadow-lg">
+                  <div className="bg-gradient-to-br from-accent-50 to-accent-100 border-2 border-accent-200 rounded-xl p-8 text-center shadow-lg">
                     <span className="text-8xl mb-4 block animate-bounce">🏆</span>
-                    <h3 className="text-3xl font-bold text-green-800 mb-2">
+                    <h3 className="text-3xl font-bold text-accent-800 mb-2">
                       Congratulations!
                     </h3>
-                    <p className="text-xl text-green-600">
+                    <p className="text-xl text-accent-600">
                       You've completed the entire Trail at Trails journey!
                     </p>
                   </div>
@@ -258,7 +258,7 @@ const Dashboard: React.FC = () => {
                 Active Questions
               </h3>
               <div className="text-center">
-                <div className="text-5xl font-bold text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg mb-4">
+                <div className="text-5xl font-bold text-accent-600 bg-gradient-to-r from-accent-50 to-accent-100 p-6 rounded-lg mb-4">
                   {activeQuestionsCount}
                 </div>
                 <div className="text-lg text-gray-600 mb-4">
@@ -292,17 +292,17 @@ const Dashboard: React.FC = () => {
                 Your Stats
               </h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg">
                   <span className="text-gray-700 font-medium">Current Station</span>
-                  <span className="text-2xl font-bold text-blue-600">{user.currentStep}/12</span>
+                  <span className="text-2xl font-bold text-primary-600">{user.currentStep}/12</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-secondary-50 to-secondary-100 rounded-lg">
                   <span className="text-gray-700 font-medium">Train Name</span>
-                  <span className="font-bold text-purple-600">🚂 {user.trainName}</span>
+                  <span className="font-bold text-secondary-600">🚂 {user.trainName}</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-accent-50 to-accent-100 rounded-lg">
                   <span className="text-gray-700 font-medium">Member Since</span>
-                  <span className="font-bold text-green-600">
+                  <span className="font-bold text-accent-600">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -316,7 +316,7 @@ const Dashboard: React.FC = () => {
                 Current Time
               </h3>
               <div className="text-center">
-                <div className="text-3xl font-mono font-bold text-blue-600 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+                <div className="text-3xl font-mono font-bold text-primary-600 bg-gradient-to-r from-primary-50 to-primary-100 p-4 rounded-lg">
                   {currentTime.toLocaleTimeString()}
                 </div>
                 <div className="text-lg text-gray-500 mt-2">
