@@ -127,8 +127,10 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
 
     // If we have questions organized in modules, don't return currentQuestion
     // to avoid duplication with the module/topic system
-    // Get total questions count for dynamic total steps
-    const totalQuestions = await prisma.question.count();
+    // Get total questions count for dynamic total steps - only count RELEASED questions
+    const totalQuestions = await prisma.question.count({
+      where: { isReleased: true }
+    });
 
     const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
 
@@ -522,8 +524,10 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       };
     });
 
-    // Get total questions count
-    const totalQuestions = await prisma.question.count();
+    // Get total questions count - only count RELEASED questions
+    const totalQuestions = await prisma.question.count({
+      where: { isReleased: true }
+    });
 
     // For backward compatibility with original GameView, also provide currentQuestion
     let currentQuestion = null;
@@ -555,7 +559,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         .flatMap((question: any) => 
           question.contents.flatMap((content: any) => 
             content.miniQuestions
-              .filter((mq: any) => mq.isReleased && !mq.hasAnswer)
+              .filter((mq: any) => mq.isReleased) // Only filter by released, not by hasAnswer
               .map((mq: any) => ({
                 ...mq,
                 contentId: content.id,

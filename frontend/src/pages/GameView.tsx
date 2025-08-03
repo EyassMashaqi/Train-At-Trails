@@ -194,19 +194,26 @@ const GameView: React.FC = () => {
         console.log('Setting mini questions:', data.currentQuestionMiniQuestions.length);
         setMiniQuestions(data.currentQuestionMiniQuestions);
         
-        // Initialize mini answers state with existing answers
-        const initialMiniAnswers: Record<string, { linkUrl: string; notes: string }> = {};
-        data.currentQuestionMiniQuestions.forEach((mq: MiniQuestion) => {
-          if (mq.hasAnswer && mq.answer) {
-            initialMiniAnswers[mq.id] = {
-              linkUrl: mq.answer.linkUrl || '',
-              notes: mq.answer.notes || ''
-            };
-          } else {
-            initialMiniAnswers[mq.id] = { linkUrl: '', notes: '' };
-          }
+        // Initialize mini answers state with existing answers, preserving current form state
+        setMiniAnswers(prevMiniAnswers => {
+          const updatedMiniAnswers: Record<string, { linkUrl: string; notes: string }> = { ...prevMiniAnswers };
+          
+          data.currentQuestionMiniQuestions.forEach((mq: MiniQuestion) => {
+            // Only update if we don't already have form data for this question
+            if (!updatedMiniAnswers[mq.id]) {
+              if (mq.hasAnswer && mq.answer) {
+                updatedMiniAnswers[mq.id] = {
+                  linkUrl: mq.answer.linkUrl || '',
+                  notes: mq.answer.notes || ''
+                };
+              } else {
+                updatedMiniAnswers[mq.id] = { linkUrl: '', notes: '' };
+              }
+            }
+          });
+          
+          return updatedMiniAnswers;
         });
-        setMiniAnswers(initialMiniAnswers);
       } else {
         console.log('No currentQuestionMiniQuestions in response');
         setMiniQuestions([]);
@@ -612,7 +619,7 @@ const GameView: React.FC = () => {
             </p>
             <div className="mt-6 inline-flex items-center px-4 py-2 bg-secondary-100 text-secondary-800 rounded-full text-sm font-medium">
               <span>🎯</span>
-              <span className="ml-2">Ready to embark? Answer your first question above!</span>
+              <span className="ml-2">Ready to embark? Answer your first question below!</span>
             </div>
           </div>
         </div>
@@ -877,31 +884,20 @@ const GameView: React.FC = () => {
                             const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
                             const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
                             
-                            // Hide main question based on user requirements:
-                            // 1. If has mini questions and not all completed: hide completely
-                            // 2. If has mini questions and all completed but main not released: hide
-                            // 3. If has mini questions and all completed and main released: show as enabled
-                            // 4. If no mini questions and main released: show as enabled
-                            
+                            // Updated logic: Show first question in first module if released, 
+                            // but disable if mini questions not completed
                             let shouldShow = false;
                             let isDisabled = false;
                             
-                            if (hasMiniQuestions) {
-                              if (allMiniQuestionsCompleted && topicIsReleased) {
-                                shouldShow = true;
-                                isDisabled = false;
-                              } else if (allMiniQuestionsCompleted && !topicIsReleased) {
-                                shouldShow = false; // Hide until main question is released
+                            if (topicIsReleased) {
+                              shouldShow = true; // Always show if the topic is released
+                              
+                              if (hasMiniQuestions && !allMiniQuestionsCompleted) {
+                                isDisabled = true; // Disable if has mini questions but not all completed
                               } else {
-                                shouldShow = false; // Hide until all mini questions completed
+                                isDisabled = false; // Enable if no mini questions or all completed
                               }
-                            } else if (topicIsReleased) {
-                              shouldShow = true;
-                              isDisabled = false;
                             }
-                            
-                            // For now, hide all main questions as per user's current requirement
-                            shouldShow = false;
                             
                             if (!shouldShow) {
                               return null;
@@ -912,7 +908,7 @@ const GameView: React.FC = () => {
                                 key={topic.id}
                                 className={`rounded-lg p-4 border transition-all duration-200 ${
                                   isDisabled 
-                                    ? 'bg-yellow-50 border-yellow-200 opacity-75' 
+                                    ? 'bg-orange-50 border-orange-200 opacity-90' 
                                     : topicIsReleased
                                       ? 'bg-green-50 border-green-200 hover:bg-green-100'
                                       : 'bg-gray-50 border-gray-200 opacity-60'
@@ -921,16 +917,31 @@ const GameView: React.FC = () => {
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center">
                                     <span className="text-xl mr-3">
-                                      {topicIsReleased ? '📝' : '🔒'}
+                                      {isDisabled ? '🔐' : topicIsReleased ? '📝' : '🔒'}
                                     </span>
                                     <div>
-                                      <h5 className={`font-medium ${topicIsReleased ? 'text-green-800' : 'text-gray-500'
-                                        }`}>
+                                      <h5 className={`font-medium ${
+                                        isDisabled 
+                                          ? 'text-orange-800' 
+                                          : topicIsReleased 
+                                            ? 'text-green-800' 
+                                            : 'text-gray-500'
+                                      }`}>
                                         Topic {topic.topicNumber}: {topic.title}
                                       </h5>
-                                      <p className={`text-sm ${topicIsReleased ? 'text-green-600' : 'text-gray-400'
-                                        }`}>
-                                        {topicIsReleased ? topic.description : 'Topic not yet released'}
+                                      <p className={`text-sm ${
+                                        isDisabled 
+                                          ? 'text-orange-600' 
+                                          : topicIsReleased 
+                                            ? 'text-green-600' 
+                                            : 'text-gray-400'
+                                      }`}>
+                                        {isDisabled 
+                                          ? `Complete ${topicMiniQuestions.length - completedMiniQuestions} more mini question${topicMiniQuestions.length - completedMiniQuestions !== 1 ? 's' : ''} to unlock`
+                                          : topicIsReleased 
+                                            ? topic.description 
+                                            : 'Topic not yet released'
+                                        }
                                       </p>
                                       {topicIsReleased && (
                                         <div className="flex items-center mt-2 text-xs text-gray-500 space-x-4">
@@ -941,11 +952,24 @@ const GameView: React.FC = () => {
                                               Bonus: {topic.bonusPoints}
                                             </span>
                                           )}
+                                          {hasMiniQuestions && (
+                                            <span className={`font-medium ${
+                                              allMiniQuestionsCompleted 
+                                                ? 'text-green-600' 
+                                                : 'text-orange-600'
+                                            }`}>
+                                              Mini Questions: {completedMiniQuestions}/{topicMiniQuestions.length}
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                     </div>
                                   </div>
-                                  {topicIsReleased ? (
+                                  {isDisabled ? (
+                                    <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                      Locked
+                                    </span>
+                                  ) : topicIsReleased ? (
                                     <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
                                       Available
                                     </span>
@@ -955,11 +979,33 @@ const GameView: React.FC = () => {
                                     </span>
                                   )}
                                 </div>
-                                {topicIsReleased && topic.content && (
+                                {topicIsReleased && topic.content && !isDisabled && (
                                   <div className="mt-3 p-3 bg-white rounded border border-green-100">
                                     <p className="text-sm text-gray-700">
                                       {topic.content}
                                     </p>
+                                  </div>
+                                )}
+                                {topicIsReleased && isDisabled && hasMiniQuestions && (
+                                  <div className="mt-3 p-3 bg-orange-100 rounded border border-orange-200">
+                                    <div className="flex items-center text-orange-800 text-sm font-medium mb-2">
+                                      <span className="mr-2">🎯</span>
+                                      Complete Mini Questions First
+                                    </div>
+                                    <p className="text-xs text-orange-700">
+                                      You need to complete all {topicMiniQuestions.length} mini questions above before you can access this main question.
+                                    </p>
+                                    <div className="mt-2">
+                                      <div className="w-full bg-orange-200 rounded-full h-2">
+                                        <div
+                                          className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                                          style={{ width: `${(completedMiniQuestions / topicMiniQuestions.length) * 100}%` }}
+                                        />
+                                      </div>
+                                      <p className="text-xs text-orange-600 mt-1">
+                                        Progress: {completedMiniQuestions}/{topicMiniQuestions.length} mini questions completed
+                                      </p>
+                                    </div>
                                   </div>
                                 )}
                               </div>
