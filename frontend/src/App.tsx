@@ -15,6 +15,7 @@ import GameView from './pages/GameView';
 import NotFound from './pages/NotFound';
 import CohortManagement from './pages/CohortManagement';
 import UserManagement from './pages/UserManagement';
+import CohortHistory from './pages/CohortHistory';
 
 function App() {
   return (
@@ -31,6 +32,16 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cohort-history" 
+              element={
+                <ProtectedRoute>
+                  <NonAdminRoute>
+                    <CohortHistory />
+                  </NonAdminRoute>
                 </ProtectedRoute>
               } 
             />

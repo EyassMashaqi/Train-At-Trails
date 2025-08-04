@@ -185,6 +185,74 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// Get user's cohort history (active and graduated cohorts)
+router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+
+    // Get all cohort memberships for the user
+    const cohortMemberships = await (prisma as any).cohortMember.findMany({
+      where: { userId },
+      include: {
+        cohort: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            startDate: true,
+            endDate: true,
+            isActive: true
+          }
+        }
+      },
+      orderBy: [
+        { isActive: 'desc' }, // Active cohorts first
+        { graduatedAt: 'desc' }, // Then most recently graduated
+        { joinedAt: 'desc' } // Then most recently joined
+      ]
+    });
+
+    // Separate active and graduated cohorts
+    const activeCohorts = cohortMemberships.filter(membership => 
+      membership.isActive && !membership.isGraduated
+    );
+    
+    const graduatedCohorts = cohortMemberships.filter(membership => 
+      membership.isGraduated
+    );
+
+    res.json({
+      activeCohorts: activeCohorts.map(membership => ({
+        id: membership.cohort.id,
+        name: membership.cohort.name,
+        description: membership.cohort.description,
+        startDate: membership.cohort.startDate,
+        endDate: membership.cohort.endDate,
+        joinedAt: membership.joinedAt,
+        currentStep: membership.currentStep,
+        isActive: membership.isActive
+      })),
+      graduatedCohorts: graduatedCohorts.map(membership => ({
+        id: membership.cohort.id,
+        name: membership.cohort.name,
+        description: membership.cohort.description,
+        startDate: membership.cohort.startDate,
+        endDate: membership.cohort.endDate,
+        joinedAt: membership.joinedAt,
+        graduatedAt: membership.graduatedAt,
+        graduatedBy: membership.graduatedBy,
+        finalStep: membership.currentStep
+      })),
+      hasActiveCohort: activeCohorts.length > 0,
+      hasGraduatedCohorts: graduatedCohorts.length > 0,
+      totalCohorts: cohortMemberships.length
+    });
+  } catch (error) {
+    console.error('Get cohort history error:', error);
+    res.status(500).json({ error: 'Failed to get cohort history' });
+  }
+});
+
 // Submit answer to current question - supports both questionId and topicId with file uploads
 router.post('/answer', authenticateToken, upload.single('attachment'), async (req: AuthRequest, res) => {
   try {

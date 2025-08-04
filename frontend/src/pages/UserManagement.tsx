@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
-import { api } from '../services/api';
+import { api, adminService } from '../services/api';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -116,6 +116,21 @@ const UserManagement: React.FC = () => {
       await loadData();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to remove user from cohort';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleGraduateUser = async (userId: string, cohortId: string, cohortName: string, userName: string) => {
+    if (!confirm(`Are you sure you want to graduate "${userName}" from "${cohortName}"? This action will mark their training as complete and they will no longer have active access to this cohort.`)) {
+      return;
+    }
+
+    try {
+      const response = await adminService.graduateUser(userId, cohortId);
+      toast.success(response.data.message || 'User graduated successfully!');
+      await loadData();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to graduate user';
       toast.error(errorMessage);
     }
   };
@@ -243,6 +258,15 @@ const UserManagement: React.FC = () => {
                                 <span className="text-gray-500">
                                   (Step {member.currentStep})
                                 </span>
+                                {member.isActive && !member.isGraduated && (
+                                  <button
+                                    onClick={() => handleGraduateUser(user.id, member.cohortId, member.cohort.name, user.fullName)}
+                                    className="text-green-600 hover:text-green-800 ml-1"
+                                    title="Graduate from cohort"
+                                  >
+                                    🎓
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleRemoveFromCohort(user.id, member.cohortId, member.cohort.name)}
                                   className="text-red-500 hover:text-red-700 ml-1"

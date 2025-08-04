@@ -125,6 +125,8 @@ export const authService = {
 export const gameService = {
   getProgress: () => api.get('/game/progress'),
   
+  getCohortHistory: () => api.get('/game/cohort-history'),
+  
   submitAnswer: (content: string, file?: File | null) => {
     if (file) {
       const formData = new FormData();
@@ -391,6 +393,10 @@ export const adminService = {
 
   // Get all mini-answers for admin dashboard
   getAllMiniAnswers: () => api.get('/admin/mini-answers'),
+
+  // Graduate user from cohort
+  graduateUser: (userId: string, cohortId: string) => 
+    api.post('/admin/graduate-user', { userId, cohortId }),
 };
 
 // Game API for content and mini-questions

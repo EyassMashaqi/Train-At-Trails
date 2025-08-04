@@ -176,14 +176,17 @@ model Cohort {
 }
 
 model CohortMember {
-  id          String   @id @default(cuid())
-  userId      String
-  cohortId    String
-  currentStep Int      @default(0)
-  joinedAt    DateTime @default(now())
-  isActive    Boolean  @default(true)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cohort      Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  userId        String
+  cohortId      String
+  currentStep   Int       @default(0)
+  joinedAt      DateTime  @default(now())
+  isActive      Boolean   @default(true)
+  isGraduated   Boolean   @default(false)
+  graduatedAt   DateTime?
+  graduatedBy   String?
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cohort        Cohort    @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cohortId]) // One membership per user per cohort
   @@map("cohort_members")

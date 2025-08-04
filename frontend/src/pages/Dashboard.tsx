@@ -25,11 +25,36 @@ const Dashboard: React.FC = () => {
   const [showTrainAnimation, setShowTrainAnimation] = useState(false);
   const [activeQuestionsCount, setActiveQuestionsCount] = useState(0);
   const [totalSteps, setTotalSteps] = useState(12); // Default fallback, will be updated from API
+  const [hasCohortAccess, setHasCohortAccess] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Redirect admin users to cohort management
     if (user && user.isAdmin) {
       navigate('/cohorts');
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    // Check if user has active cohort assignment
+    const checkCohortAccess = async () => {
+      try {
+        const response = await gameService.getCohortHistory();
+        const hasActive = response.data.hasActiveCohort;
+        setHasCohortAccess(hasActive);
+        
+        // Redirect to cohort history if no active cohort
+        if (!hasActive) {
+          navigate('/cohort-history');
+        }
+      } catch (error) {
+        console.error('Failed to check cohort access:', error);
+        // If API fails, assume no access and redirect
+        navigate('/cohort-history');
+      }
+    };
+
+    if (user && !user.isAdmin) {
+      checkCohortAccess();
     }
   }, [user, navigate]);
 

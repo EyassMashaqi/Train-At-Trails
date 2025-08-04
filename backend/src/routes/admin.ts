@@ -1749,4 +1749,83 @@ router.delete('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) =
   }
 });
 
+// Graduate user from cohort
+router.post('/graduate-user', async (req: AuthRequest, res) => {
+  try {
+    const { userId, cohortId } = req.body;
+
+    if (!userId || !cohortId) {
+      return res.status(400).json({ error: 'User ID and Cohort ID are required' });
+    }
+
+    // Check if the cohort member exists and is active
+    const cohortMember = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true
+          }
+        },
+        cohort: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!cohortMember) {
+      return res.status(404).json({ error: 'User is not a member of this cohort' });
+    }
+
+    if (cohortMember.isGraduated) {
+      return res.status(400).json({ error: 'User is already graduated from this cohort' });
+    }
+
+    // Graduate the user
+    const graduatedMember = await (prisma as any).cohortMember.update({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      data: {
+        isGraduated: true,
+        graduatedAt: new Date(),
+        graduatedBy: req.user?.email,
+        isActive: false // Set to inactive since they've graduated
+      },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true
+          }
+        },
+        cohort: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    res.json({ 
+      message: `${cohortMember.user.fullName} has been graduated from ${cohortMember.cohort.name}`,
+      graduatedMember 
+    });
+  } catch (error) {
+    console.error('Graduate user error:', error);
+    res.status(500).json({ error: 'Failed to graduate user' });
+  }
+});
+
 export default router;
