@@ -98,7 +98,7 @@ const CohortManagement: React.FC = () => {
 
   const handleSelectCohort = (cohortId: string) => {
     // Navigate to admin dashboard with selected cohort
-    navigate(`/cohorts?cohort=${cohortId}`);
+    navigate(`/admin?cohort=${cohortId}`);
   };
 
   const toggleCohortStatus = async (cohortId: string, isActive: boolean) => {

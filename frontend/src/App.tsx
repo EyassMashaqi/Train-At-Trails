@@ -8,6 +8,7 @@ import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import QuestionManagement from './pages/QuestionManagement';
 import GameView from './pages/GameView';
 import NotFound from './pages/NotFound';
@@ -43,7 +44,11 @@ function App() {
             />
             <Route 
               path="/admin" 
-              element={<Navigate to="/cohorts" replace />}
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              }
             />
             <Route 
               path="/cohorts" 

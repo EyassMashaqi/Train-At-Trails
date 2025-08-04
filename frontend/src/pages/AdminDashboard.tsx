@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
@@ -126,6 +127,10 @@ interface ModuleFormData {
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const selectedCohortId = searchParams.get('cohort');
+  
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
@@ -892,10 +897,20 @@ const AdminDashboard: React.FC = () => {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   Admin Dashboard
                 </h1>
-                <p className="text-lg text-gray-600">Manage users and review answers</p>
+                <p className="text-lg text-gray-600">
+                  Manage users and review answers
+                  {selectedCohortId && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohortId}</span>}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/cohorts')}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center shadow-lg"
+              >
+                <span className="mr-2">🎯</span>
+                Manage Cohorts
+              </button>
               <button
                 onClick={logout}
                 className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 flex items-center shadow-lg"
