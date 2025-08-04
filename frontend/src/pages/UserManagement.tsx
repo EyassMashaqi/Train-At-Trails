@@ -57,15 +57,22 @@ const UserManagement: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Loading user management data...');
+      
       const [usersResponse, cohortsResponse] = await Promise.all([
-        api.get('/admin/users'),
+        api.get('/admin/cohorts/users/all'),
         api.get('/admin/cohorts')
       ]);
       
+      console.log('✅ Users response:', usersResponse.data);
+      console.log('✅ Cohorts response:', cohortsResponse.data);
+      
       setUsers(usersResponse.data.users || []);
       setCohorts(cohortsResponse.data.cohorts || []);
+      
+      console.log('✅ Data loaded successfully');
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('❌ Failed to load data:', error);
       toast.error('Failed to load users and cohorts');
     } finally {
       setLoading(false);
