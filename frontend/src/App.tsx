@@ -8,10 +8,11 @@ import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import QuestionManagement from './pages/QuestionManagement';
 import GameView from './pages/GameView';
 import NotFound from './pages/NotFound';
+import CohortManagement from './pages/CohortManagement';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   return (
@@ -42,9 +43,21 @@ function App() {
             />
             <Route 
               path="/admin" 
+              element={<Navigate to="/cohorts" replace />}
+            />
+            <Route 
+              path="/cohorts" 
               element={
                 <AdminRoute>
-                  <AdminDashboard />
+                  <CohortManagement />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <AdminRoute>
+                  <UserManagement />
                 </AdminRoute>
               } 
             />
@@ -134,7 +147,7 @@ function NonAdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user.isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/cohorts" replace />;
   }
 
   return <>{children}</>;
@@ -160,7 +173,7 @@ function SmartRedirect() {
   }
 
   if (user.isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/cohorts" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;

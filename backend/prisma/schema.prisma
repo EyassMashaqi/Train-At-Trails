@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  id          String      @id @default(cuid())
-  email       String      @unique
-  password    String
-  fullName    String
-  trainName   String?
-  isAdmin     Boolean     @default(false)
-  currentStep Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  answers     Answer[]
-  miniAnswers MiniAnswer[]
+  id              String            @id @default(cuid())
+  email           String            @unique
+  password        String
+  fullName        String
+  trainName       String?
+  isAdmin         Boolean           @default(false)
+  currentStep     Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  answers         Answer[]
+  miniAnswers     MiniAnswer[]
+  cohortMembers   CohortMember[]    // Many-to-many relationship with cohorts
 
   @@map("users")
 }
 
 model Module {
   id           String     @id @default(cuid())
-  moduleNumber Int        @unique
+  moduleNumber Int
   title        String
   description  String
   isActive     Boolean    @default(false)
@@ -34,14 +35,17 @@ model Module {
   releasedAt   DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  cohortId     String     // Each module belongs to a cohort
+  cohort       Cohort     @relation(fields: [cohortId], references: [id], onDelete: Cascade)
   questions    Question[]
 
+  @@unique([moduleNumber, cohortId]) // Module numbers are unique within a cohort
   @@map("modules")
 }
 
 model Question {
   id             String        @id @default(cuid())
-  questionNumber Int           @unique
+  questionNumber Int
   title          String
   content        String
   description    String
@@ -59,30 +63,36 @@ model Question {
   category       String?       // Optional: categorization (e.g., "Adventure", "Problem Solving")
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  cohortId       String        // Each question belongs to a cohort
+  cohort         Cohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
   answers        Answer[]
   contents       Content[]     // Self-learning content sections
 
+  @@unique([questionNumber, cohortId]) // Question numbers are unique within a cohort
   @@map("questions")
 }
 
 model Answer {
-  id                   String    @id @default(cuid())
+  id                   String       @id @default(cuid())
   content              String
-  status               String    @default("PENDING")
-  submittedAt          DateTime  @default(now())
+  status               String       @default("PENDING")
+  submittedAt          DateTime     @default(now())
   reviewedAt           DateTime?
   reviewedBy           String?
   feedback             String?
   pointsAwarded        Int?
-  attachmentFileName   String?   // Original filename of the attachment
-  attachmentFilePath   String?   // Server path to the uploaded file
-  attachmentFileSize   Int?      // File size in bytes
-  attachmentMimeType   String?   // MIME type of the file
+  attachmentFileName   String?      // Original filename of the attachment
+  attachmentFilePath   String?      // Server path to the uploaded file
+  attachmentFileSize   Int?         // File size in bytes
+  attachmentMimeType   String?      // MIME type of the file
   userId               String
   questionId           String
-  question             Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cohortId             String       // Answer belongs to a specific cohort
+  question             Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cohort               Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, questionId, cohortId]) // One answer per user per question per cohort
   @@map("answers")
 }
 
@@ -127,10 +137,12 @@ model MiniAnswer {
   submittedAt    DateTime     @default(now())
   userId         String
   miniQuestionId String
+  cohortId       String       // Mini answer belongs to a specific cohort
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   miniQuestion   MiniQuestion @relation(fields: [miniQuestionId], references: [id], onDelete: Cascade)
+  cohort         Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, miniQuestionId]) // One answer per user per mini-question
+  @@unique([userId, miniQuestionId, cohortId]) // One answer per user per mini-question per cohort
   @@map("mini_answers")
 }
 
@@ -142,4 +154,49 @@ model GameConfig {
   updatedAt                    DateTime @updatedAt
 
   @@map("game_config")
+}
+
+model Cohort {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  description    String?
+  startDate      DateTime
+  endDate        DateTime?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  modules        Module[]
+  questions      Question[]
+  answers        Answer[]
+  miniAnswers    MiniAnswer[]
+  cohortMembers  CohortMember[]
+  gameConfig     CohortGameConfig?
+
+  @@map("cohorts")
+}
+
+model CohortMember {
+  id          String   @id @default(cuid())
+  userId      String
+  cohortId    String
+  currentStep Int      @default(0)
+  joinedAt    DateTime @default(now())
+  isActive    Boolean  @default(true)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cohort      Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cohortId]) // One membership per user per cohort
+  @@map("cohort_members")
+}
+
+model CohortGameConfig {
+  id                           String   @id @default(cuid())
+  cohortId                     String   @unique
+  questionReleaseIntervalHours Int      @default(48)
+  totalQuestions               Int      @default(12)
+  gameStartDate                DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  cohort                       Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  @@map("cohort_game_configs")
 }

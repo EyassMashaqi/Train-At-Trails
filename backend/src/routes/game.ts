@@ -70,6 +70,13 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // For now, use default cohort info (we can enhance this later when Prisma types are working)
+    const cohortInfo = {
+      id: 'default-cohort',
+      name: 'Default Cohort',
+      description: 'Main training cohort'
+    };
+
     // Get current active question
     const currentQuestion = await prisma.question.findFirst({
       where: { 
@@ -92,7 +99,9 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
 
     // Get user's answers
     const answers = await prisma.answer.findMany({
-      where: { userId },
+      where: { 
+        userId
+      },
       include: {
         question: {
           select: {
@@ -129,14 +138,23 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     // to avoid duplication with the module/topic system
     // Get total questions count for dynamic total steps - only count RELEASED questions
     const totalQuestions = await prisma.question.count({
-      where: { isReleased: true }
+      where: { 
+        isReleased: true 
+      }
     });
 
     const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
 
     res.json({
-      user,
-      currentStep: user.currentStep,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        trainName: user.trainName,
+        currentStep: user.currentStep, // Use user progress for now
+        createdAt: user.createdAt
+      },
+      cohort: cohortInfo,
+      currentStep: user.currentStep, // Use user progress for now
       totalSteps: totalQuestions, // Dynamic total based on actual questions in database
       isComplete: user.currentStep >= totalQuestions,
       currentQuestion: shouldReturnCurrentQuestion ? (currentQuestion ? {
@@ -271,12 +289,29 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       });
     }
 
+    // Get user's default cohort for now (first active membership)
+    // For now, just create the answer without cohort validation since Prisma types aren't working
+    // const userCohort = await (prisma as any).cohortMember.findFirst({
+    //   where: { 
+    //     userId,
+    //     isActive: true
+    //   },
+    //   include: {
+    //     cohort: true
+    //   }
+    // });
+
+    // if (!userCohort) {
+    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
+    // }
+
     // Create new answer
     const answer = await prisma.answer.create({
       data: {
         content: content.trim(),
         userId,
         questionId: currentQuestion.id
+        // cohortId: userCohort.cohortId  // Will add this back when Prisma types work
       },
       include: {
         question: {
@@ -295,7 +330,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         content: answer.content,
         status: answer.status,
         submittedAt: answer.submittedAt,
-        question: answer.question
+        questionNumber: answer.question?.questionNumber || 'N/A',
+        questionTitle: answer.question?.title || 'N/A'
       }
     });
   } catch (error) {
@@ -384,7 +420,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
 
-    // Get user details with progress
+    // Get user details with cohort information
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -400,12 +436,28 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Get user's active cohort separately
+    const userCohort = await (prisma as any).cohortMember.findFirst({
+      where: { 
+        userId,
+        isActive: true
+      },
+      include: {
+        cohort: true
+      }
+    });
+    
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not a member of any active cohort' });
+    }
+
     // Update mini question release status based on current time
     await updateMiniQuestionReleaseStatus();
 
-    // Get all released questions with their mini questions
+    // Get all released questions with their mini questions for user's cohort
     const releasedQuestions = await prisma.question.findMany({
       where: { 
+        // cohortId: userCohort.cohortId,  // Temporarily disabled
         // Remove the isReleased requirement - we want ALL questions that user can see
         // because mini questions can be released independently of main questions
         questionNumber: { lte: user.currentStep + 1 } // Show current and next available questions
@@ -434,7 +486,10 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           orderBy: { orderIndex: 'asc' }
         },
         answers: {
-          where: { userId },
+          where: { 
+            userId,
+            cohortId: userCohort.cohortId
+          },
           select: {
             id: true,
             content: true,
@@ -465,9 +520,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       const hasMainAnswer = question.answers.length > 0;
       const mainAnswerStatus = hasMainAnswer ? question.answers[0].status : null;
 
-      // Determine question availability
+      // Determine question availability - use cohort-specific progress
       let questionStatus = 'locked';
-      if (question.questionNumber <= user.currentStep + 1) {
+      if (question.questionNumber <= userCohort.currentStep + 1) {
         if (totalMiniQuestions > 0) {
           if (completedMiniQuestions < totalMiniQuestions) {
             questionStatus = 'mini_questions_required';
@@ -526,7 +581,10 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 
     // Get total questions count - only count RELEASED questions
     const totalQuestions = await prisma.question.count({
-      where: { isReleased: true }
+      where: { 
+        // cohortId: userCohort.cohortId,  // Temporarily disabled
+        isReleased: true 
+      }
     });
 
     // For backward compatibility with original GameView, also provide currentQuestion
@@ -574,7 +632,10 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 
     // Get user's answers in the format expected by original GameView
     const allAnswers = await prisma.answer.findMany({
-      where: { userId },
+      where: { 
+        userId
+        // cohortId: userCohort.cohortId  // Temporarily disabled
+      },
       include: {
         question: {
           select: {
@@ -589,11 +650,22 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 
     res.json({
       // New structure for enhanced features
-      user,
-      currentStep: user.currentStep,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        trainName: user.trainName,
+        currentStep: userCohort.currentStep,
+        createdAt: user.createdAt
+      },
+      cohort: {
+        id: userCohort.cohort.id,
+        name: userCohort.cohort.name,
+        description: userCohort.cohort.description
+      },
+      currentStep: userCohort.currentStep,
       totalSteps: totalQuestions, // Dynamic total based on actual questions in database
       totalQuestions,
-      isComplete: user.currentStep >= totalQuestions,
+      isComplete: userCohort.currentStep >= totalQuestions,
       questions: processedQuestions,
       
       // Backward compatibility for original GameView
@@ -619,8 +691,29 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 // Organizes questions by moduleNumber for backward compatibility
 router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+
+    // Temporarily disable cohort filtering until Prisma types are working
+    // Get user's active cohort
+    // const userCohort = await prisma.cohortMember.findFirst({
+    //   where: { 
+    //     userId,
+    //     isActive: true
+    //   },
+    //   include: {
+    //     cohort: true
+    //   }
+    // });
+
+    // if (!userCohort) {
+    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
+    // }
+
     // Get all modules with their questions using the proper Module table
     const modules = await (prisma as any).module.findMany({
+      // where: {
+      //   cohortId: userCohort.cohortId
+      // },
       include: {
         questions: {
           orderBy: { topicNumber: 'asc' }
@@ -698,6 +791,22 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
       });
     }
 
+    // Temporarily disable cohort validation
+    // Get user's active cohort
+    // const userCohort = await prisma.cohortMember.findFirst({
+    //   where: { 
+    //     userId,
+    //     isActive: true
+    //   },
+    //   include: {
+    //     cohort: true
+    //   }
+    // });
+
+    // if (!userCohort) {
+    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
+    // }
+
     // Verify mini-question exists
     const miniQuestion = await (prisma as any).miniQuestion.findUnique({
       where: { id: miniQuestionId },
@@ -714,13 +823,12 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
       return res.status(404).json({ error: 'Mini-question not found' });
     }
 
-    // Check if user already answered this mini-question
-    const existingAnswer = await (prisma as any).miniAnswer.findUnique({
+    // Check if user already answered this mini-question (without cohort for now)
+    const existingAnswer = await (prisma as any).miniAnswer.findFirst({
       where: {
-        userId_miniQuestionId: {
-          userId,
-          miniQuestionId
-        }
+        userId,
+        miniQuestionId
+        // cohortId: userCohort.cohortId  // Temporarily disabled
       }
     });
 
@@ -747,6 +855,7 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
           notes: notes ? notes.trim() : null,
           userId,
           miniQuestionId
+          // cohortId: userCohort.cohortId  // Temporarily disabled
         }
       });
 

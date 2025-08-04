@@ -8,7 +8,7 @@ const NotFound: React.FC = () => {
 
   const handleGoHome = () => {
     if (user?.isAdmin) {
-      navigate('/admin');
+      navigate('/cohorts');
     } else if (user) {
       navigate('/dashboard');
     } else {

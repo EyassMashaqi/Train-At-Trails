@@ -19,7 +19,7 @@ const Login: React.FC = () => {
       const success = await login('admin@traintrails.com', 'admin123');
       if (success) {
         setErrors({ email: '', password: '', general: '' }); // Clear all errors
-        navigate('/admin');
+        navigate('/cohorts');
       } else {
         setErrors(prev => ({ ...prev, general: 'Admin login failed. Please try again.' }));
         // Note: AuthContext already shows a toast with the specific error message

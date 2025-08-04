@@ -233,7 +233,7 @@ const QuestionManagement: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <Link
-                to="/admin"
+                to="/cohorts"
                 className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 flex items-center shadow-lg"
               >
                 <span className="mr-2">←</span>

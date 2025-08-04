@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import gameRoutes from './routes/game';
 import adminRoutes from './routes/admin';
+import cohortRoutes from './routes/cohorts';
 
 // Import services
 import { startQuestionScheduler } from './services/questionScheduler';
@@ -47,6 +48,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/cohorts', cohortRoutes);
+app.use('/api/admin/users', cohortRoutes); // Uses the same routes for user management
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

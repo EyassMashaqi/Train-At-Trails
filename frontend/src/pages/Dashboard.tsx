@@ -27,9 +27,9 @@ const Dashboard: React.FC = () => {
   const [totalSteps, setTotalSteps] = useState(12); // Default fallback, will be updated from API
 
   useEffect(() => {
-    // Redirect admin users to admin dashboard
+    // Redirect admin users to cohort management
     if (user && user.isAdmin) {
-      navigate('/admin');
+      navigate('/cohorts');
     }
   }, [user, navigate]);
 
@@ -41,16 +41,16 @@ const Dashboard: React.FC = () => {
           gameService.getProgress(),
           gameService.getModules()
         ]);
-        
+
         let count = 0;
-        
+
         const data = progressResponse.data;
-        
+
         // Set total steps from API response
         if (data.totalSteps) {
           setTotalSteps(data.totalSteps);
         }
-        
+
         // Count ALL released topics that haven't been answered (don't double count)
         const modules = modulesResponse.data.modules || [];
         modules.forEach((module: Module) => {
@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
             module.topics.forEach((topic: Topic) => {
               if (topic.isReleased) {
                 const hasAnswered = data.answers?.some((answer: Answer) =>
-                  answer.topic?.id === topic.id && 
+                  answer.topic?.id === topic.id &&
                   (answer.status === 'APPROVED' || answer.status === 'PENDING')
                 );
                 if (!hasAnswered) {
@@ -68,12 +68,12 @@ const Dashboard: React.FC = () => {
             });
           }
         });
-        
+
         // If no module topics available, check for legacy current question
         if (count === 0 && data.currentQuestion && (!modules || modules.length === 0)) {
           count = 1;
         }
-        
+
         setActiveQuestionsCount(count);
       } catch (error) {
         console.error('Failed to fetch active questions:', error);
@@ -105,7 +105,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAdminDashboard = () => {
-    navigate('/admin');
+    navigate('/cohorts');
   };
 
   if (!user) {
@@ -142,9 +142,9 @@ const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-6">
-              <img 
-                src="./src/assets/BVisionRY.png" 
-                alt="BVisionRY Company Logo" 
+              <img
+                src="./src/assets/BVisionRY.png"
+                alt="BVisionRY Company Logo"
                 className="w-40 h-14 px-4 py-2 bvisionary-logo"
               />
               <div className="flex-1">
@@ -154,9 +154,9 @@ const Dashboard: React.FC = () => {
                 <p className="text-lg text-gray-600">Welcome back, {user.fullName}!</p>
               </div>
               <div className={`transition-all duration-1000 ${showTrainAnimation ? 'transform scale-110' : ''}`}>
-                <img 
-                  src="./src/assets/Lighthouse.png" 
-                  alt="Lighthouse Logo" 
+                <img
+                  src="./src/assets/Lighthouse.png"
+                  alt="Lighthouse Logo"
                   className="w-24 h-24 lighthouse-logo drop-shadow-lg"
                 />
               </div>
@@ -224,7 +224,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   {/* Progress sparkles */}
-                  <div 
+                  <div
                     className="absolute top-0 h-6 flex items-center"
                     style={{ left: `${(user.currentStep / totalSteps) * 100}%` }}
                   >
@@ -268,8 +268,8 @@ const Dashboard: React.FC = () => {
                   {activeQuestionsCount}
                 </div>
                 <div className="text-lg text-gray-600 mb-4">
-                  {activeQuestionsCount === 1 
-                    ? 'Question Available' 
+                  {activeQuestionsCount === 1
+                    ? 'Question Available'
                     : 'Questions Available'}
                 </div>
                 {activeQuestionsCount > 0 ? (
@@ -326,11 +326,11 @@ const Dashboard: React.FC = () => {
                   {currentTime.toLocaleTimeString()}
                 </div>
                 <div className="text-lg text-gray-500 mt-2">
-                  {currentTime.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
+                  {currentTime.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
                   })}
                 </div>
               </div>
