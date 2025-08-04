@@ -1828,4 +1828,322 @@ router.post('/graduate-user', async (req: AuthRequest, res) => {
   }
 });
 
+// Enhanced user status management - Change user status in a cohort
+router.put('/user-cohort-status', async (req: AuthRequest, res) => {
+  try {
+    const { userId, cohortId, status } = req.body;
+
+    if (!userId || !cohortId || !status) {
+      return res.status(400).json({ error: 'User ID, Cohort ID, and status are required' });
+    }
+
+    // Validate status
+    const validStatuses = ['ENROLLED', 'GRADUATED', 'REMOVED', 'SUSPENDED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+      });
+    }
+
+    // Check if the cohort member exists
+    const cohortMember = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+            currentCohortId: true
+          }
+        },
+        cohort: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!cohortMember) {
+      return res.status(404).json({ error: 'User is not a member of this cohort' });
+    }
+
+    // Update the status
+    const updatedMember = await (prisma as any).cohortMember.update({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      data: {
+        status: status,
+        statusChangedAt: new Date(),
+        statusChangedBy: req.user?.email,
+        // Update legacy fields for backward compatibility
+        isActive: status === 'ENROLLED',
+        isGraduated: status === 'GRADUATED',
+        graduatedAt: status === 'GRADUATED' ? new Date() : cohortMember.graduatedAt,
+        graduatedBy: status === 'GRADUATED' ? req.user?.email : cohortMember.graduatedBy
+      }
+    });
+
+    // If user is removed or graduated from their current cohort, update their currentCohortId
+    if ((status === 'REMOVED' || status === 'GRADUATED') && cohortMember.user.currentCohortId === cohortId) {
+      await (prisma as any).user.update({
+        where: { id: userId },
+        data: { currentCohortId: null }
+      });
+    }
+
+    res.json({ 
+      message: `${cohortMember.user.fullName} status changed to ${status} in ${cohortMember.cohort.name}`,
+      updatedMember 
+    });
+  } catch (error) {
+    console.error('Update user cohort status error:', error);
+    res.status(500).json({ error: 'Failed to update user status' });
+  }
+});
+
+// Assign user to a new cohort
+router.post('/assign-user-cohort', async (req: AuthRequest, res) => {
+  try {
+    const { userId, cohortId } = req.body;
+
+    if (!userId || !cohortId) {
+      return res.status(400).json({ error: 'User ID and Cohort ID are required' });
+    }
+
+    // Check if user exists
+    const user = await (prisma as any).user.findUnique({
+      where: { id: userId },
+      select: { 
+        fullName: true, 
+        email: true, 
+        currentCohortId: true,
+        cohortMembers: {
+          where: { status: 'ENROLLED' },
+          include: {
+            cohort: {
+              select: { name: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if cohort exists
+    const cohort = await prisma.cohort.findUnique({
+      where: { id: cohortId },
+      select: { name: true, isActive: true }
+    });
+
+    if (!cohort) {
+      return res.status(404).json({ error: 'Cohort not found' });
+    }
+
+    if (!cohort.isActive) {
+      return res.status(400).json({ error: 'Cannot assign user to inactive cohort' });
+    }
+
+    // Check if user is already enrolled in any cohort
+    if (user.cohortMembers.length > 0) {
+      const currentCohort = user.cohortMembers[0];
+      return res.status(400).json({ 
+        error: `User is already enrolled in cohort: ${currentCohort.cohort.name}. Please change their status first.` 
+      });
+    }
+
+    // Check if user already has a membership record for this cohort
+    const existingMembership = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      }
+    });
+
+    if (existingMembership) {
+      // Update existing membership to ENROLLED
+      const updatedMembership = await (prisma as any).cohortMember.update({
+        where: {
+          userId_cohortId: {
+            userId,
+            cohortId
+          }
+        },
+        data: {
+          status: 'ENROLLED',
+          statusChangedAt: new Date(),
+          statusChangedBy: req.user?.email,
+          isActive: true,
+          isGraduated: false
+        }
+      });
+
+      // Update user's current cohort
+      await (prisma as any).user.update({
+        where: { id: userId },
+        data: { currentCohortId: cohortId }
+      });
+
+      res.json({ 
+        message: `${user.fullName} has been re-enrolled in ${cohort.name}`,
+        membership: updatedMembership
+      });
+    } else {
+      // Create new membership
+      const newMembership = await (prisma as any).cohortMember.create({
+        data: {
+          userId,
+          cohortId,
+          status: 'ENROLLED',
+          statusChangedAt: new Date(),
+          statusChangedBy: req.user?.email,
+          isActive: true,
+          isGraduated: false
+        }
+      });
+
+      // Update user's current cohort
+      await (prisma as any).user.update({
+        where: { id: userId },
+        data: { currentCohortId: cohortId }
+      });
+
+      res.json({ 
+        message: `${user.fullName} has been assigned to ${cohort.name}`,
+        membership: newMembership
+      });
+    }
+  } catch (error) {
+    console.error('Assign user to cohort error:', error);
+    res.status(500).json({ error: 'Failed to assign user to cohort' });
+  }
+});
+
+// Get users with their cohort status for a specific cohort
+router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
+  try {
+    const { cohortId } = req.params;
+
+    // Check if cohort exists
+    const cohort = await prisma.cohort.findUnique({
+      where: { id: cohortId },
+      select: { name: true, isActive: true }
+    });
+
+    if (!cohort) {
+      return res.status(404).json({ error: 'Cohort not found' });
+    }
+
+    // Get all users with their status in this cohort
+    const cohortMembers = await (prisma as any).cohortMember.findMany({
+      where: { cohortId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true,
+            currentStep: true,
+            createdAt: true,
+            currentCohortId: true
+          }
+        }
+      },
+      orderBy: [
+        { status: 'asc' },
+        { user: { fullName: 'asc' } }
+      ]
+    });
+
+    res.json({ 
+      cohort,
+      members: cohortMembers.map((member: any) => ({
+        ...member.user,
+        cohortStatus: member.status,
+        joinedAt: member.joinedAt,
+        statusChangedAt: member.statusChangedAt,
+        statusChangedBy: member.statusChangedBy,
+        isCurrentCohort: member.user.currentCohortId === cohortId
+      }))
+    });
+  } catch (error) {
+    console.error('Get cohort users error:', error);
+    res.status(500).json({ error: 'Failed to get cohort users' });
+  }
+});
+
+// Get all users with their current cohort info
+router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
+  try {
+    const users = await (prisma as any).user.findMany({
+      where: { isAdmin: false },
+      include: {
+        currentCohort: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true
+          }
+        },
+        cohortMembers: {
+          include: {
+            cohort: {
+              select: {
+                id: true,
+                name: true,
+                isActive: true
+              }
+            }
+          },
+          orderBy: { statusChangedAt: 'desc' }
+        }
+      },
+      orderBy: [
+        { currentStep: 'desc' },
+        { fullName: 'asc' }
+      ]
+    });
+
+    const formattedUsers = users.map((user: any) => ({
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      trainName: user.trainName,
+      currentStep: user.currentStep,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      currentCohort: user.currentCohort,
+      allCohorts: user.cohortMembers.map((member: any) => ({
+        cohortId: member.cohortId,
+        cohortName: member.cohort.name,
+        status: member.status,
+        joinedAt: member.joinedAt,
+        statusChangedAt: member.statusChangedAt,
+        statusChangedBy: member.statusChangedBy,
+        isActive: member.cohort.isActive
+      }))
+    }));
+
+    res.json({ users: formattedUsers });
+  } catch (error) {
+    console.error('Get users with cohorts error:', error);
+    res.status(500).json({ error: 'Failed to get users with cohort information' });
+  }
+});
+
 export default router;

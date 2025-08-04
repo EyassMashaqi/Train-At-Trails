@@ -14,6 +14,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
           select: {
             cohortMembers: {
               where: {
+                isActive: true,
                 user: {
                   isAdmin: false
                 }
@@ -67,6 +68,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
           select: {
             cohortMembers: {
               where: {
+                isActive: true,
                 user: {
                   isAdmin: false
                 }
@@ -133,6 +135,7 @@ router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => 
           select: {
             cohortMembers: {
               where: {
+                isActive: true,
                 user: {
                   isAdmin: false
                 }

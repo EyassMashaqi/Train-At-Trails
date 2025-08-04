@@ -42,7 +42,7 @@ const Dashboard: React.FC = () => {
         const hasActive = response.data.hasActiveCohort;
         setHasCohortAccess(hasActive);
         
-        // Redirect to cohort history if no active cohort
+        // Redirect to cohort history if no active cohort or not enrolled
         if (!hasActive) {
           navigate('/cohort-history');
         }

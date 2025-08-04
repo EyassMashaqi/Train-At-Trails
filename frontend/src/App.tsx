@@ -15,7 +15,9 @@ import GameView from './pages/GameView';
 import NotFound from './pages/NotFound';
 import CohortManagement from './pages/CohortManagement';
 import UserManagement from './pages/UserManagement';
+import UserManagementEnhanced from './pages/UserManagementEnhanced';
 import CohortHistory from './pages/CohortHistory';
+import CohortHistoryEnhanced from './pages/CohortHistoryEnhanced';
 
 function App() {
   return (
@@ -36,7 +38,7 @@ function App() {
               } 
             />
             <Route 
-              path="/cohort-history" 
+              path="/cohort-history-old" 
               element={
                 <ProtectedRoute>
                   <NonAdminRoute>
@@ -75,8 +77,36 @@ function App() {
               path="/admin/users" 
               element={
                 <AdminRoute>
+                  <UserManagementEnhanced />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/users-legacy" 
+              element={
+                <AdminRoute>
                   <UserManagement />
                 </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/cohort-history" 
+              element={
+                <ProtectedRoute>
+                  <NonAdminRoute>
+                    <CohortHistoryEnhanced />
+                  </NonAdminRoute>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cohort-history-legacy" 
+              element={
+                <ProtectedRoute>
+                  <NonAdminRoute>
+                    <CohortHistory />
+                  </NonAdminRoute>
+                </ProtectedRoute>
               } 
             />
             <Route 

@@ -206,19 +206,32 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         }
       },
       orderBy: [
-        { isActive: 'desc' }, // Active cohorts first
-        { graduatedAt: 'desc' }, // Then most recently graduated
+        { status: 'asc' }, // ENROLLED first, then others
+        { statusChangedAt: 'desc' }, // Most recently changed
         { joinedAt: 'desc' } // Then most recently joined
       ]
     });
 
-    // Separate active and graduated cohorts
+    // Separate cohorts by status
     const activeCohorts = cohortMemberships.filter(membership => 
-      membership.isActive && !membership.isGraduated
+      membership.status === 'ENROLLED'
     );
     
     const graduatedCohorts = cohortMemberships.filter(membership => 
-      membership.isGraduated
+      membership.status === 'GRADUATED'
+    );
+
+    const removedCohorts = cohortMemberships.filter(membership => 
+      membership.status === 'REMOVED'
+    );
+
+    const suspendedCohorts = cohortMemberships.filter(membership => 
+      membership.status === 'SUSPENDED'
+    );
+
+    // All non-active cohorts for history display
+    const historyCohorts = cohortMemberships.filter(membership => 
+      membership.status !== 'ENROLLED'
     );
 
     res.json({
@@ -230,6 +243,9 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         endDate: membership.cohort.endDate,
         joinedAt: membership.joinedAt,
         currentStep: membership.currentStep,
+        status: membership.status,
+        statusChangedAt: membership.statusChangedAt,
+        statusChangedBy: membership.statusChangedBy,
         isActive: membership.isActive
       })),
       graduatedCohorts: graduatedCohorts.map(membership => ({
@@ -239,12 +255,32 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         startDate: membership.cohort.startDate,
         endDate: membership.cohort.endDate,
         joinedAt: membership.joinedAt,
-        graduatedAt: membership.graduatedAt,
-        graduatedBy: membership.graduatedBy,
-        finalStep: membership.currentStep
+        graduatedAt: membership.graduatedAt || membership.statusChangedAt,
+        graduatedBy: membership.graduatedBy || membership.statusChangedBy,
+        finalStep: membership.currentStep,
+        status: membership.status,
+        statusChangedAt: membership.statusChangedAt
       })),
+      historyCohorts: historyCohorts.map(membership => ({
+        id: membership.cohort.id,
+        name: membership.cohort.name,
+        description: membership.cohort.description,
+        startDate: membership.cohort.startDate,
+        endDate: membership.cohort.endDate,
+        joinedAt: membership.joinedAt,
+        status: membership.status,
+        statusChangedAt: membership.statusChangedAt,
+        statusChangedBy: membership.statusChangedBy,
+        finalStep: membership.currentStep,
+        // Legacy fields for backward compatibility
+        graduatedAt: membership.status === 'GRADUATED' ? (membership.graduatedAt || membership.statusChangedAt) : null,
+        graduatedBy: membership.status === 'GRADUATED' ? (membership.graduatedBy || membership.statusChangedBy) : null
+      })),
+      removedCohorts,
+      suspendedCohorts,
       hasActiveCohort: activeCohorts.length > 0,
       hasGraduatedCohorts: graduatedCohorts.length > 0,
+      hasHistoryCohorts: historyCohorts.length > 0,
       totalCohorts: cohortMemberships.length
     });
   } catch (error) {

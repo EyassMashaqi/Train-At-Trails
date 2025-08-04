@@ -8,18 +8,20 @@ datasource db {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  email           String            @unique
-  password        String
-  fullName        String
-  trainName       String?
-  isAdmin         Boolean           @default(false)
-  currentStep     Int               @default(0)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  answers         Answer[]
-  miniAnswers     MiniAnswer[]
-  cohortMembers   CohortMember[]    // Many-to-many relationship with cohorts
+  id                String            @id @default(cuid())
+  email             String            @unique
+  password          String
+  fullName          String
+  trainName         String?
+  isAdmin           Boolean           @default(false)
+  currentStep       Int               @default(0)
+  currentCohortId   String?           // Reference to the user's current active cohort
+  currentCohort     Cohort?           @relation("CurrentCohort", fields: [currentCohortId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  answers           Answer[]
+  miniAnswers       MiniAnswer[]
+  cohortMembers     CohortMember[]    // Many-to-many relationship with cohorts
 
   @@map("users")
 }
@@ -157,36 +159,42 @@ model GameConfig {
 }
 
 model Cohort {
-  id             String          @id @default(cuid())
-  name           String          @unique
-  description    String?
-  startDate      DateTime
-  endDate        DateTime?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  modules        Module[]
-  questions      Question[]
-  answers        Answer[]
-  miniAnswers    MiniAnswer[]
-  cohortMembers  CohortMember[]
-  gameConfig     CohortGameConfig?
+  id               String          @id @default(cuid())
+  name             String          @unique
+  description      String?
+  startDate        DateTime
+  endDate          DateTime?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  modules          Module[]
+  questions        Question[]
+  answers          Answer[]
+  miniAnswers      MiniAnswer[]
+  cohortMembers    CohortMember[]
+  currentUsers     User[]          @relation("CurrentCohort") // Users who have this as current cohort
+  gameConfig       CohortGameConfig?
 
   @@map("cohorts")
 }
 
 model CohortMember {
-  id            String    @id @default(cuid())
-  userId        String
-  cohortId      String
-  currentStep   Int       @default(0)
-  joinedAt      DateTime  @default(now())
-  isActive      Boolean   @default(true)
-  isGraduated   Boolean   @default(false)
-  graduatedAt   DateTime?
-  graduatedBy   String?
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cohort        Cohort    @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  userId          String
+  cohortId        String
+  currentStep     Int       @default(0)
+  joinedAt        DateTime  @default(now())
+  // Status management - replaces simple isActive/isGraduated
+  status          String    @default("ENROLLED") // ENROLLED, GRADUATED, REMOVED, SUSPENDED
+  statusChangedAt DateTime  @default(now())
+  statusChangedBy String?   // Admin who changed the status
+  // Legacy fields for backward compatibility
+  isActive        Boolean   @default(true)
+  isGraduated     Boolean   @default(false)
+  graduatedAt     DateTime?
+  graduatedBy     String?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cohort          Cohort    @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cohortId]) // One membership per user per cohort
   @@map("cohort_members")

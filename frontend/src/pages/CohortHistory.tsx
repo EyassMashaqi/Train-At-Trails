@@ -32,7 +32,7 @@ interface CohortHistoryData {
 
 const CohortHistory: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [cohortHistory, setCohortHistory] = useState<CohortHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +54,13 @@ const CohortHistory: React.FC = () => {
       toast.error('Failed to load cohort history');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to logout?')) {
+      logout();
+      navigate('/login');
     }
   };
 
@@ -110,6 +117,24 @@ const CohortHistory: React.FC = () => {
                 alt="Lighthouse Logo" 
                 className="w-28 h-28 lighthouse-logo"
               />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+              >
+                <span className="text-xl">🏠</span>
+                <span>Return to Dashboard</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+              >
+                <span className="text-xl">🚪</span>
+                <span>Logout</span>
+              </button>
             </div>
           </div>
 
@@ -195,13 +220,23 @@ const CohortHistory: React.FC = () => {
             />
           </div>
 
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2 mx-auto"
-          >
-            <span className="text-xl">🏠</span>
-            <span>Return to Dashboard</span>
-          </button>
+          {/* Action Buttons */}
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">🏠</span>
+              <span>Return to Dashboard</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">🚪</span>
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
 
         <div className="space-y-12">
