@@ -4,6 +4,10 @@ import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 
+// Import images
+import BVisionRYLogo from '../assets/BVisionRY.png';
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 interface Cohort {
   id: string;
   name: string;
@@ -27,14 +31,27 @@ interface CreateCohortData {
   endDate: string;
 }
 
+interface EditCohortData extends CreateCohortData {
+  id: string;
+}
+
 const CohortManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
   const [formData, setFormData] = useState<CreateCohortData>({
+    name: '',
+    description: '',
+    startDate: '',
+    endDate: ''
+  });
+  const [editFormData, setEditFormData] = useState<CreateCohortData>({
     name: '',
     description: '',
     startDate: '',
@@ -101,6 +118,54 @@ const CohortManagement: React.FC = () => {
     navigate(`/admin?cohort=${cohortId}`);
   };
 
+  const handleEditCohort = (cohort: Cohort) => {
+    setEditingCohort(cohort);
+    setEditFormData({
+      name: cohort.name,
+      description: cohort.description || '',
+      startDate: cohort.startDate ? new Date(cohort.startDate).toISOString().slice(0, 16) : '',
+      endDate: cohort.endDate ? new Date(cohort.endDate).toISOString().slice(0, 16) : ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateCohort = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingCohort) return;
+
+    if (!editFormData.name.trim()) {
+      toast.error('Cohort name is required');
+      return;
+    }
+
+    if (!editFormData.startDate) {
+      toast.error('Start date is required');
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      await api.patch(`/admin/cohorts/${editingCohort.id}`, {
+        name: editFormData.name.trim(),
+        description: editFormData.description.trim() || null,
+        startDate: editFormData.startDate,
+        endDate: editFormData.endDate || null
+      });
+
+      toast.success('Cohort updated successfully!');
+      setShowEditModal(false);
+      setEditingCohort(null);
+      setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+      await loadCohorts();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to update cohort';
+      toast.error(errorMessage);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const toggleCohortStatus = async (cohortId: string, isActive: boolean) => {
     try {
       await api.patch(`/admin/cohorts/${cohortId}`, { isActive: !isActive });
@@ -151,7 +216,7 @@ const CohortManagement: React.FC = () => {
         <div className="text-center mb-12">
           <div className="flex justify-center items-center mb-6 space-x-8">
             <img 
-              src="./src/assets/BVisionRY.png" 
+              src={BVisionRYLogo} 
               alt="BVisionRY Company Logo" 
               className="w-44 h-16 px-3 py-2 bvisionary-logo"
             />
@@ -162,7 +227,7 @@ const CohortManagement: React.FC = () => {
               <p className="text-xl text-gray-600">Manage training cohorts and their progress</p>
             </div>
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-28 h-28 lighthouse-logo"
             />
@@ -222,7 +287,7 @@ const CohortManagement: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                       <span className="text-3xl">
-                        {cohort.isActive ? '🏫' : '⏸️'}
+                        {cohort.isActive ? '🏫' : '🚫'}
                       </span>
                       <div>
                         <h3 className="text-xl font-bold text-gray-800">
@@ -237,20 +302,32 @@ const CohortManagement: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleCohortStatus(cohort.id, cohort.isActive);
-                      }}
-                      className={`p-2 rounded-full transition-colors ${
-                        cohort.isActive 
-                          ? 'text-orange-600 hover:bg-orange-100' 
-                          : 'text-green-600 hover:bg-green-100'
-                      }`}
-                      title={cohort.isActive ? 'Deactivate Cohort' : 'Activate Cohort'}
-                    >
-                      {cohort.isActive ? '⏸️' : '▶️'}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditCohort(cohort);
+                        }}
+                        className="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition-colors"
+                        title="Edit Cohort"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCohortStatus(cohort.id, cohort.isActive);
+                        }}
+                        className={`p-2 rounded-full transition-colors ${
+                          cohort.isActive 
+                            ? 'text-red-600 hover:bg-red-100' 
+                            : 'text-green-600 hover:bg-green-100'
+                        }`}
+                        title={cohort.isActive ? 'Deactivate Cohort' : 'Activate Cohort'}
+                      >
+                        {cohort.isActive ? '🚫' : '▶️'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Cohort Description */}
@@ -402,6 +479,113 @@ const CohortManagement: React.FC = () => {
                         </div>
                       ) : (
                         'Create Cohort'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Cohort Modal */}
+        {showEditModal && editingCohort && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-90vh overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-gray-800">Edit Cohort</h3>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingCohort(null);
+                      setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateCohort} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Cohort Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.name}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      placeholder="Enter cohort name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={editFormData.description}
+                      onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                      rows={3}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      placeholder="Enter cohort description (optional)"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Date *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={editFormData.startDate}
+                        onChange={(e) => setEditFormData({ ...editFormData, startDate: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        End Date
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={editFormData.endDate}
+                        onChange={(e) => setEditFormData({ ...editFormData, endDate: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setEditingCohort(null);
+                        setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+                      }}
+                      className="px-6 py-3 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={editLoading}
+                      className="px-6 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg hover:from-primary-700 hover:to-secondary-700 transition-all duration-200 font-medium shadow-lg disabled:opacity-50"
+                    >
+                      {editLoading ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Updating...</span>
+                        </div>
+                      ) : (
+                        'Update Cohort'
                       )}
                     </button>
                   </div>

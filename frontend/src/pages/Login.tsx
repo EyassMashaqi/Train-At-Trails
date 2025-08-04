@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
+// Import images
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -103,7 +106,7 @@ const Login: React.FC = () => {
               BVisionRY Lighthouse
             </h1>
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-32 h-32 lighthouse-logo"
             />

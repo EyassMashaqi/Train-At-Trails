@@ -59,6 +59,30 @@ router.post('/register', async (req, res) => {
       }
     });
 
+    // Assign user to Default Cohort
+    try {
+      const defaultCohort = await prisma.cohort.findFirst({
+        where: { name: 'Default Cohort', isActive: true }
+      });
+
+      if (defaultCohort) {
+        await prisma.cohortMember.create({
+          data: {
+            userId: user.id,
+            cohortId: defaultCohort.id,
+            currentStep: 0,
+            isActive: true
+          }
+        });
+        console.log(`✅ User ${user.email} assigned to Default Cohort`);
+      } else {
+        console.log('⚠️ Default Cohort not found - user not assigned to any cohort');
+      }
+    } catch (cohortError) {
+      console.error('❌ Failed to assign user to Default Cohort:', cohortError);
+      // Don't fail registration if cohort assignment fails
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },

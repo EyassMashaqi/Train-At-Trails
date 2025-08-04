@@ -4,6 +4,10 @@ import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 
+// Import images
+import BVisionRYLogo from '../assets/BVisionRY.png';
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 interface User {
   id: string;
   email: string;
@@ -57,20 +61,17 @@ const UserManagement: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading user management data...');
       
       const [usersResponse, cohortsResponse] = await Promise.all([
         api.get('/admin/cohorts/users/all'),
         api.get('/admin/cohorts')
       ]);
       
-      console.log('✅ Users response:', usersResponse.data);
-      console.log('✅ Cohorts response:', cohortsResponse.data);
-      
-      setUsers(usersResponse.data.users || []);
+      // Filter out admin users from the user list
+      const nonAdminUsers = (usersResponse.data.users || []).filter((user: User) => !user.isAdmin);
+      setUsers(nonAdminUsers);
       setCohorts(cohortsResponse.data.cohorts || []);
       
-      console.log('✅ Data loaded successfully');
     } catch (error) {
       console.error('❌ Failed to load data:', error);
       toast.error('Failed to load users and cohorts');
@@ -148,7 +149,7 @@ const UserManagement: React.FC = () => {
         <div className="text-center mb-12">
           <div className="flex justify-center items-center mb-6 space-x-8">
             <img 
-              src="./src/assets/BVisionRY.png" 
+              src={BVisionRYLogo} 
               alt="BVisionRY Company Logo" 
               className="w-44 h-16 px-3 py-2 bvisionary-logo"
             />
@@ -159,7 +160,7 @@ const UserManagement: React.FC = () => {
               <p className="text-xl text-gray-600">Manage users and their cohort assignments</p>
             </div>
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-28 h-28 lighthouse-logo"
             />
