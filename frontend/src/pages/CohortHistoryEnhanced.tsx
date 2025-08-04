@@ -383,21 +383,6 @@ const CohortHistoryEnhanced: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* No active cohort message */}
-          {!cohortHistory.hasActiveCohort && cohortHistory.hasHistoryCohorts && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <div className="text-center">
-                <span className="text-4xl">⏳</span>
-                <h3 className="text-lg font-semibold text-yellow-800 mt-2 mb-2">
-                  No Active Training
-                </h3>
-                <p className="text-yellow-700">
-                  You're not currently enrolled in any training cohort. Contact an admin if you need to be assigned to a new cohort.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

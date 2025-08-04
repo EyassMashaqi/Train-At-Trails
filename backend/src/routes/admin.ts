@@ -2050,7 +2050,12 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
 
     // Get all users with their status in this cohort
     const cohortMembers = await (prisma as any).cohortMember.findMany({
-      where: { cohortId },
+      where: { 
+        cohortId,
+        user: {
+          isAdmin: false // Filter out admin users
+        }
+      },
       include: {
         user: {
           select: {

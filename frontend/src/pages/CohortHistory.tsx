@@ -366,20 +366,6 @@ const CohortHistory: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* No Active Cohorts but has graduated cohorts */}
-          {!cohortHistory?.hasActiveCohort && cohortHistory?.hasGraduatedCohorts && (
-            <div className="text-center py-8">
-              <div className="bg-white rounded-2xl shadow-xl p-8 max-w-2xl mx-auto">
-                <span className="text-6xl mb-4 block">⏳</span>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Waiting for Next Assignment</h3>
-                <p className="text-gray-600">
-                  You've successfully completed previous training cohorts! Please wait for an administrator 
-                  to assign you to a new cohort for your next training journey.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

@@ -164,7 +164,12 @@ router.get('/:cohortId/members', authenticateToken, requireAdmin, async (req, re
     const { cohortId } = req.params;
 
     const members = await (prisma as any).cohortMember.findMany({
-      where: { cohortId },
+      where: { 
+        cohortId,
+        user: {
+          isAdmin: false // Filter out admin users
+        }
+      },
       include: {
         user: {
           select: {
@@ -326,6 +331,7 @@ router.delete('/:cohortId/members/:userId', authenticateToken, requireAdmin, asy
 router.get('/users/all', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const users = await (prisma as any).user.findMany({
+      where: { isAdmin: false }, // Filter out admin users
       select: {
         id: true,
         email: true,
