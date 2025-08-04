@@ -12,7 +12,13 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
       include: {
         _count: {
           select: {
-            cohortMembers: true,
+            cohortMembers: {
+              where: {
+                user: {
+                  isAdmin: false
+                }
+              }
+            },
             modules: true,
             questions: true
           }
@@ -59,7 +65,13 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       include: {
         _count: {
           select: {
-            cohortMembers: true,
+            cohortMembers: {
+              where: {
+                user: {
+                  isAdmin: false
+                }
+              }
+            },
             modules: true,
             questions: true
           }
@@ -119,7 +131,13 @@ router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => 
       include: {
         _count: {
           select: {
-            cohortMembers: true,
+            cohortMembers: {
+              where: {
+                user: {
+                  isAdmin: false
+                }
+              }
+            },
             modules: true,
             questions: true
           }

@@ -376,7 +376,7 @@ const CohortManagement: React.FC = () => {
                   {/* Action Hint */}
                   <div className="mt-4 text-center">
                     <span className="text-xs text-primary-600 font-medium">
-                      Click to manage this cohort →
+                      Click to open this cohort →
                     </span>
                   </div>
                 </div>

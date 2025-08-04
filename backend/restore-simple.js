@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function restoreUsers() {
-  console.log('🚂 Restoring Train at Trails data...');
+  console.log('🚂 Restoring BVisionRY Lighthouse data...');
 
   try {
     // Create default cohort

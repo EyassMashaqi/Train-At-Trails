@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { NetworkProvider } from './contexts/NetworkContext';
 import { useAuth } from './hooks/useAuth';
 import { Toaster } from 'react-hot-toast';
 
@@ -17,11 +18,12 @@ import UserManagement from './pages/UserManagement';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">
-          <Toaster position="top-right" />
-          <Routes>
+    <NetworkProvider serverUrl="http://localhost:3000/api/health">
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">
+            <Toaster position="top-right" />
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route 
@@ -81,6 +83,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+    </NetworkProvider>
   );
 }
 
