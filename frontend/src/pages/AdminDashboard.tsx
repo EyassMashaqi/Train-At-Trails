@@ -5,6 +5,9 @@ import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
 
+// Import the dashboard icon
+import DashboardIcon from '../assets/dashboard-icon.png';
+
 interface User {
   id: number;
   fullName: string;
@@ -933,7 +936,11 @@ const AdminDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <span className="text-6xl mr-4 drop-shadow-lg">🔧</span>
+              <img 
+                src={DashboardIcon} 
+                alt="Admin Dashboard" 
+                className="w-16 h-16 mr-4 drop-shadow-lg"
+              />
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   Admin Dashboard
