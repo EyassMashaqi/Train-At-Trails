@@ -213,29 +213,29 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
     });
 
     // Separate cohorts by status
-    const activeCohorts = cohortMemberships.filter(membership => 
+    const activeCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'ENROLLED'
     );
     
-    const graduatedCohorts = cohortMemberships.filter(membership => 
+    const graduatedCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'GRADUATED'
     );
 
-    const removedCohorts = cohortMemberships.filter(membership => 
+    const removedCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'REMOVED'
     );
 
-    const suspendedCohorts = cohortMemberships.filter(membership => 
+    const suspendedCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'SUSPENDED'
     );
 
     // All non-active cohorts for history display
-    const historyCohorts = cohortMemberships.filter(membership => 
+    const historyCohorts = cohortMemberships.filter((membership: any) => 
       membership.status !== 'ENROLLED'
     );
 
     res.json({
-      activeCohorts: activeCohorts.map(membership => ({
+      activeCohorts: activeCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
         description: membership.cohort.description,
@@ -248,7 +248,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         statusChangedBy: membership.statusChangedBy,
         isActive: membership.isActive
       })),
-      graduatedCohorts: graduatedCohorts.map(membership => ({
+      graduatedCohorts: graduatedCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
         description: membership.cohort.description,
@@ -261,7 +261,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         status: membership.status,
         statusChangedAt: membership.statusChangedAt
       })),
-      historyCohorts: historyCohorts.map(membership => ({
+      historyCohorts: historyCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
         description: membership.cohort.description,
@@ -394,28 +394,27 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     }
 
     // Get user's default cohort for now (first active membership)
-    // For now, just create the answer without cohort validation since Prisma types aren't working
-    // const userCohort = await (prisma as any).cohortMember.findFirst({
-    //   where: { 
-    //     userId,
-    //     isActive: true
-    //   },
-    //   include: {
-    //     cohort: true
-    //   }
-    // });
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
 
-    // if (!userCohort) {
-    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
-    // }
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
 
     // Create new answer
     const answer = await prisma.answer.create({
       data: {
         content: content.trim(),
         userId,
-        questionId: currentQuestion.id
-        // cohortId: userCohort.cohortId  // Will add this back when Prisma types work
+        questionId: currentQuestion.id,
+        cohortId: userCohort.cohortId
       },
       include: {
         question: {

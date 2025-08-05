@@ -262,14 +262,14 @@ const CohortHistoryEnhanced: React.FC = () => {
 
         <div className="grid gap-8">
           {/* Active Cohorts */}
-          {cohortHistory.hasActiveCohort && (
+          {cohortHistory?.hasActiveCohort && (
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                 <span className="text-2xl mr-3">🎯</span>
                 Current Training
               </h2>
               <div className="grid gap-4">
-                {cohortHistory.activeCohorts.map((cohort) => (
+                {cohortHistory.activeCohorts?.map((cohort) => (
                   <div
                     key={cohort.id}
                     className="border border-green-200 bg-green-50 rounded-lg p-6 hover:border-green-300 transition-colors cursor-pointer"
@@ -313,14 +313,14 @@ const CohortHistoryEnhanced: React.FC = () => {
           )}
 
           {/* Training History */}
-          {cohortHistory.hasHistoryCohorts && (
+          {cohortHistory?.hasHistoryCohorts && (
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                 <span className="text-2xl mr-3">📚</span>
                 Training History
               </h2>
               <div className="grid gap-4">
-                {cohortHistory.historyCohorts.map((cohort) => (
+                {cohortHistory.historyCohorts?.map((cohort) => (
                   <div
                     key={cohort.id}
                     className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"

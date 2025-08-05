@@ -149,7 +149,7 @@ router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => 
     });
 
     res.json({ cohort });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating cohort:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ message: 'Cohort not found' });

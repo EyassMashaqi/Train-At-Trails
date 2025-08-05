@@ -307,13 +307,27 @@ router.post('/questions', async (req: AuthRequest, res) => {
       contents 
     } = req.body;
 
-    // Check if question number already exists
+    // Get the default cohort
+    const defaultCohort = await prisma.cohort.findFirst({
+      where: { name: 'Default Cohort', isActive: true }
+    });
+
+    if (!defaultCohort) {
+      return res.status(500).json({ error: 'Default cohort not found' });
+    }
+
+    // Check if question number already exists in this cohort
     const existingQuestion = await prisma.question.findUnique({
-      where: { questionNumber }
+      where: { 
+        questionNumber_cohortId: {
+          questionNumber: questionNumber,
+          cohortId: defaultCohort.id
+        }
+      }
     });
 
     if (existingQuestion) {
-      return res.status(400).json({ error: 'Question number already exists' });
+      return res.status(400).json({ error: 'Question number already exists in this cohort' });
     }
 
     // Create question with content sections
@@ -329,7 +343,8 @@ router.post('/questions', async (req: AuthRequest, res) => {
           points: points || 100,
           bonusPoints: bonusPoints || 50,
           isActive: false,
-          isReleased: false
+          isReleased: false,
+          cohortId: defaultCohort.id
         }
       });
 

@@ -24,6 +24,7 @@ interface CohortMember {
   currentStep: number;
   joinedAt: string;
   isActive: boolean;
+  status: string; // ENROLLED, GRADUATED, REMOVED, SUSPENDED
   cohort: {
     id: string;
     name: string;
@@ -258,7 +259,7 @@ const UserManagement: React.FC = () => {
                                 <span className="text-gray-500">
                                   (Step {member.currentStep})
                                 </span>
-                                {member.isActive && !member.isGraduated && (
+                                {member.isActive && member.status === 'ENROLLED' && (
                                   <button
                                     onClick={() => handleGraduateUser(user.id, member.cohortId, member.cohort.name, user.fullName)}
                                     className="text-green-600 hover:text-green-800 ml-1"
