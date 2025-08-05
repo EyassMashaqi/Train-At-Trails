@@ -198,7 +198,9 @@ const AdminDashboard: React.FC = () => {
       console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin, selectedCohortId });
       
       // First load cohorts to get cohort details
+      console.log('🔄 Loading cohorts...');
       const cohortsResponse = await adminService.getAllCohorts();
+      console.log('✅ Cohorts loaded:', cohortsResponse.data);
       setAllCohorts(cohortsResponse.data.cohorts || []);
       
       // Find selected cohort details
@@ -206,32 +208,62 @@ const AdminDashboard: React.FC = () => {
       if (selectedCohortId) {
         currentCohort = cohortsResponse.data.cohorts?.find((c: any) => c.id === selectedCohortId);
         setSelectedCohort(currentCohort);
+        console.log('🎯 Selected cohort:', currentCohort);
       }
 
       // Load data based on whether a cohort is selected
       let usersResponse, pendingResponse, statsResponse;
       if (selectedCohortId) {
+        console.log('🔄 Loading cohort-specific data...');
         // Load cohort-specific data
         [usersResponse, pendingResponse, statsResponse] = await Promise.all([
-          adminService.getCohortUsers(selectedCohortId),
-          adminService.getPendingAnswers(), // TODO: filter by cohort if endpoint supports it
-          adminService.getGameStats(), // TODO: filter by cohort if endpoint supports it
+          adminService.getCohortUsers(selectedCohortId).catch(err => {
+            console.error('❌ Failed to load cohort users:', err);
+            throw err;
+          }),
+          adminService.getPendingAnswers().catch(err => {
+            console.error('❌ Failed to load pending answers:', err);
+            throw err;
+          }), // TODO: filter by cohort if endpoint supports it
+          adminService.getGameStats().catch(err => {
+            console.error('❌ Failed to load game stats:', err);
+            throw err;
+          }), // TODO: filter by cohort if endpoint supports it
         ]);
+        console.log('✅ Cohort data loaded:', { 
+          users: usersResponse.data.members || usersResponse.data.users || [], 
+          pending: pendingResponse.data.pendingAnswers?.length || 0,
+          stats: statsResponse.data 
+        });
       } else {
+        console.log('🔄 Loading all data...');
         // Load all data
         [usersResponse, pendingResponse, statsResponse] = await Promise.all([
           adminService.getAllUsers(),
           adminService.getPendingAnswers(),
           adminService.getGameStats(),
         ]);
+        console.log('✅ All data loaded');
       }
 
+      console.log('🔄 Loading modules and progress...');
       const [modulesResponse, progressResponse] = await Promise.all([
-        adminService.getAllModules(selectedCohortId || undefined),
-        gameService.getProgress() // Get totalSteps
+        adminService.getAllModules(selectedCohortId || undefined).catch(err => {
+          console.error('❌ Failed to load modules:', err);
+          throw err;
+        }),
+        gameService.getProgress().catch(err => {
+          console.error('❌ Failed to load progress:', err);
+          throw err;
+        }) // Get totalSteps
       ]);
 
-      setUsers(usersResponse.data.users || usersResponse.data.cohortUsers || []);
+      console.log('✅ Modules and progress loaded:', { 
+        modules: modulesResponse.data.modules?.length || 0,
+        totalSteps: progressResponse.data.totalSteps 
+      });
+
+      setUsers(usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || []);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
@@ -240,8 +272,10 @@ const AdminDashboard: React.FC = () => {
       if (progressResponse.data.totalSteps) {
         setTotalSteps(progressResponse.data.totalSteps);
       }
+
+      console.log('🎉 Admin data loading complete!');
     } catch (error: unknown) {
-      console.error('Admin data loading error:', error);
+      console.error('❌ Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
       if (
         typeof error === 'object' &&

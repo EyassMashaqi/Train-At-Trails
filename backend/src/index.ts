@@ -19,7 +19,13 @@ import { startMiniQuestionScheduler } from './services/miniQuestionScheduler';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+
+// Debug logging
+console.log('🔧 Server Configuration:');
+console.log('  - Port:', PORT);
+console.log('  - Environment:', process.env.NODE_ENV || 'development');
+console.log('  - Host: 0.0.0.0 (accepting external connections)');
 
 // Security middleware
 app.use(helmet());
@@ -34,15 +40,69 @@ app.use(limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5178', 'http://localhost:3000'],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173', 
+      'http://localhost:5174', 
+      'http://localhost:5175', 
+      'http://localhost:5178', 
+      'http://localhost:3000',
+      /^https:\/\/.*\.devtunnels\.ms$/,  // VS Code dev tunnels
+      /^https:\/\/.*\.githubpreview\.dev$/,  // GitHub Codespaces
+      /^https:\/\/.*\.github\.dev$/  // GitHub dev environments
+    ];
+    
+    // Check if origin matches any allowed pattern
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      } else {
+        return allowedOrigin.test(origin);
+      }
+    });
+    
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
+  ],
+  optionsSuccessStatus: 200 // for legacy browser support
 }));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Additional headers for better compatibility
+app.use((req, res, next) => {
+  // Set additional CORS headers for better compatibility
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,Pragma,Expires');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -75,9 +135,10 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🏮 BVisionRY Lighthouse server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+const HOST = '0.0.0.0'; // Bind to all interfaces for port forwarding
+app.listen(PORT, HOST, () => {
+  console.log(`🏮 BVisionRY Lighthouse server running on http://${HOST}:${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   
   // Start the question release scheduler
   startQuestionScheduler();
