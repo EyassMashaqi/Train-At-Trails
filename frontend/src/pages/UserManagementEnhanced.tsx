@@ -233,11 +233,11 @@ const UserManagementEnhanced: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/admin')}
+                onClick={() => navigate('/cohorts')}
                 className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
               >
-                <span className="text-xl">🏠</span>
-                <span className="font-medium">Dashboard</span>
+                <span className="text-xl">🏫</span>
+                <span className="font-medium">Cohorts</span>
               </button>
               <span className="text-gray-300">|</span>
               <div className="flex items-center space-x-2">

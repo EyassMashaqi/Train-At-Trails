@@ -185,19 +185,50 @@ const AdminDashboard: React.FC = () => {
   const [createFormValidation, setCreateFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
   const [editFormValidation, setEditFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
 
+  // Cohort state
+  const [allCohorts, setAllCohorts] = useState<any[]>([]);
+  const [selectedCohort, setSelectedCohort] = useState<any>(null);
+
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
-      const [usersResponse, pendingResponse, statsResponse, modulesResponse, progressResponse] = await Promise.all([
-        adminService.getAllUsers(),
-        adminService.getPendingAnswers(),
-        adminService.getGameStats(),
-        adminService.getAllModules(),
+      console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin, selectedCohortId });
+      
+      // First load cohorts to get cohort details
+      const cohortsResponse = await adminService.getAllCohorts();
+      setAllCohorts(cohortsResponse.data.cohorts || []);
+      
+      // Find selected cohort details
+      let currentCohort = null;
+      if (selectedCohortId) {
+        currentCohort = cohortsResponse.data.cohorts?.find((c: any) => c.id === selectedCohortId);
+        setSelectedCohort(currentCohort);
+      }
+
+      // Load data based on whether a cohort is selected
+      let usersResponse, pendingResponse, statsResponse;
+      if (selectedCohortId) {
+        // Load cohort-specific data
+        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+          adminService.getCohortUsers(selectedCohortId),
+          adminService.getPendingAnswers(), // TODO: filter by cohort if endpoint supports it
+          adminService.getGameStats(), // TODO: filter by cohort if endpoint supports it
+        ]);
+      } else {
+        // Load all data
+        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+          adminService.getAllUsers(),
+          adminService.getPendingAnswers(),
+          adminService.getGameStats(),
+        ]);
+      }
+
+      const [modulesResponse, progressResponse] = await Promise.all([
+        adminService.getAllModules(selectedCohortId || undefined),
         gameService.getProgress() // Get totalSteps
       ]);
 
-      setUsers(usersResponse.data.users);
+      setUsers(usersResponse.data.users || usersResponse.data.cohortUsers || []);
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
@@ -229,7 +260,7 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, user?.isAdmin]);
+  }, [user?.email, user?.isAdmin, selectedCohortId]);
 
   useEffect(() => {
     loadAdminData();
@@ -351,6 +382,14 @@ const AdminDashboard: React.FC = () => {
   const renderOverview = () => {
     if (!stats) return null;
 
+    // Use cohort-specific counts if a cohort is selected
+    const displayStats = selectedCohortId ? {
+      totalUsers: users.length,
+      totalAnswers: stats.totalAnswers, // TODO: filter by cohort when backend supports it
+      pendingAnswers: pendingAnswers.length,
+      averageProgress: stats.averageProgress
+    } : stats;
+
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -360,8 +399,10 @@ const AdminDashboard: React.FC = () => {
                 <span className="text-primary-600 text-2xl">👥</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-primary-600">Total Users</p>
-                <p className="text-2xl font-bold text-primary-900">{stats.totalUsers}</p>
+                <p className="text-sm font-medium text-primary-600">
+                  {selectedCohortId ? 'Cohort Users' : 'Total Users'}
+                </p>
+                <p className="text-2xl font-bold text-primary-900">{displayStats.totalUsers}</p>
               </div>
             </div>
           </div>
@@ -373,7 +414,7 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-accent-600">Total Answers</p>
-                <p className="text-2xl font-bold text-accent-900">{stats.totalAnswers}</p>
+                <p className="text-2xl font-bold text-accent-900">{displayStats.totalAnswers}</p>
               </div>
             </div>
           </div>
@@ -385,7 +426,7 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-secondary-600">Pending Reviews</p>
-                <p className="text-2xl font-bold text-secondary-900">{stats.pendingAnswers}</p>
+                <p className="text-2xl font-bold text-secondary-900">{displayStats.pendingAnswers}</p>
               </div>
             </div>
           </div>
@@ -398,7 +439,7 @@ const AdminDashboard: React.FC = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-purple-600">Avg Progress</p>
                 <p className="text-2xl font-bold text-purple-900">
-                  {stats.averageProgress ? stats.averageProgress.toFixed(1) : '0.0'}%
+                  {displayStats.averageProgress ? displayStats.averageProgress.toFixed(1) : '0.0'}%
                 </p>
               </div>
             </div>
@@ -899,7 +940,7 @@ const AdminDashboard: React.FC = () => {
                 </h1>
                 <p className="text-lg text-gray-600">
                   Manage users and review answers
-                  {selectedCohortId && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohortId}</span>}
+                  {selectedCohort && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohort.name}</span>}
                 </p>
               </div>
             </div>
@@ -909,7 +950,7 @@ const AdminDashboard: React.FC = () => {
                 className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center shadow-lg"
               >
                 <span className="mr-2">🎯</span>
-                Manage Cohorts
+                Change Cohort
               </button>
               <button
                 onClick={logout}
@@ -2042,7 +2083,15 @@ const AdminDashboard: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
-                    const response = await adminService.createModule(moduleForm);
+                    if (!selectedCohortId) {
+                      toast.error('Please select a cohort first before creating modules');
+                      return;
+                    }
+
+                    const response = await adminService.createModule({
+                      ...moduleForm,
+                      cohortId: selectedCohortId
+                    });
                     const newModule = response.data;
                     
                     // Add new module to state

@@ -172,12 +172,16 @@ export const adminService = {
   getGameStats: () => api.get('/admin/stats'),
 
   // Module management (mapped to questions for compatibility)
-  getAllModules: () => api.get('/admin/modules'), // This still works as it returns virtual modules
+  getAllModules: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/modules${params}`);
+  },
   
   createModule: (moduleData: {
     moduleNumber: number;
     title: string;
     description: string;
+    cohortId: string;
   }) => {
     // Use the real module creation endpoint
     return api.post('/admin/modules', moduleData);
@@ -303,7 +307,10 @@ export const adminService = {
   deleteTopic: (topicId: string) => api.delete(`/admin/questions/${topicId}`),
 
   // Question management (legacy)
-  getAllQuestions: () => api.get('/admin/questions'),
+  getAllQuestions: (cohortId?: string) => {
+    const params = cohortId ? { cohortId } : {};
+    return api.get('/admin/questions', { params });
+  },
   
   getQuestionAnswers: (questionId: number) => api.get(`/admin/questions/${questionId}/answers`),
   
@@ -393,6 +400,13 @@ export const adminService = {
 
   // Get all mini-answers for admin dashboard
   getAllMiniAnswers: () => api.get('/admin/mini-answers'),
+
+  // Cohort management
+  getAllCohorts: () => api.get('/admin/cohorts'),
+  
+  getCohortUsers: (cohortId: string) => api.get(`/admin/cohort/${cohortId}/users`),
+  
+  getUsersWithCohorts: () => api.get('/admin/users-with-cohorts'),
 
   // Graduate user from cohort
   graduateUser: (userId: string, cohortId: string) => 

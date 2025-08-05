@@ -232,7 +232,16 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
 // Get all questions
 router.get('/questions', async (req: AuthRequest, res) => {
   try {
+    const { cohortId } = req.query;
+    
+    // Build filter conditions
+    const whereClause: any = {};
+    if (cohortId && cohortId !== 'all') {
+      whereClause.cohortId = cohortId as string;
+    }
+
     const questions = await prisma.question.findMany({
+      where: whereClause,
       include: {
         _count: {
           select: {
@@ -727,7 +736,16 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
 // Get all modules with their topics
 router.get('/modules', async (req: AuthRequest, res) => {
   try {
+    const { cohortId } = req.query;
+
+    // Build the where clause
+    const whereClause: any = {};
+    if (cohortId) {
+      whereClause.cohortId = cohortId as string;
+    }
+
     const modules = await (prisma as any).module.findMany({
+      where: whereClause,
       include: {
         questions: {
           include: {
@@ -754,6 +772,12 @@ router.get('/modules', async (req: AuthRequest, res) => {
             }
           },
           orderBy: { topicNumber: 'asc' }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       },
       orderBy: { moduleNumber: 'asc' }
@@ -813,24 +837,37 @@ router.post('/modules', async (req: AuthRequest, res) => {
     const { 
       moduleNumber,
       title, 
-      description 
+      description,
+      cohortId
     } = req.body;
 
     // Validate required fields
-    if (!moduleNumber || !title || !description) {
+    if (!moduleNumber || !title || !description || !cohortId) {
       return res.status(400).json({ 
-        error: 'Missing required fields: moduleNumber, title, description' 
+        error: 'Missing required fields: moduleNumber, title, description, cohortId' 
       });
     }
 
-    // Check if module number already exists
-    const existingModule = await (prisma as any).module.findUnique({
-      where: { moduleNumber: parseInt(moduleNumber) }
+    // Verify cohort exists
+    const cohort = await (prisma as any).cohort.findUnique({
+      where: { id: cohortId }
+    });
+
+    if (!cohort) {
+      return res.status(400).json({ error: 'Cohort not found' });
+    }
+
+    // Check if module number already exists in this cohort
+    const existingModule = await (prisma as any).module.findFirst({
+      where: { 
+        moduleNumber: parseInt(moduleNumber),
+        cohortId: cohortId
+      }
     });
 
     if (existingModule) {
       return res.status(400).json({ 
-        error: `Module ${moduleNumber} already exists` 
+        error: `Module ${moduleNumber} already exists in this cohort` 
       });
     }
 
@@ -839,6 +876,7 @@ router.post('/modules', async (req: AuthRequest, res) => {
         moduleNumber: parseInt(moduleNumber),
         title,
         description,
+        cohortId,
         isActive: false,
         isReleased: false
       }
@@ -1155,7 +1193,8 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
           isReleased: false,
           isActive: false,
           moduleId,
-          topicNumber: parseInt(topicNumber)
+          topicNumber: parseInt(topicNumber),
+          cohortId: module.cohortId // Use the module's cohortId
         } as any
       });
 
