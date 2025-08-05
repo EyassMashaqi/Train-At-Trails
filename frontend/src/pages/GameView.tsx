@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -183,9 +183,9 @@ const GameView: React.FC = () => {
     loadGameData();
   }, []);
 
-  // Update target question when progress or modules change
-  useEffect(() => {
-    if (!progress || !modules || modules.length === 0) return;
+  // Calculate target question based on current progress and modules
+  const calculateTargetQuestion = useMemo(() => {
+    if (!progress || !modules || modules.length === 0) return null;
 
     const userCurrentStep = progress.currentStep;
     const nextQuestionNumber = userCurrentStep + 1;
@@ -218,13 +218,13 @@ const GameView: React.FC = () => {
       foundTargetQuestion = currentQuestion;
     }
     
-    // Update target question state only if it's different
-    if (foundTargetQuestion && (!targetQuestion || targetQuestion.id !== foundTargetQuestion.id)) {
-      setTargetQuestion(foundTargetQuestion);
-    } else if (!foundTargetQuestion && targetQuestion) {
-      setTargetQuestion(null);
-    }
-  }, [progress, modules, currentQuestion, targetQuestion]);
+    return foundTargetQuestion;
+  }, [progress, modules, currentQuestion]);
+
+  // Update target question state when calculated value changes
+  useEffect(() => {
+    setTargetQuestion(calculateTargetQuestion);
+  }, [calculateTargetQuestion]);
 
   const loadGameData = async () => {
     try {
