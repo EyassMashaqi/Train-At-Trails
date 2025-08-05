@@ -559,10 +559,24 @@ const GameView: React.FC = () => {
       return groups;
     }, {} as Record<string, { questionNumber: number; questionTitle: string; miniQuestions: MiniQuestion[] }>);
 
-    // Auto-expand the first question group by default
-    const firstQuestionKey = Object.keys(groupedMiniQuestions)[0];
-    if (firstQuestionKey && expandedQuestions[firstQuestionKey] === undefined) {
-      setExpandedQuestions(prev => ({ ...prev, [firstQuestionKey]: true }));
+    // Auto-expand incomplete question groups and fold completed ones
+    const initialExpanded: Record<string, boolean> = {};
+    Object.entries(groupedMiniQuestions).forEach(([questionKey, group]) => {
+      const groupCompleted = group.miniQuestions.filter(mq => mq.hasAnswer).length;
+      const groupTotal = group.miniQuestions.length;
+      const isFullyCompleted = groupCompleted === groupTotal;
+      
+      // Expand if incomplete, fold if completed
+      initialExpanded[questionKey] = !isFullyCompleted;
+    });
+    
+    // Only set initial state if not already set
+    const currentExpandedKeys = Object.keys(expandedQuestions);
+    const groupedKeys = Object.keys(groupedMiniQuestions);
+    const needsInitialization = groupedKeys.some(key => !currentExpandedKeys.includes(key));
+    
+    if (needsInitialization) {
+      setExpandedQuestions(prev => ({ ...prev, ...initialExpanded }));
     }
 
     const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
