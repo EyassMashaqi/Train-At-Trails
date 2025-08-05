@@ -119,6 +119,9 @@ const GameView: React.FC = () => {
   const [answerFile, setAnswerFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
+  // Target question state for main assignment
+  const [targetQuestion, setTargetQuestion] = useState<Question | null>(null);
+  
   const navigate = useNavigate();
 
   // URL validation function
@@ -180,6 +183,49 @@ const GameView: React.FC = () => {
     loadGameData();
   }, []);
 
+  // Update target question when progress or modules change
+  useEffect(() => {
+    if (!progress || !modules || modules.length === 0) return;
+
+    const userCurrentStep = progress.currentStep;
+    const nextQuestionNumber = userCurrentStep + 1;
+    
+    let foundTargetQuestion = null;
+    
+    // Look through modules to find the question the user should be working on
+    for (const module of modules) {
+      if (module.isReleased) {
+        for (const topic of module.topics) {
+          if (topic.isReleased && (topic.questionNumber === nextQuestionNumber || topic.topicNumber === nextQuestionNumber)) {
+            foundTargetQuestion = {
+              id: parseInt(topic.id, 10),
+              questionNumber: topic.questionNumber || topic.topicNumber,
+              title: topic.title,
+              description: topic.description,
+              content: topic.content || '',
+              releaseDate: topic.deadline,
+              hasAnswered: false
+            };
+            break;
+          }
+        }
+        if (foundTargetQuestion) break;
+      }
+    }
+    
+    // Fallback to currentQuestion if no topic found (legacy mode)
+    if (!foundTargetQuestion && currentQuestion) {
+      foundTargetQuestion = currentQuestion;
+    }
+    
+    // Update target question state only if it's different
+    if (foundTargetQuestion && (!targetQuestion || targetQuestion.id !== foundTargetQuestion.id)) {
+      setTargetQuestion(foundTargetQuestion);
+    } else if (!foundTargetQuestion && targetQuestion) {
+      setTargetQuestion(null);
+    }
+  }, [progress, modules, currentQuestion, targetQuestion]);
+
   const loadGameData = async () => {
     try {
       setLoading(true);
@@ -190,11 +236,6 @@ const GameView: React.FC = () => {
       ]);
 
       const data = progressResponse.data;
-
-      // Debug logging to understand the duplication issue
-      console.log('Progress data:', data);
-      console.log('Current question:', data.currentQuestion);
-      console.log('Modules:', modulesResponse.data.modules);
 
       // Extract progress and current question from the single response
       setProgress({
@@ -236,8 +277,6 @@ const GameView: React.FC = () => {
         }
       });
 
-      console.log('All released mini-questions from modules:', allMiniQuestions.length);
-      
       // Set all mini-questions (from modules + legacy current question if any)
       if (allMiniQuestions.length > 0) {
         setMiniQuestions(allMiniQuestions);
@@ -265,7 +304,6 @@ const GameView: React.FC = () => {
       } else {
         // Fallback to legacy current question mini-questions if no modules mini-questions
         if (data.currentQuestionMiniQuestions) {
-          console.log('Using legacy currentQuestionMiniQuestions:', data.currentQuestionMiniQuestions.length);
           setMiniQuestions(data.currentQuestionMiniQuestions);
           
           // Initialize mini answers state with existing answers, preserving current form state
@@ -289,7 +327,6 @@ const GameView: React.FC = () => {
             return updatedMiniAnswers;
           });
         } else {
-          console.log('No mini-questions found');
           setMiniQuestions([]);
         }
       }
@@ -302,16 +339,6 @@ const GameView: React.FC = () => {
 
       // Set modules data
       setModules(modulesResponse.data.modules || []);
-      console.log('Modules loaded:', modulesResponse.data.modules?.length || 0);
-      
-      // Debug first module topics
-      if (modulesResponse.data.modules && modulesResponse.data.modules.length > 0) {
-        const firstModule = modulesResponse.data.modules[0];
-        console.log('First module:', firstModule.title, 'Topics:', firstModule.topics?.length || 0);
-        if (firstModule.topics && firstModule.topics.length > 0) {
-          console.log('First topic:', firstModule.topics[0]);
-        }
-      }
 
       // Auto-expand released modules
       const initialExpanded: Record<string, boolean> = {};
@@ -322,16 +349,11 @@ const GameView: React.FC = () => {
       });
       setExpandedModules(initialExpanded);
 
-      // Debug leaderboard data
-      console.log('Full leaderboard response:', leaderboardResponse);
-      console.log('Response data:', leaderboardResponse.data);
-
       // Check all possible property names
       const possibleData = leaderboardResponse.data.users ||
         leaderboardResponse.data.leaderboard ||
         (Array.isArray(leaderboardResponse.data) ? leaderboardResponse.data : []);
 
-      console.log('Extracted leaderboard data:', possibleData);
       setLeaderboard(possibleData);
       setLeaderboardLoading(false);
     } catch (error) {
@@ -407,14 +429,14 @@ const GameView: React.FC = () => {
       return;
     }
 
-    if (!currentQuestion) {
-      toast.error('No current question available');
+    if (!targetQuestion) {
+      toast.error('No target question available');
       return;
     }
 
     try {
       setSubmitting(true);
-      await gameService.submitAnswer(answerContent.trim(), currentQuestion.id.toString(), answerFile);
+      await gameService.submitAnswer(answerContent.trim(), targetQuestion.id.toString(), answerFile);
       toast.success('Answer submitted successfully!');
       
       // Clear form
@@ -517,12 +539,7 @@ const GameView: React.FC = () => {
 
   // Render self learning activities grouped by main question
   const renderMiniQuestions = () => {
-    console.log('renderMiniQuestions called');
-    console.log('miniQuestions:', miniQuestions);
-    console.log('miniQuestions length:', miniQuestions?.length || 0);
-    
     if (!miniQuestions || miniQuestions.length === 0) {
-      console.log('No self learning activities to render');
       return (
         <div className="mb-8">
           <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 border border-secondary-200 rounded-xl p-6 shadow-lg">
@@ -806,19 +823,75 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
-    // Check if all self learning activities are completed
-    const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
-    const totalMiniQuestions = miniQuestions.length;
-    const allMiniQuestionsCompleted = totalMiniQuestions > 0 && completedMiniQuestions === totalMiniQuestions;
+    if (!progress || !targetQuestion) return null;
 
-    // Only show main question form if all self learning activities are completed
-    if (!allMiniQuestionsCompleted || !currentQuestion || totalMiniQuestions === 0) {
-      return null;
+    // Get mini-questions specifically for this question/topic
+    const questionMiniQuestions = miniQuestions.filter(mq => 
+      mq.questionNumber === targetQuestion.questionNumber
+    );
+    
+    const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => mq.hasAnswer).length;
+    const totalQuestionMiniQuestions = questionMiniQuestions.length;
+    const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
+
+    // Only show main question form if:
+    // 1. This question's mini-questions are completed (or no mini-questions exist)
+    // 2. User hasn't already answered this question
+    if (!questionMiniQuestionsCompleted) {
+      return (
+        <div className="mb-8">
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <span className="text-3xl mr-3">🔐</span>
+                <div>
+                  <h3 className="text-xl font-bold text-orange-800">Main Assignment Locked</h3>
+                  <p className="text-orange-600">Complete all self-learning activities first</p>
+                </div>
+              </div>
+              <div className="bg-orange-100 rounded-lg px-3 py-1">
+                <span className="text-orange-800 font-semibold">Locked</span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 mb-6 border border-orange-200">
+              <h4 className="font-semibold text-gray-800 mb-2">
+                Question {targetQuestion.questionNumber}: {targetQuestion.title}
+              </h4>
+              <p className="text-gray-700 mb-2">{targetQuestion.description}</p>
+            </div>
+            
+            <div className="bg-orange-100 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <span className="text-orange-600 text-xl mr-3">🎯</span>
+                <div>
+                  <p className="text-orange-800 font-medium">Self-Learning Required</p>
+                  <p className="text-orange-700 text-sm">
+                    Complete {totalQuestionMiniQuestions - completedQuestionMiniQuestions} more self-learning activities to unlock this assignment.
+                  </p>
+                  <div className="mt-2">
+                    <div className="w-full bg-orange-200 rounded-full h-2">
+                      <div
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${totalQuestionMiniQuestions > 0 ? (completedQuestionMiniQuestions / totalQuestionMiniQuestions) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-orange-600 mt-1">
+                      Progress: {completedQuestionMiniQuestions}/{totalQuestionMiniQuestions} activities completed
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
 
     // Check if user has already answered this question
     const hasAnswered = progress?.answers?.some(answer => 
-      answer.question.id === currentQuestion.id
+      answer.question.id === targetQuestion.id || 
+      answer.question.questionNumber === targetQuestion.questionNumber
     );
 
     return (
@@ -841,12 +914,12 @@ const GameView: React.FC = () => {
 
           <div className="bg-white rounded-lg p-4 mb-6 border border-accent-200">
             <h4 className="font-semibold text-gray-800 mb-2">
-              Question {currentQuestion.questionNumber}: {currentQuestion.title}
+              Question {targetQuestion.questionNumber}: {targetQuestion.title}
             </h4>
-            <p className="text-gray-700 mb-2">{currentQuestion.description}</p>
-            {currentQuestion.content && (
+            <p className="text-gray-700 mb-2">{targetQuestion.description}</p>
+            {targetQuestion.content && (
               <div className="bg-gray-50 rounded-lg p-3 mt-3">
-                <p className="text-sm text-gray-600">{currentQuestion.content}</p>
+                <p className="text-sm text-gray-600">{targetQuestion.content}</p>
               </div>
             )}
           </div>
@@ -918,9 +991,6 @@ const GameView: React.FC = () => {
   };
 
   const renderLeaderboard = () => {
-    console.log('renderLeaderboard called, leaderboard:', leaderboard);
-    console.log('leaderboard length:', leaderboard?.length);
-
     if (leaderboardLoading) {
       return (
         <div className="mt-12 mb-8">
@@ -937,7 +1007,6 @@ const GameView: React.FC = () => {
     }
 
     if (!leaderboard || leaderboard.length === 0) {
-      console.log('No leaderboard data, showing empty state');
       return (
         <div className="mt-12 mb-8">
           <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
@@ -959,8 +1028,6 @@ const GameView: React.FC = () => {
         </div>
       );
     }
-
-    console.log('Rendering leaderboard with', leaderboard.length, 'users');
 
     const totalReleasedQuestions = getTotalReleasedQuestions();
 
@@ -1244,28 +1311,6 @@ const GameView: React.FC = () => {
                               }
                             }
                             
-                            // Debug logging for assignment progression (can be removed later)
-                            if (topic.topicNumber <= 2 && progress) {
-                              const topicQuestionNumber = topic.questionNumber || topic.topicNumber;
-                              console.log(`🔍 Topic ${topic.topicNumber} Status:`, {
-                                title: topic.title,
-                                questionNumber: topicQuestionNumber,
-                                userCurrentStep: progress.currentStep,
-                                nextAvailableStep: progress.currentStep + 1,
-                                isReleased: topicIsReleased,
-                                shouldShow: shouldShow,
-                                isDisabled: isDisabled,
-                                contents: topic.contents?.length || 0,
-                                miniQuestionsCompleted: `${completedMiniQuestions}/${topicMiniQuestions.length}`,
-                                miniQuestions: topicMiniQuestions.map((mq: any) => ({
-                                  title: mq.title,
-                                  hasAnswer: mq.hasAnswer,
-                                  isReleased: mq.isReleased
-                                })),
-                                willShowContent: topicIsReleased && topic.content && !isDisabled
-                              });
-                            }
-                            
                             if (!shouldShow) {
                               return null;
                             }
@@ -1460,7 +1505,6 @@ const GameView: React.FC = () => {
   };
 
   if (loading) {
-    console.log('GameView: Still loading...');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
         <div className="text-center">
@@ -1480,9 +1524,6 @@ const GameView: React.FC = () => {
       </div>
     );
   }
-
-  console.log('GameView: Rendering main content');
-  console.log('GameView: miniQuestions length:', miniQuestions?.length || 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50">
