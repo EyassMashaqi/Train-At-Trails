@@ -38,6 +38,16 @@ interface Topic {
   bonusPoints: number;
   isReleased: boolean;
   module: Module;
+  contents?: Content[];
+  questionNumber?: number;
+}
+
+interface Content {
+  id: string;
+  title: string;
+  material: string;
+  orderIndex: number;
+  miniQuestions: MiniQuestion[];
 }
 
 interface Module {
@@ -194,17 +204,49 @@ const GameView: React.FC = () => {
       });
       setCurrentQuestion(data.currentQuestion);
 
-      // Set self learning activities if available
-      console.log('Checking currentQuestionMiniQuestions:', data.currentQuestionMiniQuestions);
-      if (data.currentQuestionMiniQuestions) {
-        console.log('Setting self learning activities:', data.currentQuestionMiniQuestions.length);
-        setMiniQuestions(data.currentQuestionMiniQuestions);
+      // Collect all mini-questions from all released topics in modules
+      let allMiniQuestions: MiniQuestion[] = [];
+      const modulesData = modulesResponse.data.modules || [];
+      
+      modulesData.forEach((module: Module) => {
+        if (module.isReleased) {
+          module.topics.forEach((topic: Topic) => {
+            if (topic.isReleased && topic.contents) {
+              topic.contents.forEach((content: Content) => {
+                if (content.miniQuestions) {
+                  content.miniQuestions.forEach((mq: any) => {
+                    // Check if mini-question is released based on its release date
+                    const releaseDate = new Date(mq.releaseDate);
+                    const currentDate = new Date();
+                    
+                    if (mq.isReleased && releaseDate <= currentDate) {
+                      allMiniQuestions.push({
+                        ...mq,
+                        questionNumber: topic.questionNumber || topic.topicNumber,
+                        questionTitle: topic.title,
+                        contentId: content.id,
+                        contentTitle: content.title
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+
+      console.log('All released mini-questions from modules:', allMiniQuestions.length);
+      
+      // Set all mini-questions (from modules + legacy current question if any)
+      if (allMiniQuestions.length > 0) {
+        setMiniQuestions(allMiniQuestions);
         
-        // Initialize mini answers state with existing answers, preserving current form state
+        // Initialize mini answers state with existing answers
         setMiniAnswers(prevMiniAnswers => {
           const updatedMiniAnswers: Record<string, { linkUrl: string; notes: string }> = { ...prevMiniAnswers };
           
-          data.currentQuestionMiniQuestions.forEach((mq: MiniQuestion) => {
+          allMiniQuestions.forEach((mq: MiniQuestion) => {
             // Only update if we don't already have form data for this question
             if (!updatedMiniAnswers[mq.id]) {
               if (mq.hasAnswer && mq.answer) {
@@ -221,8 +263,35 @@ const GameView: React.FC = () => {
           return updatedMiniAnswers;
         });
       } else {
-        console.log('No currentQuestionMiniQuestions in response');
-        setMiniQuestions([]);
+        // Fallback to legacy current question mini-questions if no modules mini-questions
+        if (data.currentQuestionMiniQuestions) {
+          console.log('Using legacy currentQuestionMiniQuestions:', data.currentQuestionMiniQuestions.length);
+          setMiniQuestions(data.currentQuestionMiniQuestions);
+          
+          // Initialize mini answers state with existing answers, preserving current form state
+          setMiniAnswers(prevMiniAnswers => {
+            const updatedMiniAnswers: Record<string, { linkUrl: string; notes: string }> = { ...prevMiniAnswers };
+            
+            data.currentQuestionMiniQuestions.forEach((mq: MiniQuestion) => {
+              // Only update if we don't already have form data for this question
+              if (!updatedMiniAnswers[mq.id]) {
+                if (mq.hasAnswer && mq.answer) {
+                  updatedMiniAnswers[mq.id] = {
+                    linkUrl: mq.answer.linkUrl || '',
+                    notes: mq.answer.notes || ''
+                  };
+                } else {
+                  updatedMiniAnswers[mq.id] = { linkUrl: '', notes: '' };
+                }
+              }
+            });
+            
+            return updatedMiniAnswers;
+          });
+        } else {
+          console.log('No mini-questions found');
+          setMiniQuestions([]);
+        }
       }
 
       // Set current topic data if available
@@ -338,9 +407,14 @@ const GameView: React.FC = () => {
       return;
     }
 
+    if (!currentQuestion) {
+      toast.error('No current question available');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await gameService.submitAnswer(answerContent.trim(), answerFile);
+      await gameService.submitAnswer(answerContent.trim(), currentQuestion.id.toString(), answerFile);
       toast.success('Answer submitted successfully!');
       
       // Clear form
@@ -1122,41 +1196,58 @@ const GameView: React.FC = () => {
                             const topicIsReleased = topic.isReleased;
                             
                             // Get self learning activities for this topic/question
-                            const topicMiniQuestions = miniQuestions.filter(mq => 
-                              mq.questionId === topic.id || 
-                              mq.questionNumber === topic.topicNumber ||
-                              mq.contentId === topic.id
-                            );
+                            const topicMiniQuestions = topic.contents?.flatMap(content => 
+                              content.miniQuestions || []
+                            ) || [];
                             
                             const hasMiniQuestions = topicMiniQuestions.length > 0;
                             const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
                             const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
                             
-                            // Fixed logic: Show first question in first module if released, 
-                            // enable if self learning activities completed or no self learning activities
+                            // Assignment display logic: Show released topics
                             let shouldShow = false;
                             let isDisabled = false;
                             
-                            if (topicIsReleased) {
-                              shouldShow = true; // Always show if the topic is released
+                            if (topicIsReleased && progress) {
+                              shouldShow = true; // Show all released topics
                               
-                              // Only disable if there are self learning activities AND they're not all completed
-                              if (hasMiniQuestions && !allMiniQuestionsCompleted) {
-                                isDisabled = true; // Disable if has self learning activities but not all completed
+                              // Determine if this assignment should be disabled
+                              const topicQuestionNumber = topic.questionNumber || topic.topicNumber;
+                              
+                              // If this is beyond user's current progress + 1, disable it
+                              if (topicQuestionNumber > (progress.currentStep + 1)) {
+                                isDisabled = true; // Future assignments are disabled
+                              } else if (topicQuestionNumber === (progress.currentStep + 1)) {
+                                // This is the user's next assignment - check mini-questions
+                                if (hasMiniQuestions && !allMiniQuestionsCompleted) {
+                                  isDisabled = true; // Disable if has self learning activities but not all completed
+                                } else {
+                                  isDisabled = false; // Enable if no self learning activities or all completed
+                                }
                               } else {
-                                isDisabled = false; // Enable if no self learning activities or all completed
+                                // This is a completed assignment - always enabled
+                                isDisabled = false;
                               }
                             }
                             
-                            // Debug logging for Topic 1 only (can be removed later)
-                            if (topic.topicNumber === 1) {
-                              console.log('✅ Topic 1 Status:', {
+                            // Debug logging for assignment progression (can be removed later)
+                            if (topic.topicNumber <= 2 && progress) {
+                              const topicQuestionNumber = topic.questionNumber || topic.topicNumber;
+                              console.log(`🔍 Topic ${topic.topicNumber} Status:`, {
                                 title: topic.title,
-                                hasContent: !!topic.content,
-                                contentLength: topic.content?.length || 0,
+                                questionNumber: topicQuestionNumber,
+                                userCurrentStep: progress.currentStep,
+                                nextAvailableStep: progress.currentStep + 1,
                                 isReleased: topicIsReleased,
+                                shouldShow: shouldShow,
                                 isDisabled: isDisabled,
+                                contents: topic.contents?.length || 0,
                                 miniQuestionsCompleted: `${completedMiniQuestions}/${topicMiniQuestions.length}`,
+                                miniQuestions: topicMiniQuestions.map((mq: any) => ({
+                                  title: mq.title,
+                                  hasAnswer: mq.hasAnswer,
+                                  isReleased: mq.isReleased
+                                })),
                                 willShowContent: topicIsReleased && topic.content && !isDisabled
                               });
                             }

@@ -136,12 +136,20 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
 
     // If we have questions organized in modules, don't return currentQuestion
     // to avoid duplication with the module/topic system
-    // Get total questions count for dynamic total steps - only count RELEASED questions
+    // Get total topics count for dynamic total steps - only count RELEASED topics (assignments)
     const totalQuestions = await prisma.question.count({
       where: { 
-        isReleased: true 
+        isReleased: true,
+        moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
+        topicNumber: { not: null }, // Only count questions that have a topic number
+        module: {
+          isReleased: true
+        }
       }
     });
+
+    // Ensure minimum of 1 to prevent division by zero and show meaningful progress
+    const effectiveTotalSteps = Math.max(1, totalQuestions);
 
     const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
 
@@ -155,7 +163,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       },
       cohort: cohortInfo,
       currentStep: user.currentStep, // Use user progress for now
-      totalSteps: totalQuestions, // Dynamic total based on actual questions in database
+      totalSteps: effectiveTotalSteps, // Dynamic total based on actual assignments in database
       isComplete: user.currentStep >= totalQuestions,
       currentQuestion: shouldReturnCurrentQuestion ? (currentQuestion ? {
         id: currentQuestion.id,
@@ -338,7 +346,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     }
 
     // Check if user has completed all released mini questions for this question
-    const contents = await (prisma as any).content.findMany({
+    const contents = await prisma.content.findMany({
       where: { questionId: currentQuestion.id },
       include: {
         miniQuestions: {
@@ -682,13 +690,21 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       };
     });
 
-    // Get total questions count - only count RELEASED questions
+    // Get total topics count - only count RELEASED topics (assignments)
     const totalQuestions = await prisma.question.count({
       where: { 
         // cohortId: userCohort.cohortId,  // Temporarily disabled
-        isReleased: true 
+        isReleased: true,
+        moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
+        topicNumber: { not: null }, // Only count questions that have a topic number
+        module: {
+          isReleased: true
+        }
       }
     });
+
+    // Ensure minimum of 1 to prevent division by zero and show meaningful progress
+    const effectiveTotalSteps = Math.max(1, totalQuestions);
 
     // For backward compatibility with original GameView, also provide currentQuestion
     let currentQuestion = null;
@@ -766,7 +782,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         description: userCohort.cohort.description
       },
       currentStep: userCohort.currentStep,
-      totalSteps: totalQuestions, // Dynamic total based on actual questions in database
+      totalSteps: effectiveTotalSteps, // Dynamic total based on actual assignments in database
       totalQuestions,
       isComplete: userCohort.currentStep >= totalQuestions,
       questions: processedQuestions,
@@ -813,12 +829,36 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
     // }
 
     // Get all modules with their questions using the proper Module table
-    const modules = await (prisma as any).module.findMany({
+    const modules = await prisma.module.findMany({
       // where: {
       //   cohortId: userCohort.cohortId
       // },
       include: {
         questions: {
+          include: {
+            contents: {
+              include: {
+                miniQuestions: {
+                  where: {
+                    isReleased: true // Only include released mini-questions
+                  },
+                  include: {
+                    miniAnswers: {
+                      where: { userId },
+                      select: {
+                        id: true,
+                        linkUrl: true,
+                        notes: true,
+                        submittedAt: true
+                      }
+                    }
+                  },
+                  orderBy: { orderIndex: 'asc' }
+                }
+              },
+              orderBy: { orderIndex: 'asc' }
+            }
+          },
           orderBy: { topicNumber: 'asc' }
         }
       },
@@ -852,17 +892,48 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
           id: question.id,
           content: question.content,
           questionNumber: question.questionNumber
-        }
+        },
+        // Add contents and mini-questions for self-learning activities
+        contents: question.contents?.map((content: any) => ({
+          id: content.id,
+          title: content.title,
+          material: content.material,
+          orderIndex: content.orderIndex,
+          miniQuestions: content.miniQuestions?.map((mq: any) => ({
+            id: mq.id,
+            title: mq.title,
+            question: mq.question,
+            description: mq.description,
+            orderIndex: mq.orderIndex,
+            isReleased: mq.isReleased,
+            releaseDate: mq.releaseDate,
+            hasAnswer: mq.miniAnswers.length > 0,
+            answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
+          })) || []
+        })) || []
       }))
     }));
 
     // Debug logging for first module's first topic
     if (formattedModules.length > 0 && formattedModules[0].topics.length > 0) {
-      console.log('Backend - First topic content:', {
-        title: formattedModules[0].topics[0].title,
-        content: formattedModules[0].topics[0].content,
-        contentLength: formattedModules[0].topics[0].content?.length || 0,
-        isReleased: formattedModules[0].topics[0].isReleased
+      const firstTopic = formattedModules[0].topics[0];
+      console.log('Backend - First topic data:', {
+        title: firstTopic.title,
+        content: firstTopic.content,
+        contentLength: firstTopic.content?.length || 0,
+        isReleased: firstTopic.isReleased,
+        questionNumber: firstTopic.question?.questionNumber,
+        contentsCount: firstTopic.contents?.length || 0,
+        miniQuestionsCount: firstTopic.contents?.reduce((total: number, content: any) => 
+          total + (content.miniQuestions?.length || 0), 0) || 0
+      });
+      
+      // Log mini-questions details
+      firstTopic.contents?.forEach((content: any, contentIndex: number) => {
+        console.log(`  Content ${contentIndex + 1}: "${content.title}" (${content.miniQuestions?.length || 0} mini-questions)`);
+        content.miniQuestions?.forEach((mq: any, mqIndex: number) => {
+          console.log(`    MQ ${mqIndex + 1}: "${mq.title}" (Released: ${mq.isReleased}, Has Answer: ${mq.hasAnswer})`);
+        });
       });
     }
 
@@ -894,24 +965,24 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
       });
     }
 
-    // Temporarily disable cohort validation
+    // Temporarily disable cohort validation but get a default cohort
     // Get user's active cohort
-    // const userCohort = await prisma.cohortMember.findFirst({
-    //   where: { 
-    //     userId,
-    //     isActive: true
-    //   },
-    //   include: {
-    //     cohort: true
-    //   }
-    // });
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
 
-    // if (!userCohort) {
-    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
-    // }
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
 
     // Verify mini-question exists
-    const miniQuestion = await (prisma as any).miniQuestion.findUnique({
+    const miniQuestion = await prisma.miniQuestion.findUnique({
       where: { id: miniQuestionId },
       include: {
         content: {
@@ -926,18 +997,18 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
       return res.status(404).json({ error: 'Mini-question not found' });
     }
 
-    // Check if user already answered this mini-question (without cohort for now)
-    const existingAnswer = await (prisma as any).miniAnswer.findFirst({
+    // Check if user already answered this mini-question
+    const existingAnswer = await prisma.miniAnswer.findFirst({
       where: {
         userId,
-        miniQuestionId
-        // cohortId: userCohort.cohortId  // Temporarily disabled
+        miniQuestionId,
+        cohortId: userCohort.cohortId
       }
     });
 
     if (existingAnswer) {
       // Update existing answer
-      const updatedAnswer = await (prisma as any).miniAnswer.update({
+      const updatedAnswer = await prisma.miniAnswer.update({
         where: { id: existingAnswer.id },
         data: {
           linkUrl: linkUrl.trim(),
@@ -952,13 +1023,13 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
       });
     } else {
       // Create new answer
-      const miniAnswer = await (prisma as any).miniAnswer.create({
+      const miniAnswer = await prisma.miniAnswer.create({
         data: {
           linkUrl: linkUrl.trim(),
           notes: notes ? notes.trim() : null,
           userId,
-          miniQuestionId
-          // cohortId: userCohort.cohortId  // Temporarily disabled
+          miniQuestionId,
+          cohortId: userCohort.cohortId
         }
       });
 
@@ -980,7 +1051,7 @@ router.get('/questions/:questionId/mini-answers', authenticateToken, async (req:
     const questionId = req.params.questionId;
 
     // Get all mini-answers for this question by this user
-    const miniAnswers = await (prisma as any).miniAnswer.findMany({
+    const miniAnswers = await prisma.miniAnswer.findMany({
       where: {
         userId,
         miniQuestion: {
@@ -1094,7 +1165,7 @@ async function updateMiniQuestionReleaseStatus() {
     const now = new Date();
     
     // Find all mini questions that should be released but aren't yet
-    const miniQuestionsToRelease = await (prisma as any).miniQuestion.findMany({
+    const miniQuestionsToRelease = await prisma.miniQuestion.findMany({
       where: {
         isReleased: false,
         releaseDate: {
@@ -1105,7 +1176,7 @@ async function updateMiniQuestionReleaseStatus() {
 
     // Update their release status
     for (const miniQ of miniQuestionsToRelease) {
-      await (prisma as any).miniQuestion.update({
+      await prisma.miniQuestion.update({
         where: { id: miniQ.id },
         data: {
           isReleased: true,

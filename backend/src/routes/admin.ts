@@ -98,8 +98,23 @@ router.get('/stats', async (req: AuthRequest, res) => {
       select: { currentStep: true }
     });
 
-    const averageProgress = users.length > 0 
-      ? (users.reduce((sum, user) => sum + user.currentStep, 0) / users.length / 12) * 100
+    // Get total topics count for dynamic average calculation
+    const totalTopics = await prisma.question.count({
+      where: { 
+        isReleased: true,
+        moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
+        topicNumber: { not: null }, // Only count questions that have a topic number
+        module: {
+          isReleased: true
+        }
+      }
+    });
+
+    // Ensure minimum of 1 to prevent division by zero
+    const effectiveTotalSteps = Math.max(1, totalTopics);
+
+    const averageProgress = users.length > 0
+      ? (users.reduce((sum, user) => sum + user.currentStep, 0) / users.length / effectiveTotalSteps) * 100
       : 0;
 
     const stats = {

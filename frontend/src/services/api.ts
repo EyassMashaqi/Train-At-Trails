@@ -127,10 +127,13 @@ export const gameService = {
   
   getCohortHistory: () => api.get('/game/cohort-history'),
   
-  submitAnswer: (content: string, file?: File | null) => {
+  submitAnswer: (content: string, questionId?: string, file?: File | null) => {
     if (file) {
       const formData = new FormData();
       formData.append('content', content);
+      if (questionId) {
+        formData.append('questionId', questionId);
+      }
       formData.append('attachment', file);
       return api.post('/game/answer', formData, {
         headers: {
@@ -138,7 +141,11 @@ export const gameService = {
         },
       });
     } else {
-      return api.post('/game/answer', { content });
+      const data: { content: string; questionId?: string } = { content };
+      if (questionId) {
+        data.questionId = questionId;
+      }
+      return api.post('/game/answer', data);
     }
   },
   
