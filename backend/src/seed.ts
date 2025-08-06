@@ -100,13 +100,33 @@ async function main() {
     }
   ];
 
+  // Create or find default cohort
+  const defaultCohort = await prisma.cohort.upsert({
+    where: { name: 'Default Cohort' },
+    update: {},
+    create: {
+      name: 'Default Cohort',
+      description: 'Default cohort for new users and general training',
+      startDate: new Date(),
+      endDate: null,
+      isActive: true
+    }
+  });
+
+  console.log('🎯 Default cohort:', defaultCohort.name);
+
   for (const questionData of questions) {
     // Calculate deadline (1-12 weeks from now based on question number)
     const deadlineDate = new Date();
     deadlineDate.setDate(deadlineDate.getDate() + (questionData.questionNumber * 7));
 
     const question = await prisma.question.upsert({
-      where: { questionNumber: questionData.questionNumber },
+      where: { 
+        questionNumber_cohortId: {
+          questionNumber: questionData.questionNumber,
+          cohortId: defaultCohort.id
+        }
+      },
       update: {
         title: questionData.title,
         content: questionData.content,
@@ -124,7 +144,8 @@ async function main() {
         points: 100 + (questionData.questionNumber * 10), // Progressive points
         bonusPoints: 50,
         isActive: false,
-        isReleased: false
+        isReleased: false,
+        cohortId: defaultCohort.id
       }
     });
     console.log(`📋 Question ${question.questionNumber} created: ${question.title}`);

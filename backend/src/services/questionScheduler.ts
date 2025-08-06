@@ -48,7 +48,7 @@ export const startQuestionScheduler = () => {
         const nextQuestionNumber = latestQuestion ? latestQuestion.questionNumber + 1 : 1;
         
         if (nextQuestionNumber <= config.totalQuestions) {
-          const questionToRelease = await prisma.question.findUnique({
+          const questionToRelease = await prisma.question.findFirst({
             where: { questionNumber: nextQuestionNumber }
           });
 
@@ -86,7 +86,7 @@ export const startQuestionScheduler = () => {
 // Helper function to manually release a question (for testing)
 export const releaseQuestion = async (questionNumber: number) => {
   try {
-    const question = await prisma.question.findUnique({
+    const question = await prisma.question.findFirst({
       where: { questionNumber }
     });
 

@@ -172,6 +172,21 @@ const modules = [
 async function main() {
   console.log('Seeding modules and topics...');
 
+  // Create or find default cohort
+  const defaultCohort = await prisma.cohort.upsert({
+    where: { name: 'Default Cohort' },
+    update: {},
+    create: {
+      name: 'Default Cohort',
+      description: 'Default cohort for new users and general training',
+      startDate: new Date(),
+      endDate: null,
+      isActive: true
+    }
+  });
+
+  console.log('🎯 Default cohort:', defaultCohort.name);
+
   // Calculate deadlines (each module released every 2 weeks, topics within module every 2 days)
   const gameStartDate = new Date('2025-08-01T00:00:00Z');
   
@@ -195,7 +210,7 @@ async function main() {
         isActive: true,
         isReleased: moduleData.moduleNumber === 1, // Only first module released initially
         releaseDate: moduleReleaseDate,
-        deadline: moduleDeadline
+        cohortId: defaultCohort.id
       }
     });
 
