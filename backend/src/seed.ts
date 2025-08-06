@@ -20,17 +20,35 @@ async function main() {
 
   console.log('📝 Game configuration created:', gameConfig);
 
+  // Create or find default cohort
+  const defaultCohort = await prisma.cohort.upsert({
+    where: { name: 'Default Cohort' },
+    update: {},
+    create: {
+      name: 'Default Cohort',
+      description: 'Default cohort for new users and general training',
+      startDate: new Date(),
+      endDate: null,
+      isActive: true
+    }
+  });
+
+  console.log('🎯 Default cohort:', defaultCohort.name);
+
   // Create admin user
   const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
   const adminUser = await prisma.user.upsert({
     where: { email: process.env.ADMIN_EMAIL || 'admin@trainattrails.com' },
-    update: {},
+    update: {
+      currentCohortId: defaultCohort.id
+    },
     create: {
       email: process.env.ADMIN_EMAIL || 'admin@trainattrails.com',
       password: adminPassword,
       fullName: 'Admin User',
       trainName: 'Admin Express',
-      isAdmin: true
+      isAdmin: true,
+      currentCohortId: defaultCohort.id
     }
   });
 
@@ -100,21 +118,6 @@ async function main() {
     }
   ];
 
-  // Create or find default cohort
-  const defaultCohort = await prisma.cohort.upsert({
-    where: { name: 'Default Cohort' },
-    update: {},
-    create: {
-      name: 'Default Cohort',
-      description: 'Default cohort for new users and general training',
-      startDate: new Date(),
-      endDate: null,
-      isActive: true
-    }
-  });
-
-  console.log('🎯 Default cohort:', defaultCohort.name);
-
   for (const questionData of questions) {
     // Calculate deadline (1-12 weeks from now based on question number)
     const deadlineDate = new Date();
@@ -143,8 +146,9 @@ async function main() {
         deadline: deadlineDate,
         points: 100 + (questionData.questionNumber * 10), // Progressive points
         bonusPoints: 50,
-        isActive: false,
-        isReleased: false,
+        isActive: questionData.questionNumber === 1, // First question should be active
+        isReleased: questionData.questionNumber === 1, // First question should be released
+        releaseDate: questionData.questionNumber === 1 ? new Date() : null,
         cohortId: defaultCohort.id
       }
     });
@@ -177,11 +181,48 @@ async function main() {
       update: {},
       create: {
         ...userData,
-        password: hashedPassword
+        password: hashedPassword,
+        currentCohortId: defaultCohort.id
       }
     });
     console.log(`👤 Sample user created: ${user.email}`);
+
+    // Create cohort membership for the user
+    await prisma.cohortMember.upsert({
+      where: {
+        userId_cohortId: {
+          userId: user.id,
+          cohortId: defaultCohort.id
+        }
+      },
+      update: {},
+      create: {
+        userId: user.id,
+        cohortId: defaultCohort.id,
+        status: 'ENROLLED',
+        isActive: true
+      }
+    });
+    console.log(`🎯 User ${user.email} enrolled in ${defaultCohort.name}`);
   }
+
+  // Also ensure admin user is enrolled in default cohort
+  await prisma.cohortMember.upsert({
+    where: {
+      userId_cohortId: {
+        userId: adminUser.id,
+        cohortId: defaultCohort.id
+      }
+    },
+    update: {},
+    create: {
+      userId: adminUser.id,
+      cohortId: defaultCohort.id,
+      status: 'ENROLLED',
+      isActive: true
+    }
+  });
+  console.log(`👑 Admin user enrolled in ${defaultCohort.name}`);
 
   console.log('✅ Database seeding completed successfully!');
 }

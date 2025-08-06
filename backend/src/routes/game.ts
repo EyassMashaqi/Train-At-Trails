@@ -304,13 +304,23 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     const { content, questionId, topicId } = req.body;
     const attachmentFile = req.file;
 
+    console.log('Submit answer request received:');
+    console.log('  User ID:', userId);
+    console.log('  Content length:', content?.length || 0);
+    console.log('  Question ID:', questionId);
+    console.log('  Topic ID:', topicId);
+    console.log('  Has attachment:', !!attachmentFile);
+    console.log('  Request body:', req.body);
+
     if (!content || content.trim().length === 0) {
+      console.log('ERROR: No content provided');
       return res.status(400).json({ error: 'Answer content is required' });
     }
 
     let currentQuestion = null;
     
     if (topicId) {
+      console.log('Looking for question by topicId:', topicId);
       // Topic ID provided - map to corresponding question
       // Since topics are virtual mappings to questions, we need to find the question by topicId
       currentQuestion = await prisma.question.findFirst({
@@ -320,7 +330,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           isActive: true
         }
       });
+      console.log('Question found by topicId:', !!currentQuestion);
     } else if (questionId) {
+      console.log('Looking for question by questionId:', questionId);
       // Specific question provided
       currentQuestion = await prisma.question.findFirst({
         where: { 
@@ -329,7 +341,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           isActive: true
         }
       });
+      console.log('Question found by questionId:', !!currentQuestion);
     } else {
+      console.log('Auto-detecting current active question');
       // Auto-detect current active question
       currentQuestion = await prisma.question.findFirst({
         where: { 
@@ -339,9 +353,13 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         },
         orderBy: { questionNumber: 'asc' }
       });
+      console.log('Question found by auto-detect:', !!currentQuestion);
     }
 
+    console.log('Final question found:', currentQuestion ? { id: currentQuestion.id, title: currentQuestion.title } : 'None');
+
     if (!currentQuestion) {
+      console.log('ERROR: No active question available');
       return res.status(400).json({ error: 'No active question available' });
     }
 
@@ -412,7 +430,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       }
     });
 
+    console.log('User cohort check:');
+    console.log('  User cohort found:', !!userCohort);
+    console.log('  Cohort details:', userCohort ? { id: userCohort.cohortId, name: userCohort.cohort.name } : 'None');
+
     if (!userCohort) {
+      console.log('ERROR: User not enrolled in any cohort');
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
@@ -811,27 +834,32 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
 
-    // Temporarily disable cohort filtering until Prisma types are working
     // Get user's active cohort
-    // const userCohort = await prisma.cohortMember.findFirst({
-    //   where: { 
-    //     userId,
-    //     isActive: true
-    //   },
-    //   include: {
-    //     cohort: true
-    //   }
-    // });
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
 
-    // if (!userCohort) {
-    //   return res.status(400).json({ error: 'User is not a member of any active cohort' });
-    // }
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not a member of any active cohort' });
+    }
+
+    console.log('Modules endpoint - User cohort:', { 
+      userId, 
+      cohortId: userCohort.cohortId, 
+      cohortName: userCohort.cohort.name 
+    });
 
     // Get all modules with their questions using the proper Module table
     const modules = await prisma.module.findMany({
-      // where: {
-      //   cohortId: userCohort.cohortId
-      // },
+      where: {
+        cohortId: userCohort.cohortId
+      },
       include: {
         questions: {
           include: {
@@ -863,6 +891,15 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       },
       orderBy: { moduleNumber: 'asc' }
     });
+
+    console.log('Modules found:', modules.length);
+    console.log('Modules data:', modules.map(m => ({ 
+      id: m.id, 
+      moduleNumber: m.moduleNumber, 
+      title: m.title, 
+      cohortId: m.cohortId,
+      isReleased: m.isReleased 
+    })));
 
     // Convert to format that frontend expects
     const formattedModules = modules.map((module: any) => ({
@@ -912,6 +949,14 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         })) || []
       }))
     }));
+
+    console.log('Formatted modules being returned:', formattedModules.map(m => ({ 
+      id: m.id, 
+      moduleNumber: m.moduleNumber, 
+      title: m.title, 
+      isReleased: m.isReleased,
+      topicsCount: m.topics.length 
+    })));
 
     res.json({ modules: formattedModules });
   } catch (error) {

@@ -902,7 +902,7 @@ const GameView: React.FC = () => {
               <span className="text-3xl mr-3">📝</span>
               <div>
                 <h3 className="text-xl font-bold text-accent-800">Main Assignment</h3>
-                <p className="text-accent-600">Ready to submit your main answer</p>
+                <p className="text-accent-600">Ready to submit your answer</p>
               </div>
             </div>
             <div className="bg-accent-100 rounded-lg px-3 py-1">
@@ -980,7 +980,7 @@ const GameView: React.FC = () => {
                     Submitting Answer...
                   </div>
                 ) : (
-                  'Submit Main Answer'
+                  'Submit Answer'
                 )}
               </button>
             </div>
