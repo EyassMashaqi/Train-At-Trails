@@ -411,7 +411,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       });
     }
 
-    // Check if user already answered with approved or pending status
+    // Check if user already answered with pending status (block only pending submissions)
     const existingAnswer = await prisma.answer.findFirst({
       where: { 
         userId, 
@@ -420,11 +420,10 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       orderBy: { submittedAt: 'desc' }
     });
 
-    if (existingAnswer && (existingAnswer.status === 'APPROVED' || existingAnswer.status === 'PENDING')) {
+    // Only block if there's a PENDING answer - allow resubmission for REJECTED or APPROVED answers
+    if (existingAnswer && existingAnswer.status === 'PENDING') {
       return res.status(400).json({ 
-        error: existingAnswer.status === 'APPROVED' 
-          ? 'You have already successfully answered this question'
-          : 'You have already submitted an answer for this question and it is pending review',
+        error: 'You have already submitted an answer for this question and it is pending review. Please wait for admin review before resubmitting.',
         existingAnswer: {
           content: existingAnswer.content,
           status: existingAnswer.status,
@@ -453,14 +452,24 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
-    // Create new answer
+    // Create new answer (this allows for resubmissions while maintaining history)
+    const answerData: any = {
+      content: content.trim(),
+      userId,
+      questionId: currentQuestion.id,
+      cohortId: userCohort.cohortId
+    };
+
+    // Add attachment information if file was uploaded
+    if (attachmentFile) {
+      answerData.attachmentFileName = attachmentFile.originalname;
+      answerData.attachmentFilePath = attachmentFile.path;
+      answerData.attachmentFileSize = attachmentFile.size;
+      answerData.attachmentMimeType = attachmentFile.mimetype;
+    }
+
     const answer = await prisma.answer.create({
-      data: {
-        content: content.trim(),
-        userId,
-        questionId: currentQuestion.id,
-        cohortId: userCohort.cohortId
-      },
+      data: answerData,
       include: {
         question: {
           select: {
@@ -471,15 +480,33 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       }
     });
 
+    // Determine if this is a resubmission
+    const isResubmission = !!existingAnswer;
+    const resubmissionContext = existingAnswer ? {
+      previousStatus: existingAnswer.status,
+      previousSubmissionDate: existingAnswer.submittedAt,
+      resubmissionNumber: await prisma.answer.count({
+        where: {
+          userId,
+          questionId: currentQuestion.id
+        }
+      })
+    } : null;
+
     res.status(201).json({
-      message: 'Answer submitted successfully',
+      message: isResubmission 
+        ? `Answer resubmitted successfully (Resubmission #${resubmissionContext?.resubmissionNumber})`
+        : 'Answer submitted successfully',
       answer: {
         id: answer.id,
         content: answer.content,
         status: answer.status,
         submittedAt: answer.submittedAt,
         questionNumber: answer.question?.questionNumber || 'N/A',
-        questionTitle: answer.question?.title || 'N/A'
+        questionTitle: answer.question?.title || 'N/A',
+        isResubmission,
+        resubmissionContext,
+        hasAttachment: !!attachmentFile
       }
     });
   } catch (error) {
@@ -621,7 +648,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     const userCohort = await (prisma as any).cohortMember.findFirst({
       where: { 
         userId,
-        isActive: true
+        status: 'ENROLLED'
       },
       include: {
         cohort: true
@@ -635,13 +662,14 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Update mini question release status based on current time
     await updateMiniQuestionReleaseStatus();
 
-    // Get all released questions with their mini questions for user's cohort
+    // Get all questions that user can potentially access (released questions + step-based questions)
     const releasedQuestions = await prisma.question.findMany({
       where: { 
         // cohortId: userCohort.cohortId,  // Temporarily disabled
-        // Remove the isReleased requirement - we want ALL questions that user can see
-        // because mini questions can be released independently of main questions
-        questionNumber: { lte: user.currentStep + 1 } // Show current and next available questions
+        OR: [
+          { isReleased: true }, // Include all released questions (for module/topic system)
+          { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
+        ]
       },
       include: {
         contents: {
@@ -701,9 +729,13 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       const hasMainAnswer = question.answers.length > 0;
       const mainAnswerStatus = hasMainAnswer ? question.answers[0].status : null;
 
-      // Determine question availability - use cohort-specific progress
+      // Determine question availability - for module/topic system, use isReleased instead of step-based logic
       let questionStatus = 'locked';
-      if (question.questionNumber <= userCohort.currentStep + 1) {
+      
+      // Check if question is released (for module/topic system) or within step range (for legacy system)
+      const isQuestionAccessible = question.isReleased || (question.questionNumber <= userCohort.currentStep + 1);
+      
+      if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
           if (completedMiniQuestions < totalMiniQuestions) {
             questionStatus = 'mini_questions_required';
@@ -932,6 +964,22 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 }
               },
               orderBy: { orderIndex: 'asc' }
+            },
+            answers: {
+              where: { 
+                userId,
+                cohortId: userCohort.cohortId
+              },
+              select: {
+                id: true,
+                content: true,
+                status: true,
+                submittedAt: true,
+                reviewedAt: true,
+                feedback: true
+              },
+              orderBy: { submittedAt: 'desc' },
+              take: 1
             }
           },
           orderBy: { topicNumber: 'asc' }
@@ -959,43 +1007,109 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       isActive: module.isActive,
       releaseDate: module.releaseDate,
       releasedAt: module.releasedAt,
-      topics: module.questions.map((question: any) => ({
-        id: question.id,
-        topicNumber: question.topicNumber || 1,
-        title: question.title,
-        content: question.content, // Add content at the topic level
-        description: question.description,
-        isReleased: question.isReleased,
-        isActive: question.isActive,
-        releaseDate: question.releaseDate,
-        releasedAt: question.releasedAt,
-        deadline: question.deadline,
-        points: question.points,
-        bonusPoints: question.bonusPoints,
-        question: {
+      topics: module.questions.map((question: any) => {
+        // Calculate mini-question progress for status determination
+        const contents = question.contents || [];
+        const totalMiniQuestions = contents.reduce((total: number, content: any) => 
+          total + content.miniQuestions.length, 0
+        );
+        
+        const completedMiniQuestions = contents.reduce((total: number, content: any) =>
+          total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+        );
+
+        const canSolveMainQuestion = totalMiniQuestions === 0 || completedMiniQuestions === totalMiniQuestions;
+
+        // Check if user has already submitted a main answer for this question
+        const hasMainAnswer = question.answers.length > 0;
+        const mainAnswerStatus = hasMainAnswer ? question.answers[0].status : null;
+
+        // Determine topic status - use same logic as /progress endpoint
+        let topicStatus = 'locked';
+        
+        // Check if question is released (for module/topic system) or within step range (for legacy system)
+        const isQuestionAccessible = question.isReleased || (question.questionNumber <= userCohort.currentStep + 1);
+        
+        console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
+          isReleased: question.isReleased,
+          questionNumber: question.questionNumber,
+          userCurrentStep: userCohort.currentStep,
+          isQuestionAccessible,
+          totalMiniQuestions,
+          completedMiniQuestions,
+          canSolveMainQuestion,
+          hasMainAnswer,
+          mainAnswerStatus
+        });
+        
+        if (isQuestionAccessible) {
+          if (totalMiniQuestions > 0) {
+            if (completedMiniQuestions < totalMiniQuestions) {
+              topicStatus = 'mini_questions_required';
+            } else if (canSolveMainQuestion && !hasMainAnswer) {
+              topicStatus = 'available';
+            } else if (hasMainAnswer) {
+              topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            }
+          } else {
+            // No mini questions
+            if (!hasMainAnswer) {
+              topicStatus = 'available';
+            } else {
+              topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            }
+          }
+        }
+
+        console.log(`Final status for topic ${question.id}: ${topicStatus}`);
+
+        return {
           id: question.id,
-          content: question.content,
-          questionNumber: question.questionNumber
-        },
-        // Add contents and mini-questions for self-learning activities
-        contents: question.contents?.map((content: any) => ({
-          id: content.id,
-          title: content.title,
-          material: content.material,
-          orderIndex: content.orderIndex,
-          miniQuestions: content.miniQuestions?.map((mq: any) => ({
-            id: mq.id,
-            title: mq.title,
-            question: mq.question,
-            description: mq.description,
-            orderIndex: mq.orderIndex,
-            isReleased: mq.isReleased,
-            releaseDate: mq.releaseDate,
-            hasAnswer: mq.miniAnswers.length > 0,
-            answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
+          topicNumber: question.topicNumber || 1,
+          title: question.title,
+          content: question.content, // Add content at the topic level
+          description: question.description,
+          isReleased: question.isReleased,
+          isActive: question.isActive,
+          releaseDate: question.releaseDate,
+          releasedAt: question.releasedAt,
+          deadline: question.deadline,
+          points: question.points,
+          bonusPoints: question.bonusPoints,
+          status: topicStatus, // Add calculated status
+          canSolveMainQuestion,
+          hasMainAnswer,
+          mainAnswer: hasMainAnswer ? question.answers[0] : null,
+          miniQuestionProgress: {
+            total: totalMiniQuestions,
+            completed: completedMiniQuestions,
+            percentage: totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0
+          },
+          question: {
+            id: question.id,
+            content: question.content,
+            questionNumber: question.questionNumber
+          },
+          // Add contents and mini-questions for self-learning activities
+          contents: question.contents?.map((content: any) => ({
+            id: content.id,
+            title: content.title,
+            material: content.material,
+            orderIndex: content.orderIndex,
+            miniQuestions: content.miniQuestions?.map((mq: any) => ({
+              id: mq.id,
+              title: mq.title,
+              question: mq.question,
+              description: mq.description,
+              orderIndex: mq.orderIndex,
+              isReleased: mq.isReleased,
+              releaseDate: mq.releaseDate,
+              hasAnswer: mq.miniAnswers.length > 0,
+              answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
+            })) || []
           })) || []
-        })) || []
-      }))
+        };
+      })
     }));
 
     console.log('Formatted modules being returned:', formattedModules.map(m => ({ 
