@@ -76,32 +76,73 @@ router.get('/users', async (req: AuthRequest, res) => {
   }
 });
 
-// Get game statistics
+// Get game statistics (filtered by admin's cohort access)
 router.get('/stats', async (req: AuthRequest, res) => {
   try {
-    // Get total users (excluding admins)
-    const totalUsers = await prisma.user.count({
-      where: { isAdmin: false }
+    const adminUserId = req.user!.id;
+    
+    // Get admin's cohort access
+    const adminCohorts = await prisma.cohortMember.findMany({
+      where: { 
+        userId: adminUserId,
+        status: 'ENROLLED'
+      },
+      select: {
+        cohortId: true
+      }
     });
 
-    // Get total answers
-    const totalAnswers = await prisma.answer.count();
+    if (adminCohorts.length === 0) {
+      return res.json({
+        totalUsers: 0,
+        totalAnswers: 0,
+        pendingAnswers: 0,
+        averageProgress: 0
+      });
+    }
 
-    // Get pending answers
+    const cohortIds = adminCohorts.map(ac => ac.cohortId);
+
+    // Get total users in admin's accessible cohorts (excluding admins)
+    const cohortMembers = await prisma.cohortMember.findMany({
+      where: {
+        cohortId: { in: cohortIds },
+        status: 'ENROLLED',
+        user: {
+          isAdmin: false
+        }
+      },
+      include: {
+        user: {
+          select: {
+            currentStep: true
+          }
+        }
+      }
+    });
+
+    const totalUsers = cohortMembers.length;
+
+    // Get total answers in admin's accessible cohorts
+    const totalAnswers = await prisma.answer.count({
+      where: {
+        cohortId: { in: cohortIds }
+      }
+    });
+
+    // Get pending answers in admin's accessible cohorts
     const pendingAnswers = await prisma.answer.count({
-      where: { status: 'PENDING' }
-    });
-
-    // Calculate average progress
-    const users = await prisma.user.findMany({
-      where: { isAdmin: false },
-      select: { currentStep: true }
+      where: { 
+        status: 'PENDING',
+        cohortId: { in: cohortIds }
+      }
     });
 
     // Get total topics count for dynamic average calculation
     const totalTopics = await prisma.question.count({
       where: { 
         isReleased: true,
+        cohortId: { in: cohortIds },
         moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
         topicNumber: { not: null }, // Only count questions that have a topic number
         module: {
@@ -113,8 +154,9 @@ router.get('/stats', async (req: AuthRequest, res) => {
     // Ensure minimum of 1 to prevent division by zero
     const effectiveTotalSteps = Math.max(1, totalTopics);
 
-    const averageProgress = users.length > 0
-      ? (users.reduce((sum, user) => sum + user.currentStep, 0) / users.length / effectiveTotalSteps) * 100
+    // Calculate average progress for users in admin's cohorts
+    const averageProgress = totalUsers > 0
+      ? (cohortMembers.reduce((sum, member) => sum + member.user.currentStep, 0) / totalUsers / effectiveTotalSteps) * 100
       : 0;
 
     const stats = {
@@ -131,11 +173,34 @@ router.get('/stats', async (req: AuthRequest, res) => {
   }
 });
 
-// Get all pending answers for review
+// Get all pending answers for review (filtered by admin's cohort access)
 router.get('/pending-answers', async (req: AuthRequest, res) => {
   try {
+    const adminUserId = req.user!.id;
+    
+    // Get admin's cohort access (admins can access specific cohorts)
+    const adminCohorts = await prisma.cohortMember.findMany({
+      where: { 
+        userId: adminUserId,
+        status: 'ENROLLED'
+      },
+      select: {
+        cohortId: true
+      }
+    });
+
+    // If admin has no cohort access, return empty
+    if (adminCohorts.length === 0) {
+      return res.json({ pendingAnswers: [] });
+    }
+
+    const cohortIds = adminCohorts.map(ac => ac.cohortId);
+
     const pendingAnswers = await prisma.answer.findMany({
-      where: { status: 'PENDING' },
+      where: { 
+        status: 'PENDING',
+        cohortId: { in: cohortIds } // Filter by admin's accessible cohorts
+      },
       include: {
         user: {
           select: {
@@ -152,6 +217,12 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
             questionNumber: true,
             title: true,
             content: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
           }
         }
       },
@@ -291,13 +362,34 @@ router.get('/questions', async (req: AuthRequest, res) => {
 
 // Question Management Routes
 
-// Get specific question with all answers
+// Get specific question with all answers (filtered by admin's cohort access)
 router.get('/questions/:questionId/answers', async (req: AuthRequest, res) => {
   try {
     const questionId = req.params.questionId;
+    const adminUserId = req.user!.id;
+    
+    // Get admin's cohort access
+    const adminCohorts = await prisma.cohortMember.findMany({
+      where: { 
+        userId: adminUserId,
+        status: 'ENROLLED'
+      },
+      select: {
+        cohortId: true
+      }
+    });
+
+    if (adminCohorts.length === 0) {
+      return res.json({ answers: [] });
+    }
+
+    const cohortIds = adminCohorts.map(ac => ac.cohortId);
     
     const answers = await prisma.answer.findMany({
-      where: { questionId },
+      where: { 
+        questionId,
+        cohortId: { in: cohortIds } // Filter by admin's accessible cohorts
+      },
       include: {
         user: {
           select: {
@@ -305,6 +397,12 @@ router.get('/questions/:questionId/answers', async (req: AuthRequest, res) => {
             fullName: true,
             trainName: true,
             email: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
           }
         }
       },

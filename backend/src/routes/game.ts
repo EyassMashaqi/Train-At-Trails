@@ -54,7 +54,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
 
-    // Get user details
+    // Get user details with cohort information
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -70,19 +70,28 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // For now, use default cohort info (we can enhance this later when Prisma types are working)
-    const cohortInfo = {
-      id: 'default-cohort',
-      name: 'Default Cohort',
-      description: 'Main training cohort'
-    };
+    // Get user's active cohort
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
+    
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
 
-    // Get current active question
+    // Get current active question from user's cohort
     const currentQuestion = await prisma.question.findFirst({
       where: { 
         isReleased: true,
         isActive: true,
-        deadline: { gt: new Date() }
+        deadline: { gt: new Date() },
+        cohortId: userCohort.cohortId
       },
       include: {
         contents: {
@@ -97,10 +106,11 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       orderBy: { questionNumber: 'asc' }
     });
 
-    // Get user's answers
+    // Get user's answers from same cohort only
     const answers = await prisma.answer.findMany({
       where: { 
-        userId
+        userId,
+        cohortId: userCohort.cohortId
       },
       include: {
         question: {
@@ -161,7 +171,11 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         currentStep: user.currentStep, // Use user progress for now
         createdAt: user.createdAt
       },
-      cohort: cohortInfo,
+      cohort: {
+        id: userCohort.cohort.id,
+        name: userCohort.cohort.name,
+        description: userCohort.cohort.description
+      },
       currentStep: user.currentStep, // Use user progress for now
       totalSteps: effectiveTotalSteps, // Dynamic total based on actual assignments in database
       isComplete: user.currentStep >= totalQuestions,
@@ -474,27 +488,61 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
   }
 });
 
-// Get leaderboard (users with progress > 0)
+// Get leaderboard (users with progress > 0 from same cohort)
 router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const users = await prisma.user.findMany({
-      where: {
-        isAdmin: false,
-        currentStep: { gt: 0 }
+    const userId = req.user!.id;
+    
+    // Get user's active cohort
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
       },
-      select: {
-        id: true,
-        fullName: true,
-        trainName: true,
-        currentStep: true,
-        createdAt: true
-      },
-      orderBy: [
-        { currentStep: 'desc' },
-        { createdAt: 'asc' }
-      ],
-      take: 20
+      include: {
+        cohort: true
+      }
     });
+
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
+
+    // Get all users from the same cohort with progress > 0
+    const cohortMembers = await prisma.cohortMember.findMany({
+      where: {
+        cohortId: userCohort.cohortId,
+        status: 'ENROLLED'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            trainName: true,
+            currentStep: true,
+            createdAt: true,
+            isAdmin: true
+          }
+        }
+      }
+    });
+
+    // Filter and format users with progress > 0 (excluding admins)
+    const users = cohortMembers
+      .filter(member => 
+        !member.user.isAdmin && 
+        member.user.currentStep > 0
+      )
+      .map(member => member.user)
+      .sort((a, b) => {
+        // Sort by currentStep desc, then by createdAt asc
+        if (b.currentStep !== a.currentStep) {
+          return b.currentStep - a.currentStep;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      })
+      .slice(0, 20); // Take top 20
 
     res.json({ users });
   } catch (error) {
