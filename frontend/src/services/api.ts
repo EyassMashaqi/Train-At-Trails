@@ -128,25 +128,32 @@ export const gameService = {
   getCohortHistory: () => api.get('/game/cohort-history'),
   
   submitAnswer: (content: string, questionId?: string, file?: File | null) => {
-    if (file) {
-      const formData = new FormData();
-      formData.append('content', content);
-      if (questionId) {
-        formData.append('questionId', questionId);
-      }
-      formData.append('attachment', file);
-      return api.post('/game/answer', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-    } else {
-      const data: { content: string; questionId?: string } = { content };
-      if (questionId) {
-        data.questionId = questionId;
-      }
-      return api.post('/game/answer', data);
+    console.log('submitAnswer called with:', { content: content?.length, questionId, hasFile: !!file });
+    
+    // Validate that we have valid IDs
+    const validQuestionId = questionId && questionId !== 'NaN' && questionId !== 'undefined' ? questionId : undefined;
+    
+    console.log('Valid IDs:', { validQuestionId });
+    
+    // Always use FormData for consistency
+    const formData = new FormData();
+    formData.append('content', content);
+    
+    if (validQuestionId) {
+      formData.append('questionId', validQuestionId);
+      console.log('Added questionId to FormData:', validQuestionId);
     }
+    
+    if (file) {
+      formData.append('attachment', file);
+      console.log('Added file to FormData:', file.name);
+    }
+    
+    return api.post('/game/answer', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
   
   getAnswers: () => api.get('/game/answers'),

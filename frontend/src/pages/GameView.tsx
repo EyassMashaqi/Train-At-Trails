@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 interface Question {
-  id: number;
+  id: string | number; // Allow both string and number for compatibility
   title: string;
   content: string;
   description?: string;
@@ -231,7 +231,7 @@ const GameView: React.FC = () => {
             // Remove the step restriction to allow access to any unlocked question
             if (allMiniQuestionsCompleted && !hasAnswered) {
               foundTargetQuestion = {
-                id: parseInt(topic.id, 10),
+                id: topic.id, // Keep as string, don't convert to int
                 questionNumber: topicNumber,
                 title: topic.title,
                 description: topic.description,
@@ -479,7 +479,18 @@ const GameView: React.FC = () => {
 
     try {
       setSubmitting(true);
-      await gameService.submitAnswer(answerContent.trim(), targetQuestion.id.toString(), answerFile);
+      console.log('Submitting answer with target question:', {
+        id: targetQuestion.id,
+        questionNumber: targetQuestion.questionNumber,
+        title: targetQuestion.title
+      });
+      
+      // Pass as questionId since the backend recognizes questionId parameter
+      await gameService.submitAnswer(
+        answerContent.trim(), 
+        targetQuestion.id.toString(), // questionId
+        answerFile
+      );
       toast.success('Answer submitted successfully!');
       
       // Clear form

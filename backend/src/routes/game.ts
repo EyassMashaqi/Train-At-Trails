@@ -326,8 +326,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       currentQuestion = await prisma.question.findFirst({
         where: { 
           id: topicId, // topicId maps directly to questionId in our current schema
-          isReleased: true,
-          isActive: true
+          isReleased: true
+          // Removed isActive: true - a released question should be answerable
         }
       });
       console.log('Question found by topicId:', !!currentQuestion);
@@ -337,8 +337,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       currentQuestion = await prisma.question.findFirst({
         where: { 
           id: questionId,
-          isReleased: true,
-          isActive: true
+          isReleased: true
+          // Removed isActive: true - a released question should be answerable
         }
       });
       console.log('Question found by questionId:', !!currentQuestion);
