@@ -188,25 +188,60 @@ const GameView: React.FC = () => {
     if (!progress || !modules || modules.length === 0) return null;
 
     const userCurrentStep = progress.currentStep;
-    const nextQuestionNumber = userCurrentStep + 1;
     
     let foundTargetQuestion = null;
     
-    // Look through modules to find the question the user should be working on
+    // Look through modules to find a question where the user can submit the main assignment
+    // This should be a question where:
+    // 1. The question is released
+    // 2. Either no mini-questions exist OR all mini-questions are completed
+    // 3. The user hasn't already answered this question
+    
     for (const module of modules) {
       if (module.isReleased) {
         for (const topic of module.topics) {
-          if (topic.isReleased && (topic.questionNumber === nextQuestionNumber || topic.topicNumber === nextQuestionNumber)) {
-            foundTargetQuestion = {
-              id: parseInt(topic.id, 10),
-              questionNumber: topic.questionNumber || topic.topicNumber,
-              title: topic.title,
-              description: topic.description,
-              content: topic.content || '',
-              releaseDate: topic.deadline,
-              hasAnswered: false
-            };
-            break;
+          if (topic.isReleased) {
+            const topicNumber = topic.questionNumber || topic.topicNumber;
+            
+            // Get mini-questions for this topic
+            const topicMiniQuestions = miniQuestions.filter(mq => 
+              mq.questionNumber === topicNumber
+            );
+            
+            const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
+            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || completedMiniQuestions === topicMiniQuestions.length;
+            
+            // Check if user has already answered this question
+            const hasAnswered = progress?.answers?.some(answer => 
+              answer.question.questionNumber === topicNumber
+            );
+            
+            console.log(`🔍 Checking topic ${topicNumber}:`, {
+              topicTitle: topic.title,
+              topicNumber,
+              userCurrentStep,
+              totalMiniQuestions: topicMiniQuestions.length,
+              completedMiniQuestions,
+              allMiniQuestionsCompleted,
+              hasAnswered,
+              isAvailable: allMiniQuestionsCompleted && !hasAnswered
+            });
+            
+            // If mini-questions are completed and user hasn't answered, this is our target
+            // Remove the step restriction to allow access to any unlocked question
+            if (allMiniQuestionsCompleted && !hasAnswered) {
+              foundTargetQuestion = {
+                id: parseInt(topic.id, 10),
+                questionNumber: topicNumber,
+                title: topic.title,
+                description: topic.description,
+                content: topic.content || '',
+                releaseDate: topic.deadline,
+                hasAnswered: false
+              };
+              console.log('🎯 Found target question:', foundTargetQuestion);
+              break;
+            }
           }
         }
         if (foundTargetQuestion) break;
@@ -216,13 +251,21 @@ const GameView: React.FC = () => {
     // Fallback to currentQuestion if no topic found (legacy mode)
     if (!foundTargetQuestion && currentQuestion) {
       foundTargetQuestion = currentQuestion;
+      console.log('🔄 Using fallback currentQuestion:', foundTargetQuestion);
     }
     
+    console.log('📝 Final target question result:', foundTargetQuestion);
     return foundTargetQuestion;
-  }, [progress, modules, currentQuestion]);
+  }, [progress, modules, currentQuestion, miniQuestions]);
 
   // Update target question state when calculated value changes
   useEffect(() => {
+    console.log('🎯 Target question calculation:', {
+      calculateTargetQuestion,
+      userCurrentStep: progress?.currentStep,
+      modulesCount: modules?.length,
+      miniQuestionsCount: miniQuestions?.length
+    });
     setTargetQuestion(calculateTargetQuestion);
   }, [calculateTargetQuestion]);
 

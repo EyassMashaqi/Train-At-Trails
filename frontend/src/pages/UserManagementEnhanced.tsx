@@ -242,7 +242,7 @@ const UserManagementEnhanced: React.FC = () => {
               <span className="text-gray-300">|</span>
               <div className="flex items-center space-x-2">
                 <span className="text-2xl">👥</span>
-                <h1 className="text-xl font-bold text-gray-900">Enhanced User Management</h1>
+                <h1 className="text-xl font-bold text-gray-900">User Management</h1>
               </div>
             </div>
             <div className="flex items-center space-x-3">
