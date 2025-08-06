@@ -6,10 +6,9 @@ const prisma = new PrismaClient();
 export const startMiniQuestionScheduler = () => {
   console.log('🎯 Starting mini question release scheduler...');
   
-  // Run every 5 minutes to check if mini questions should be released
-  cron.schedule('*/5 * * * *', async () => {
+  // Run every 30 minutes to check if mini questions should be released
+  cron.schedule('*/30 * * * *', async () => {
     try {
-      console.log('🔍 Checking for mini questions to release...');
       
       const now = new Date();
       

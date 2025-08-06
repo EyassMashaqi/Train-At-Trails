@@ -25,7 +25,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 console.log('🔧 Server Configuration:');
 console.log('  - Port:', PORT);
 console.log('  - Environment:', process.env.NODE_ENV || 'development');
-console.log('  - Host: 0.0.0.0 (accepting external connections)');
+console.log('  - Host: localhost (local only)');
 
 // Security middleware
 app.use(helmet());
@@ -135,7 +135,7 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-const HOST = '0.0.0.0'; // Bind to all interfaces for port forwarding
+const HOST = 'localhost'; // Bind to localhost only
 app.listen(PORT, HOST, () => {
   console.log(`🏮 BVisionRY Lighthouse server running on http://${HOST}:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);

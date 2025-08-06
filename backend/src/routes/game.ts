@@ -473,7 +473,6 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       take: 20
     });
 
-    console.log('Leaderboard API: Found', users.length, 'users with progress');
     res.json({ users });
   } catch (error) {
     console.error('Get leaderboard error:', error);
@@ -913,29 +912,6 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         })) || []
       }))
     }));
-
-    // Debug logging for first module's first topic
-    if (formattedModules.length > 0 && formattedModules[0].topics.length > 0) {
-      const firstTopic = formattedModules[0].topics[0];
-      console.log('Backend - First topic data:', {
-        title: firstTopic.title,
-        content: firstTopic.content,
-        contentLength: firstTopic.content?.length || 0,
-        isReleased: firstTopic.isReleased,
-        questionNumber: firstTopic.question?.questionNumber,
-        contentsCount: firstTopic.contents?.length || 0,
-        miniQuestionsCount: firstTopic.contents?.reduce((total: number, content: any) => 
-          total + (content.miniQuestions?.length || 0), 0) || 0
-      });
-      
-      // Log mini-questions details
-      firstTopic.contents?.forEach((content: any, contentIndex: number) => {
-        console.log(`  Content ${contentIndex + 1}: "${content.title}" (${content.miniQuestions?.length || 0} mini-questions)`);
-        content.miniQuestions?.forEach((mq: any, mqIndex: number) => {
-          console.log(`    MQ ${mqIndex + 1}: "${mq.title}" (Released: ${mq.isReleased}, Has Answer: ${mq.hasAnswer})`);
-        });
-      });
-    }
 
     res.json({ modules: formattedModules });
   } catch (error) {

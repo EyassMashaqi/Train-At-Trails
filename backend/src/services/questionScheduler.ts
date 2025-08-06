@@ -9,8 +9,6 @@ export const startQuestionScheduler = () => {
   // Run every hour to check if new questions should be released
   cron.schedule('0 * * * *', async () => {
     try {
-      console.log('🔍 Checking for questions to release...');
-      
       // Get game config
       const config = await prisma.gameConfig.findUnique({
         where: { id: 'singleton' }
