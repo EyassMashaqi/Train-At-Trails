@@ -1532,6 +1532,28 @@ const AdminDashboard: React.FC = () => {
                       return;
                     }
 
+                    // Validate required fields
+                    if (!topicForm.title.trim()) {
+                      toast.error('Assignment title is required');
+                      return;
+                    }
+                    if (!topicForm.content.trim()) {
+                      toast.error('Assignment content is required');
+                      return;
+                    }
+                    if (!topicForm.description.trim()) {
+                      toast.error('Assignment description is required');
+                      return;
+                    }
+                    if (!topicForm.deadline.trim()) {
+                      toast.error('Assignment deadline is required');
+                      return;
+                    }
+                    if (!topicForm.points || topicForm.points <= 0) {
+                      toast.error('Assignment points must be greater than 0');
+                      return;
+                    }
+
                     // Validate deadline against mini question release dates
                     const validationResult = validateAssignmentDeadline(topicForm.deadline, topicForm.contents);
                     if (!validationResult.isValid) {
@@ -1553,6 +1575,11 @@ const AdminDashboard: React.FC = () => {
                         }))
                       }))
                     };
+
+                    console.log('📤 Sending assignment data:', {
+                      moduleId: selectedModuleForTopic,
+                      topicData: topicData
+                    });
 
                     const response = await adminService.createTopic(selectedModuleForTopic, topicData);
                     const newTopic = response.data;

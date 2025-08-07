@@ -1247,32 +1247,50 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
       contents
     } = req.body;
 
+    console.log('📥 Received assignment creation request:', {
+      moduleId,
+      body: req.body,
+      extractedFields: {
+        topicNumber,
+        title: title?.length ? `"${title}"` : 'EMPTY',
+        content: content?.length ? `"${content.substring(0, 50)}..."` : 'EMPTY',
+        description: description?.length ? `"${description.substring(0, 50)}..."` : 'EMPTY',
+        deadline,
+        points,
+        bonusPoints,
+        contentsCount: contents?.length || 0
+      }
+    });
+
     // Validate required fields
     if (!topicNumber || !title || !content || !description || !deadline || !points) {
+      console.log('❌ Validation failed - missing required fields:', {
+        topicNumber: !!topicNumber,
+        title: !!title,
+        content: !!content,
+        description: !!description,
+        deadline: !!deadline,
+        points: !!points
+      });
       return res.status(400).json({ 
         error: 'Missing required fields: topicNumber, title, content, description, deadline, points' 
       });
     }
 
-    // Validate assignment deadline against self learning activity release dates
-    const assignmentDeadline = new Date(deadline);
-    const validationResult = validateAssignmentDeadline(assignmentDeadline, contents || []);
-    if (!validationResult.isValid) {
-      return res.status(400).json({ 
-        error: validationResult.errorMessage 
-      });
-    }
-
     // Verify module exists
+    console.log('🔍 Checking if module exists:', moduleId);
     const module = await (prisma as any).module.findUnique({
       where: { id: moduleId }
     });
 
     if (!module) {
+      console.log('❌ Module not found:', moduleId);
       return res.status(404).json({ error: 'Module not found' });
     }
+    console.log('✅ Module found:', module.title);
 
     // Check if topic number already exists in this module
+    console.log('🔍 Checking for existing topic with number:', topicNumber, 'in module:', moduleId);
     const existingTopic = await prisma.question.findFirst({
       where: { 
         moduleId,
@@ -1281,10 +1299,28 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
     });
 
     if (existingTopic) {
+      console.log('❌ Topic number already exists:', {
+        existingTopicId: existingTopic.id,
+        existingTopicTitle: existingTopic.title,
+        topicNumber: existingTopic.topicNumber
+      });
       return res.status(400).json({ 
-        error: `Topic ${topicNumber} already exists in this module` 
+        error: `Assignment ${topicNumber} already exists in this module. Please use a different assignment number.` 
       });
     }
+    console.log('✅ Topic number is available');
+
+    // Validate assignment deadline against self learning activity release dates
+    console.log('🔍 Validating assignment deadline against self learning activities...');
+    const assignmentDeadline = new Date(deadline);
+    const validationResult = validateAssignmentDeadline(assignmentDeadline, contents || []);
+    if (!validationResult.isValid) {
+      console.log('❌ Assignment deadline validation failed:', validationResult.errorMessage);
+      return res.status(400).json({ 
+        error: validationResult.errorMessage 
+      });
+    }
+    console.log('✅ Assignment deadline validation passed');
 
     // Use a transaction to safely get the next unique questionNumber and create contents
     const question = await prisma.$transaction(async (tx) => {
