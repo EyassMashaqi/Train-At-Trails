@@ -180,8 +180,30 @@ const GameView: React.FC = () => {
   };
 
   useEffect(() => {
-    loadGameData();
+    // Check cohort enrollment before loading game data
+    checkCohortEnrollment();
   }, []);
+
+  const checkCohortEnrollment = async () => {
+    try {
+      const response = await gameService.checkCohortStatus();
+      const { isEnrolled } = response.data;
+      
+      if (!isEnrolled) {
+        console.log('🎯 User not enrolled in any cohort, redirecting to cohort selection...');
+        navigate('/cohort-history');
+        return;
+      }
+      
+      // If enrolled, proceed to load game data
+      loadGameData();
+    } catch (error) {
+      console.error('Failed to check cohort status:', error);
+      // If we can't check cohort status, still try to load game data
+      // The error will be handled in loadGameData
+      loadGameData();
+    }
+  };
 
   // Calculate target question based on current progress and modules
   const calculateTargetQuestion = useMemo(() => {
@@ -401,6 +423,17 @@ const GameView: React.FC = () => {
       setLeaderboardLoading(false);
     } catch (error) {
       console.error('Failed to load game data:', error);
+      
+      // Check if the error is due to user not being enrolled in any cohort
+      const axiosError = error as any;
+      if (axiosError?.response?.status === 400 && 
+          (axiosError?.response?.data?.error?.includes('not enrolled in any active cohort') ||
+           axiosError?.response?.data?.error?.includes('not enrolled in any cohort'))) {
+        console.log('🎯 User not enrolled in any cohort, redirecting to cohort selection...');
+        navigate('/cohort-history');
+        return;
+      }
+      
       const errorMessage = error instanceof Error
         ? error.message
         : ((error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to load game data');

@@ -123,6 +123,9 @@ export const authService = {
 
 // Game service
 export const gameService = {
+  // User cohort status
+  checkCohortStatus: () => api.get('/auth/cohort-status'),
+
   getProgress: () => api.get('/game/progress'),
   
   getCohortHistory: () => api.get('/game/cohort-history'),
