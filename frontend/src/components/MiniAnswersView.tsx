@@ -262,7 +262,7 @@ const MiniAnswersView: React.FC = () => {
                         {item.user.fullName}
                       </h3>
                       <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <span>🚂 {item.user.trainName || 'No train name'}</span>
+                        <span>🚂 {item.user.trainName || 'No avatar name'}</span>
                         <span>•</span>
                         <span>📧 {item.user.email}</span>
                       </div>

@@ -15,6 +15,15 @@ interface User {
   trainName: string;
   currentStep: number;
   createdAt: string;
+  // Cohort-specific fields
+  cohortStatus?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED';
+  joinedAt?: string;
+  statusChangedAt?: string;
+  statusChangedBy?: string;
+  graduatedAt?: string;
+  graduatedBy?: string;
+  isCurrentCohort?: boolean;
+  isActive?: boolean;
 }
 
 interface PendingAnswer {
@@ -141,6 +150,11 @@ const AdminDashboard: React.FC = () => {
   const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions'>('overview');
   
+  // User status filtering
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]); // Store unfiltered users
+  
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState<{
@@ -263,7 +277,17 @@ const AdminDashboard: React.FC = () => {
         totalSteps: progressResponse.data.totalSteps 
       });
 
-      setUsers(usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || []);
+      const allUsersData = usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || [];
+      setAllUsers(allUsersData);
+      setUsers(allUsersData); // Initially show all users
+      
+      // Extract available statuses for filtering (only for cohort-specific data)
+      if (selectedCohortId && usersResponse.data.filters?.availableStatuses) {
+        setAvailableStatuses(usersResponse.data.filters.availableStatuses);
+      } else {
+        setAvailableStatuses([]);
+      }
+      
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
@@ -416,6 +440,33 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleStatusFilter = useCallback(async (status: string) => {
+    setStatusFilter(status);
+    
+    if (!selectedCohortId) {
+      // For all users (non-cohort view), no filtering needed
+      setUsers(allUsers);
+      return;
+    }
+
+    try {
+      // Fetch users with the selected status filter
+      const response = await adminService.getCohortUsers(selectedCohortId, status === 'all' ? undefined : status);
+      const filteredUsers = response.data.members || [];
+      setUsers(filteredUsers);
+    } catch (error) {
+      console.error('Failed to filter users:', error);
+      toast.error('Failed to filter users');
+      // Fallback to client-side filtering
+      if (status === 'all') {
+        setUsers(allUsers);
+      } else {
+        const filtered = allUsers.filter(user => user.cohortStatus === status);
+        setUsers(filtered);
+      }
+    }
+  }, [selectedCohortId, allUsers]);
+
   const renderOverview = () => {
     if (!stats) return null;
 
@@ -546,7 +597,32 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-800">All Users</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-800">
+              {selectedCohortId ? 'Cohort Users' : 'All Users'}
+            </h3>
+            {/* Status Filter - only show for cohort view */}
+            {selectedCohortId && availableStatuses.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
+                  Filter by Status:
+                </label>
+                <select
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(e) => handleStatusFilter(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="all">All Statuses</option>
+                  {availableStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status.charAt(0) + status.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -556,11 +632,17 @@ const AdminDashboard: React.FC = () => {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Train Name
+                  Avatar Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Progress
                 </th>
+                {/* Status column - only show for cohort view */}
+                {selectedCohortId && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
                 </th>
@@ -589,6 +671,28 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
                   </td>
+                  {/* Status column - only show for cohort view */}
+                  {selectedCohortId && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.cohortStatus === 'ENROLLED' 
+                          ? 'bg-green-100 text-green-800'
+                          : user.cohortStatus === 'GRADUATED'
+                          ? 'bg-blue-100 text-blue-800'
+                          : user.cohortStatus === 'SUSPENDED'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : user.cohortStatus === 'REMOVED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {user.cohortStatus === 'ENROLLED' && '✅ Active'}
+                        {user.cohortStatus === 'GRADUATED' && '🎓 Graduated'}
+                        {user.cohortStatus === 'SUSPENDED' && '⏸️ Suspended'}
+                        {user.cohortStatus === 'REMOVED' && '❌ Removed'}
+                        {!user.cohortStatus && '❓ Unknown'}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>

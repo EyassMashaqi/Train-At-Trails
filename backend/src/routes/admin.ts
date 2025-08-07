@@ -2204,6 +2204,7 @@ router.post('/assign-user-cohort', async (req: AuthRequest, res) => {
 router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
   try {
     const { cohortId } = req.params;
+    const { status } = req.query; // Add support for status filtering
 
     // Check if cohort exists
     const cohort = await prisma.cohort.findUnique({
@@ -2215,14 +2216,22 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Cohort not found' });
     }
 
+    // Build the where clause with optional status filtering
+    const whereClause: any = {
+      cohortId,
+      user: {
+        isAdmin: false // Filter out admin users
+      }
+    };
+
+    // Add status filter if provided
+    if (status && typeof status === 'string') {
+      whereClause.status = status.toUpperCase();
+    }
+
     // Get all users with their status in this cohort
     const cohortMembers = await (prisma as any).cohortMember.findMany({
-      where: { 
-        cohortId,
-        user: {
-          isAdmin: false // Filter out admin users
-        }
-      },
+      where: whereClause,
       include: {
         user: {
           select: {
@@ -2242,6 +2251,22 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
       ]
     });
 
+    // Get available status options for filtering
+    const allStatuses = await (prisma as any).cohortMember.findMany({
+      where: {
+        cohortId,
+        user: {
+          isAdmin: false
+        }
+      },
+      select: {
+        status: true
+      },
+      distinct: ['status']
+    });
+
+    const availableStatuses = allStatuses.map((item: any) => item.status);
+
     res.json({ 
       cohort,
       members: cohortMembers.map((member: any) => ({
@@ -2250,8 +2275,17 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
         joinedAt: member.joinedAt,
         statusChangedAt: member.statusChangedAt,
         statusChangedBy: member.statusChangedBy,
-        isCurrentCohort: member.user.currentCohortId === cohortId
-      }))
+        graduatedAt: member.graduatedAt,
+        graduatedBy: member.graduatedBy,
+        isCurrentCohort: member.user.currentCohortId === cohortId,
+        // Add additional cohort membership details
+        currentStep: member.currentStep || member.user.currentStep,
+        isActive: member.isActive
+      })),
+      filters: {
+        availableStatuses,
+        currentFilter: status || 'all'
+      }
     });
   } catch (error) {
     console.error('Get cohort users error:', error);

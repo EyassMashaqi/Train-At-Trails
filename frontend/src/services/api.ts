@@ -418,7 +418,10 @@ export const adminService = {
   // Cohort management
   getAllCohorts: () => api.get('/admin/cohorts'),
   
-  getCohortUsers: (cohortId: string) => api.get(`/admin/cohort/${cohortId}/users`),
+  getCohortUsers: (cohortId: string, status?: string) => {
+    const params = status ? { status } : {};
+    return api.get(`/admin/cohort/${cohortId}/users`, { params });
+  },
   
   getUsersWithCohorts: () => api.get('/admin/users-with-cohorts'),
 
