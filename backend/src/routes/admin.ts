@@ -81,18 +81,36 @@ router.get('/stats', async (req: AuthRequest, res) => {
   try {
     const adminUserId = req.user!.id;
     
-    // Get admin's cohort access
-    const adminCohorts = await prisma.cohortMember.findMany({
-      where: { 
-        userId: adminUserId,
-        status: 'ENROLLED'
-      },
-      select: {
-        cohortId: true
-      }
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
     });
 
-    if (adminCohorts.length === 0) {
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      // For admin users, get all active cohorts instead of requiring membership
+      const allCohorts = await prisma.cohort.findMany({
+        where: { isActive: true },
+        select: { id: true }
+      });
+      cohortIds = allCohorts.map(c => c.id);
+    } else {
+      // For non-admin users, get their cohort access
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: {
+          cohortId: true
+        }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
+    }
+
+    if (cohortIds.length === 0) {
       return res.json({
         totalUsers: 0,
         totalAnswers: 0,
@@ -100,8 +118,6 @@ router.get('/stats', async (req: AuthRequest, res) => {
         averageProgress: 0
       });
     }
-
-    const cohortIds = adminCohorts.map(ac => ac.cohortId);
 
     // Get total users in admin's accessible cohorts (excluding admins)
     const cohortMembers = await prisma.cohortMember.findMany({
@@ -178,23 +194,39 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
   try {
     const adminUserId = req.user!.id;
     
-    // Get admin's cohort access (admins can access specific cohorts)
-    const adminCohorts = await prisma.cohortMember.findMany({
-      where: { 
-        userId: adminUserId,
-        status: 'ENROLLED'
-      },
-      select: {
-        cohortId: true
-      }
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
     });
 
-    // If admin has no cohort access, return empty
-    if (adminCohorts.length === 0) {
-      return res.json({ pendingAnswers: [] });
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      // For admin users, get all active cohorts instead of requiring membership
+      const allCohorts = await prisma.cohort.findMany({
+        where: { isActive: true },
+        select: { id: true }
+      });
+      cohortIds = allCohorts.map(c => c.id);
+    } else {
+      // For non-admin users, get their cohort access
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: {
+          cohortId: true
+        }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
     }
 
-    const cohortIds = adminCohorts.map(ac => ac.cohortId);
+    // If no cohort access, return empty
+    if (cohortIds.length === 0) {
+      return res.json({ pendingAnswers: [] });
+    }
 
     const pendingAnswers = await prisma.answer.findMany({
       where: { 
@@ -368,22 +400,38 @@ router.get('/questions/:questionId/answers', async (req: AuthRequest, res) => {
     const questionId = req.params.questionId;
     const adminUserId = req.user!.id;
     
-    // Get admin's cohort access
-    const adminCohorts = await prisma.cohortMember.findMany({
-      where: { 
-        userId: adminUserId,
-        status: 'ENROLLED'
-      },
-      select: {
-        cohortId: true
-      }
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
     });
 
-    if (adminCohorts.length === 0) {
-      return res.json({ answers: [] });
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      // For admin users, get all active cohorts instead of requiring membership
+      const allCohorts = await prisma.cohort.findMany({
+        where: { isActive: true },
+        select: { id: true }
+      });
+      cohortIds = allCohorts.map(c => c.id);
+    } else {
+      // For non-admin users, get their cohort access
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: {
+          cohortId: true
+        }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
     }
 
-    const cohortIds = adminCohorts.map(ac => ac.cohortId);
+    if (cohortIds.length === 0) {
+      return res.json({ answers: [] });
+    }
     
     const answers = await prisma.answer.findMany({
       where: { 

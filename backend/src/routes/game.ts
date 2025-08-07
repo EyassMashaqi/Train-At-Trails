@@ -81,7 +81,13 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
     
-    if (!userCohort) {
+    // Check if user is admin - admins don't need cohort membership
+    const isAdmin = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true }
+    });
+    
+    if (!userCohort && !isAdmin?.isAdmin) {
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
@@ -91,7 +97,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         isReleased: true,
         isActive: true,
         deadline: { gt: new Date() },
-        cohortId: userCohort.cohortId
+        cohortId: userCohort?.cohortId
       },
       include: {
         contents: {
@@ -110,7 +116,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     const answers = await prisma.answer.findMany({
       where: { 
         userId,
-        cohortId: userCohort.cohortId
+        cohortId: userCohort?.cohortId
       },
       include: {
         question: {
@@ -171,11 +177,13 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         currentStep: user.currentStep, // Use user progress for now
         createdAt: user.createdAt
       },
-      cohort: {
-        id: userCohort.cohort.id,
-        name: userCohort.cohort.name,
-        description: userCohort.cohort.description
-      },
+      ...(userCohort && {
+        cohort: {
+          id: userCohort.cohort.id,
+          name: userCohort.cohort.name,
+          description: userCohort.cohort.description
+        }
+      }),
       currentStep: user.currentStep, // Use user progress for now
       totalSteps: effectiveTotalSteps, // Dynamic total based on actual assignments in database
       isComplete: user.currentStep >= totalQuestions,
@@ -447,7 +455,13 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     console.log('  User cohort found:', !!userCohort);
     console.log('  Cohort details:', userCohort ? { id: userCohort.cohortId, name: userCohort.cohort.name } : 'None');
 
-    if (!userCohort) {
+    // Check if user is admin - admins don't need cohort membership
+    const isAdmin = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true }
+    });
+
+    if (!userCohort && !isAdmin?.isAdmin) {
       console.log('ERROR: User not enrolled in any cohort');
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
@@ -457,7 +471,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       content: content.trim(),
       userId,
       questionId: currentQuestion.id,
-      cohortId: userCohort.cohortId
+      cohortId: userCohort?.cohortId
     };
 
     // Add attachment information if file was uploaded
@@ -655,7 +669,13 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
     
-    if (!userCohort) {
+    // Check if user is admin - admins don't need cohort membership
+    const isAdmin = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true }
+    });
+    
+    if (!userCohort && !isAdmin?.isAdmin) {
       return res.status(400).json({ error: 'User is not a member of any active cohort' });
     }
 
@@ -697,7 +717,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         answers: {
           where: { 
             userId,
-            cohortId: userCohort.cohortId
+            ...(userCohort ? { cohortId: userCohort.cohortId } : {})
           },
           select: {
             id: true,
@@ -733,7 +753,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       let questionStatus = 'locked';
       
       // Check if question is released (for module/topic system) or within step range (for legacy system)
-      const isQuestionAccessible = question.isReleased || (question.questionNumber <= userCohort.currentStep + 1);
+      const isQuestionAccessible = question.isReleased || (question.questionNumber <= (userCohort?.currentStep || user.currentStep) + 1);
       
       if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
@@ -875,18 +895,18 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         id: user.id,
         fullName: user.fullName,
         trainName: user.trainName,
-        currentStep: userCohort.currentStep,
+        currentStep: userCohort?.currentStep || user.currentStep,
         createdAt: user.createdAt
       },
-      cohort: {
+      cohort: userCohort ? {
         id: userCohort.cohort.id,
         name: userCohort.cohort.name,
         description: userCohort.cohort.description
-      },
-      currentStep: userCohort.currentStep,
+      } : null,
+      currentStep: userCohort?.currentStep || user.currentStep,
       totalSteps: effectiveTotalSteps, // Dynamic total based on actual assignments in database
       totalQuestions,
-      isComplete: userCohort.currentStep >= totalQuestions,
+      isComplete: (userCohort?.currentStep || user.currentStep) >= totalQuestions,
       questions: processedQuestions,
       
       // Backward compatibility for original GameView

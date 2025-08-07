@@ -297,9 +297,7 @@ const AdminDashboard: React.FC = () => {
         setTotalSteps(progressResponse.data.totalSteps);
       }
 
-      console.log('🎉 Admin data loading complete!');
     } catch (error: unknown) {
-      console.error('❌ Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
       if (
         typeof error === 'object' &&

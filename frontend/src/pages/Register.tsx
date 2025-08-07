@@ -229,10 +229,10 @@ const Register: React.FC = () => {
             <div className="bg-primary-50 rounded-md p-4">
               <h3 className="text-sm font-medium text-primary-800 mb-2">🎮 How it Works:</h3>
               <ul className="text-xs text-blue-700 space-y-1">
-                <li>• Answer 12 questions to complete your trail</li>
-                <li>• Each approved answer moves your train forward</li>
+                <li>• Answer certain number of questions to complete your trail</li>
+                <li>• Each approved answer moves you step forward</li>
                 <li>• Admin reviews and approves your answers</li>
-                <li>• Track your progress on the interactive trail map</li>
+                <li>• Track your progress on the interactive map</li>
               </ul>
             </div>
           </div>
