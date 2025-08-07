@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
-import { api, adminService } from '../services/api';
+import { api } from '../services/api';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -13,23 +13,25 @@ interface User {
   email: string;
   fullName: string;
   trainName?: string;
-  isAdmin: boolean;
-  createdAt: string;
-  cohortMembers: CohortMember[];
-}
-
-interface CohortMember {
-  id: string;
-  cohortId: string;
   currentStep: number;
-  joinedAt: string;
-  isActive: boolean;
-  status: string; // ENROLLED, GRADUATED, REMOVED, SUSPENDED
-  cohort: {
+  createdAt: string;
+  updatedAt: string;
+  currentCohort?: {
     id: string;
     name: string;
     isActive: boolean;
   };
+  allCohorts: CohortMembership[];
+}
+
+interface CohortMembership {
+  cohortId: string;
+  cohortName: string;
+  status: 'ENROLLED' | 'GRADUATED' | 'REMOVED' | 'SUSPENDED';
+  joinedAt: string;
+  statusChangedAt: string;
+  statusChangedBy?: string;
+  isActive: boolean;
 }
 
 interface Cohort {
@@ -40,16 +42,36 @@ interface Cohort {
   endDate?: string;
 }
 
+interface CohortUser {
+  id: string;
+  email: string;
+  fullName: string;
+  trainName?: string;
+  currentStep: number;
+  createdAt: string;
+  currentCohortId?: string;
+  cohortStatus: 'ENROLLED' | 'GRADUATED' | 'REMOVED' | 'SUSPENDED';
+  joinedAt: string;
+  statusChangedAt: string;
+  statusChangedBy?: string;
+  isCurrentCohort: boolean;
+}
+
 const UserManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [selectedCohortId, setSelectedCohortId] = useState<string>('');
+  const [cohortUsers, setCohortUsers] = useState<CohortUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cohortLoading, setCohortLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedCohortUser, setSelectedCohortUser] = useState<CohortUser | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('');
   const [assignLoading, setAssignLoading] = useState(false);
-  const [selectedCohortId, setSelectedCohortId] = useState<string>('');
 
   useEffect(() => {
     if (!currentUser?.isAdmin) {
@@ -59,18 +81,24 @@ const UserManagement: React.FC = () => {
     loadData();
   }, [currentUser, navigate]);
 
+  useEffect(() => {
+    if (selectedCohortId) {
+      loadCohortUsers();
+    } else {
+      setCohortUsers([]);
+    }
+  }, [selectedCohortId]);
+
   const loadData = async () => {
     try {
       setLoading(true);
       
       const [usersResponse, cohortsResponse] = await Promise.all([
-        api.get('/admin/cohorts/users/all'),
+        api.get('/admin/users-with-cohorts'),
         api.get('/admin/cohorts')
       ]);
       
-      // Filter out admin users from the user list
-      const nonAdminUsers = (usersResponse.data.users || []).filter((user: User) => !user.isAdmin);
-      setUsers(nonAdminUsers);
+      setUsers(usersResponse.data.users || []);
       setCohorts(cohortsResponse.data.cohorts || []);
       
     } catch (error) {
@@ -78,6 +106,21 @@ const UserManagement: React.FC = () => {
       toast.error('Failed to load users and cohorts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCohortUsers = async () => {
+    if (!selectedCohortId) return;
+    
+    try {
+      setCohortLoading(true);
+      const response = await api.get(`/admin/cohort/${selectedCohortId}/users`);
+      setCohortUsers(response.data.members || []);
+    } catch (error) {
+      console.error('❌ Failed to load cohort users:', error);
+      toast.error('Failed to load cohort users');
+    } finally {
+      setCohortLoading(false);
     }
   };
 
@@ -89,57 +132,81 @@ const UserManagement: React.FC = () => {
 
     try {
       setAssignLoading(true);
-      await api.post(`/admin/cohorts/${selectedCohortId}/members`, {
-        userId: selectedUser.id
+      await api.post('/admin/assign-user-cohort', {
+        userId: selectedUser.id,
+        cohortId: selectedCohortId
       });
 
       toast.success(`User assigned to cohort successfully!`);
       setShowAssignModal(false);
       setSelectedUser(null);
-      setSelectedCohortId('');
       await loadData();
+      await loadCohortUsers();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to assign user to cohort';
+      const errorMessage = error.response?.data?.error || 'Failed to assign user to cohort';
       toast.error(errorMessage);
     } finally {
       setAssignLoading(false);
     }
   };
 
-  const handleRemoveFromCohort = async (userId: string, cohortId: string, cohortName: string) => {
-    if (!confirm(`Are you sure you want to remove this user from "${cohortName}"? Their progress in this cohort will be preserved but they won't be able to access it.`)) {
+  const handleStatusChange = async () => {
+    if (!selectedCohortUser || !newStatus || !selectedCohortId) {
+      toast.error('Please select a status');
       return;
     }
 
     try {
-      await api.delete(`/admin/cohorts/${cohortId}/members/${userId}`);
-      toast.success('User removed from cohort successfully!');
-      await loadData();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to remove user from cohort';
-      toast.error(errorMessage);
-    }
-  };
+      setAssignLoading(true);
+      const response = await api.put('/admin/user-cohort-status', {
+        userId: selectedCohortUser.id,
+        cohortId: selectedCohortId,
+        status: newStatus
+      });
 
-  const handleGraduateUser = async (userId: string, cohortId: string, cohortName: string, userName: string) => {
-    if (!confirm(`Are you sure you want to graduate "${userName}" from "${cohortName}"? This action will mark their training as complete and they will no longer have active access to this cohort.`)) {
-      return;
-    }
-
-    try {
-      const response = await adminService.graduateUser(userId, cohortId);
-      toast.success(response.data.message || 'User graduated successfully!');
+      toast.success(response.data.message || 'User status updated successfully!');
+      setShowStatusModal(false);
+      setSelectedCohortUser(null);
+      setNewStatus('');
       await loadData();
+      await loadCohortUsers();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to graduate user';
+      const errorMessage = error.response?.data?.error || 'Failed to update user status';
       toast.error(errorMessage);
+    } finally {
+      setAssignLoading(false);
     }
   };
 
   const openAssignModal = (user: User) => {
     setSelectedUser(user);
-    setSelectedCohortId('');
     setShowAssignModal(true);
+  };
+
+  const openStatusModal = (user: CohortUser) => {
+    setSelectedCohortUser(user);
+    setNewStatus(user.cohortStatus);
+    setShowStatusModal(true);
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'ENROLLED': return 'bg-green-100 text-green-800 border-green-200';
+      case 'GRADUATED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'REMOVED': return 'bg-red-100 text-red-800 border-red-200';
+      case 'SUSPENDED': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ENROLLED': return '✅';
+      case 'GRADUATED': return '🎓';
+      case 'REMOVED': return '❌';
+      case 'SUSPENDED': return '⏸️';
+      default: return '❓';
+    }
   };
 
   if (loading) {
@@ -149,10 +216,10 @@ const UserManagement: React.FC = () => {
           <div className="relative">
             <span className="text-8xl animate-bounce">👥</span>
             <div className="absolute -top-2 -right-2 animate-ping">
-              <span className="text-4xl">✨</span>
+              <span className="text-2xl">⚙️</span>
             </div>
           </div>
-          <p className="mt-6 text-xl text-gray-600 font-medium">Loading users...</p>
+          <p className="text-lg text-gray-600 mt-4 font-medium">Loading User Management...</p>
         </div>
       </div>
     );
@@ -160,232 +227,353 @@ const UserManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center items-center mb-6 space-x-8">
-            <img 
-              src={BVisionRYLogo} 
-              alt="BVisionRY Company Logo" 
-              className="w-44 h-16 px-3 py-2 bvisionary-logo"
-            />
-            <div className="flex-1">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                User Management
-              </h1>
-              <p className="text-xl text-gray-600">Manage users and their cohort assignments</p>
+      {/* Header */}
+      <div className="bg-white shadow-lg border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/cohorts')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
+              >
+                <span className="text-xl">🏫</span>
+                <span className="font-medium">Cohorts</span>
+              </button>
+              <span className="text-gray-300">|</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl">👥</span>
+                <h1 className="text-xl font-bold text-gray-900">User Management</h1>
+              </div>
             </div>
-            <img 
-              src={LighthouseLogo} 
-              alt="Lighthouse Logo" 
-              className="w-28 h-28 lighthouse-logo"
-            />
+            <div className="flex items-center space-x-3">
+              <img src={BVisionRYLogo} alt="BVisionRY" className="h-8 w-auto" />
+              <img src={LighthouseLogo} alt="Lighthouse" className="h-8 w-auto" />
+            </div>
           </div>
+        </div>
+      </div>
 
-          <button
-            onClick={() => navigate('/cohorts')}
-            className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg"
-          >
-            ← Back to Cohorts
-          </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Cohort Selection */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <span className="text-xl mr-2">🎯</span>
+            Select Cohort to Manage
+          </h2>
+          <div className="flex items-center space-x-4">
+            <select
+              value={selectedCohortId}
+              onChange={(e) => setSelectedCohortId(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Select a cohort...</option>
+              {cohorts.map((cohort) => (
+                <option key={cohort.id} value={cohort.id}>
+                  {cohort.name} {!cohort.isActive ? '(Inactive)' : ''}
+                </option>
+              ))}
+            </select>
+            {selectedCohortId && (
+              <button
+                onClick={() => setSelectedCohortId('')}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Clear Selection
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Users List */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-6 py-4">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <span className="mr-2">👥</span>
-              All Users ({users.length})
-            </h2>
+        {/* Cohort Users (when cohort is selected) */}
+        {selectedCohortId && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <span className="text-xl mr-2">👥</span>
+                Cohort Members
+                {cohortLoading && <span className="ml-2 text-sm text-gray-500">(Loading...)</span>}
+              </h2>
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
+              >
+                <span>➕</span>
+                <span>Assign User</span>
+              </button>
+            </div>
+
+            {cohortUsers.length === 0 ? (
+              <div className="text-center py-12">
+                <span className="text-6xl">👤</span>
+                <p className="text-gray-500 mt-4">No users in this cohort</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {cohortUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">👤</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{user.fullName}</h3>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                          {user.trainName && (
+                            <p className="text-sm text-gray-500">🚂 {user.trainName}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      {/* Status Badge */}
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeClass(user.cohortStatus)}`}>
+                        {getStatusIcon(user.cohortStatus)} {user.cohortStatus}
+                      </span>
+
+                      {/* Current Cohort Indicator */}
+                      {user.isCurrentCohort && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                          🎯 Current
+                        </span>
+                      )}
+
+                      {/* Status Change Button */}
+                      <button
+                        onClick={() => openStatusModal(user)}
+                        className="px-3 py-1 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center space-x-1"
+                        title="Change Status"
+                      >
+                        <span>⚙️</span>
+                        <span className="text-sm">Status</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        )}
+
+        {/* All Users Overview */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+            <span className="text-xl mr-2">📊</span>
+            All Users Overview ({users.length} users)
+          </h2>
 
           {users.length === 0 ? (
             <div className="text-center py-12">
-              <span className="text-6xl mb-4 block">👤</span>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">No Users Found</h3>
-              <p className="text-gray-600">No users have registered yet.</p>
+              <span className="text-6xl">👥</span>
+              <p className="text-gray-500 mt-4">No users found</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="grid gap-4">
               {users.map((user) => (
-                <div key={user.id} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
-                        user.isAdmin ? 'bg-red-500' : 'bg-primary-500'
-                      }`}>
-                        {user.isAdmin ? '👑' : '👤'}
-                      </div>
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-2xl">👤</span>
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                          {user.fullName}
-                          {user.isAdmin && (
-                            <span className="ml-2 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">
-                              ADMIN
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-gray-600">{user.email}</p>
+                        <h3 className="font-semibold text-gray-900">{user.fullName}</h3>
+                        <p className="text-sm text-gray-600">{user.email}</p>
                         {user.trainName && (
-                          <p className="text-sm text-primary-600">🚂 {user.trainName}</p>
+                          <p className="text-sm text-gray-500">🚂 {user.trainName}</p>
                         )}
-                        <p className="text-xs text-gray-500">
-                          Joined: {new Date(user.createdAt).toLocaleDateString()}
-                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    {/* Current Cohort */}
+                    {user.currentCohort ? (
+                      <div className="text-center">
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                          🎯 {user.currentCohort.name}
+                        </span>
+                        {!user.currentCohort.isActive && (
+                          <p className="text-xs text-red-600 mt-1">⚠️ Inactive Cohort</p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                        📭 No Active Cohort
+                      </span>
+                    )}
+
+                    {/* All Cohorts Status */}
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">All Cohorts: {user.allCohorts.length}</p>
+                      <div className="flex space-x-1">
+                        {user.allCohorts.slice(0, 3).map((cohort, index) => (
+                          <span
+                            key={index}
+                            className={`px-2 py-1 rounded text-xs ${getStatusBadgeClass(cohort.status)}`}
+                            title={`${cohort.cohortName}: ${cohort.status}`}
+                          >
+                            {getStatusIcon(cohort.status)}
+                          </span>
+                        ))}
+                        {user.allCohorts.length > 3 && (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                            +{user.allCohorts.length - 3}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-4">
-                      {/* Cohort Assignments */}
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-700 mb-2">
-                          Cohort Assignments ({user.cohortMembers.length})
-                        </div>
-                        {user.cohortMembers.length === 0 ? (
-                          <span className="text-xs text-gray-500 italic">Not assigned to any cohort</span>
-                        ) : (
-                          <div className="space-y-1">
-                            {user.cohortMembers.map((member) => (
-                              <div
-                                key={member.id}
-                                className={`flex items-center space-x-2 text-xs ${
-                                  member.isActive ? 'text-green-700' : 'text-gray-500'
-                                }`}
-                              >
-                                <span className={`w-2 h-2 rounded-full ${
-                                  member.isActive && member.cohort.isActive ? 'bg-green-500' : 'bg-gray-400'
-                                }`}></span>
-                                <span className="font-medium">{member.cohort.name}</span>
-                                <span className="text-gray-500">
-                                  (Step {member.currentStep})
-                                </span>
-                                {member.isActive && member.status === 'ENROLLED' && (
-                                  <button
-                                    onClick={() => handleGraduateUser(user.id, member.cohortId, member.cohort.name, user.fullName)}
-                                    className="text-green-600 hover:text-green-800 ml-1"
-                                    title="Graduate from cohort"
-                                  >
-                                    🎓
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleRemoveFromCohort(user.id, member.cohortId, member.cohort.name)}
-                                  className="text-red-500 hover:text-red-700 ml-1"
-                                  title="Remove from cohort"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <button
-                        onClick={() => openAssignModal(user)}
-                        className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-                      >
-                        Assign to Cohort
-                      </button>
-                    </div>
+                    {/* Assign Button */}
+                    <button
+                      onClick={() => openAssignModal(user)}
+                      className="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-1"
+                      title="Assign to Cohort"
+                    >
+                      <span>➕</span>
+                      <span className="text-sm">Assign</span>
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
 
-        {/* Assign to Cohort Modal */}
-        {showAssignModal && selectedUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                    <span className="mr-3 text-3xl">👥</span>
-                    Assign User to Cohort
-                  </h2>
-                  <button
-                    onClick={() => setShowAssignModal(false)}
-                    className="text-gray-500 hover:text-gray-700 text-2xl"
-                  >
-                    ✕
-                  </button>
-                </div>
+      {/* Assign User Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <span className="text-xl mr-2">➕</span>
+                Assign User to Cohort
+              </h3>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="text-xl">✖️</span>
+              </button>
+            </div>
 
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2">Selected User:</h3>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold">
-                      👤
-                    </div>
-                    <div>
-                      <p className="font-medium">{selectedUser.fullName}</p>
-                      <p className="text-sm text-gray-600">{selectedUser.email}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Cohort to Assign
-                  </label>
-                  <select
-                    value={selectedCohortId}
-                    onChange={(e) => setSelectedCohortId(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Choose a cohort...</option>
-                    {cohorts
-                      .filter(cohort => 
-                        cohort.isActive && 
-                        !selectedUser.cohortMembers.some(member => member.cohortId === cohort.id && member.isActive)
-                      )
-                      .map((cohort) => (
-                        <option key={cohort.id} value={cohort.id}>
-                          {cohort.name} - Started {new Date(cohort.startDate).toLocaleDateString()}
-                        </option>
-                      ))}
-                  </select>
-                  {cohorts.filter(cohort => 
-                    cohort.isActive && 
-                    !selectedUser.cohortMembers.some(member => member.cohortId === cohort.id && member.isActive)
-                  ).length === 0 && (
-                    <p className="text-sm text-gray-500 mt-2">
-                      No available cohorts to assign. User may already be in all active cohorts.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAssignModal(false)}
-                    className="flex-1 bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAssignToCohort}
-                    disabled={assignLoading || !selectedCohortId}
-                    className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                  >
-                    {assignLoading ? (
-                      <div className="flex items-center justify-center">
-                        <span className="animate-spin mr-2">⏳</span>
-                        Assigning...
-                      </div>
-                    ) : (
-                      'Assign to Cohort'
-                    )}
-                  </button>
-                </div>
+            {selectedUser && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">User:</p>
+                <p className="font-medium text-gray-900">{selectedUser.fullName}</p>
+                <p className="text-sm text-gray-500">{selectedUser.email}</p>
               </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Cohort:
+              </label>
+              <select
+                value={selectedCohortId}
+                onChange={(e) => setSelectedCohortId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Choose a cohort...</option>
+                {cohorts.filter(c => c.isActive).map((cohort) => (
+                  <option key={cohort.id} value={cohort.id}>
+                    {cohort.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignToCohort}
+                disabled={!selectedCohortId || assignLoading}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {assignLoading ? 'Assigning...' : 'Assign'}
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Status Change Modal */}
+      {showStatusModal && selectedCohortUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <span className="text-xl mr-2">⚙️</span>
+                Change User Status
+              </h3>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="text-xl">✖️</span>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">User:</p>
+              <p className="font-medium text-gray-900">{selectedCohortUser.fullName}</p>
+              <p className="text-sm text-gray-500">{selectedCohortUser.email}</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Current Status: <span className={`px-2 py-1 rounded ${getStatusBadgeClass(selectedCohortUser.cohortStatus)}`}>
+                  {getStatusIcon(selectedCohortUser.cohortStatus)} {selectedCohortUser.cohortStatus}
+                </span>
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                New Status:
+              </label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="ENROLLED">✅ ENROLLED - Active participant</option>
+                <option value="GRADUATED">🎓 GRADUATED - Completed training</option>
+                <option value="REMOVED">❌ REMOVED - No longer participating</option>
+                <option value="SUSPENDED">⏸️ SUSPENDED - Temporarily inactive</option>
+              </select>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> User data and progress will be preserved. Only their access status will change.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStatusChange}
+                disabled={!newStatus || assignLoading || newStatus === selectedCohortUser.cohortStatus}
+                className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {assignLoading ? 'Updating...' : 'Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

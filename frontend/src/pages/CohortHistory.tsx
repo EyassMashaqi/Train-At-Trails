@@ -16,17 +16,23 @@ interface CohortInfo {
   endDate?: string;
   joinedAt: string;
   currentStep?: number;
+  finalStep?: number;
+  status: 'ENROLLED' | 'GRADUATED' | 'REMOVED' | 'SUSPENDED';
+  statusChangedAt: string;
+  statusChangedBy?: string;
+  isActive?: boolean;
+  // Legacy fields for backward compatibility
   graduatedAt?: string;
   graduatedBy?: string;
-  finalStep?: number;
-  isActive?: boolean;
 }
 
 interface CohortHistoryData {
   activeCohorts: CohortInfo[];
   graduatedCohorts: CohortInfo[];
+  historyCohorts: CohortInfo[];
   hasActiveCohort: boolean;
   hasGraduatedCohorts: boolean;
+  hasHistoryCohorts: boolean;
   totalCohorts: number;
 }
 
@@ -64,6 +70,44 @@ const CohortHistory: React.FC = () => {
     }
   };
 
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'ENROLLED': return 'bg-green-100 text-green-800 border-green-200';
+      case 'GRADUATED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'REMOVED': return 'bg-red-100 text-red-800 border-red-200';
+      case 'SUSPENDED': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ENROLLED': return '✅';
+      case 'GRADUATED': return '🎓';
+      case 'REMOVED': return '❌';
+      case 'SUSPENDED': return '⏸️';
+      default: return '❓';
+    }
+  };
+
+  const getStatusMessage = (status: string) => {
+    switch (status) {
+      case 'ENROLLED': return 'You are currently enrolled and can access training materials.';
+      case 'GRADUATED': return 'You have successfully completed this training program.';
+      case 'REMOVED': return 'You are no longer participating in this cohort.';
+      case 'SUSPENDED': return 'Your participation is temporarily suspended.';
+      default: return 'Status unknown.';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
@@ -99,68 +143,52 @@ const CohortHistory: React.FC = () => {
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 py-8">
           {/* Header */}
-          <div className="text-center mb-12">
-            <div className="flex justify-center items-center mb-6 space-x-8">
-              <img 
-                src={BVisionRYLogo} 
-                alt="BVisionRY Company Logo" 
-                className="w-44 h-16 px-3 py-2 bvisionary-logo"
-              />
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                  Your Training Journey
-                </h1>
-                <p className="text-xl text-gray-600">Track your cohort progress and achievements</p>
-              </div>
-              <img 
-                src={LighthouseLogo} 
-                alt="Lighthouse Logo" 
-                className="w-28 h-28 lighthouse-logo"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-center space-x-4">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center space-x-4">
               <button
                 onClick={() => navigate('/dashboard')}
-                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+                className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
               >
                 <span className="text-xl">🏠</span>
-                <span>Return to Dashboard</span>
+                <span className="font-medium">Dashboard</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+                className="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors"
               >
                 <span className="text-xl">🚪</span>
-                <span>Logout</span>
+                <span className="font-medium">Logout</span>
               </button>
+            </div>
+            <div className="flex items-center space-x-3">
+              <img src={BVisionRYLogo} alt="BVisionRY" className="h-8 w-auto" />
+              <img src={LighthouseLogo} alt="Lighthouse" className="h-8 w-auto" />
             </div>
           </div>
 
-          {/* No Cohorts Message */}
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-xl p-12 max-w-2xl mx-auto">
-              <span className="text-8xl mb-6 block">⏳</span>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Waiting for Cohort Assignment</h2>
-              <p className="text-gray-600 mb-8">
-                You haven't been assigned to any training cohorts yet. Please wait for an administrator 
-                to assign you to a cohort to begin your training journey.
-              </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-blue-800 text-sm">
-                  <strong>What happens next?</strong><br />
-                  An admin will assign you to a training cohort where you'll participate in modules, 
-                  answer questions, and track your progress through the training program.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-4 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg"
-              >
-                Return to Dashboard
-              </button>
+          <div className="text-center">
+            <div className="mb-8">
+              <span className="text-8xl">⏳</span>
             </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Welcome to BVisionRY Lighthouse! 
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              You haven't been assigned to any training cohort yet.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-blue-800 text-sm">
+                <strong>What happens next?</strong><br />
+                An admin will assign you to a training cohort where you'll participate in modules, 
+                answer questions, and track your progress through the training program.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-4 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg"
+            >
+              Return to Dashboard
+            </button>
           </div>
         </div>
 
@@ -198,169 +226,158 @@ const CohortHistory: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center items-center mb-6 space-x-8">
-            <img 
-              src={BVisionRYLogo} 
-              alt="BVisionRY Company Logo" 
-              className="w-44 h-16 px-3 py-2 bvisionary-logo"
-            />
-            <div className="flex-1">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                Your Training Journey
-              </h1>
-              <p className="text-xl text-gray-600">Track your cohort progress and achievements</p>
-            </div>
-            <img 
-              src={LighthouseLogo} 
-              alt="Lighthouse Logo" 
-              className="w-28 h-28 lighthouse-logo"
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-center space-x-4">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-4">
             <button
               onClick={() => navigate('/dashboard')}
-              className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+              className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
             >
               <span className="text-xl">🏠</span>
-              <span>Return to Dashboard</span>
+              <span className="font-medium">Dashboard</span>
             </button>
             <button
               onClick={handleLogout}
-              className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+              className="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors"
             >
               <span className="text-xl">🚪</span>
-              <span>Logout</span>
+              <span className="font-medium">Logout</span>
             </button>
+          </div>
+          <div className="flex items-center space-x-3">
+            <img src={BVisionRYLogo} alt="BVisionRY" className="h-8 w-auto" />
+            <img src={LighthouseLogo} alt="Lighthouse" className="h-8 w-auto" />
           </div>
         </div>
 
-        <div className="space-y-12">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            🎓 Your Training Journey
+          </h1>
+          <p className="text-xl text-gray-600">
+            Track your progress across all cohorts
+          </p>
+        </div>
+
+        <div className="grid gap-8">
           {/* Active Cohorts */}
           {cohortHistory?.hasActiveCohort && (
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <span className="mr-3 text-3xl">🚂</span>
-                Active Training Cohorts
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                <span className="text-2xl mr-3">🎯</span>
+                Current Training
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cohortHistory.activeCohorts.map((cohort) => (
+              <div className="grid gap-4">
+                {cohortHistory.activeCohorts?.map((cohort) => (
                   <div
                     key={cohort.id}
-                    className="bg-white rounded-xl shadow-lg border-2 border-green-200 transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer"
+                    className="border border-green-200 bg-green-50 rounded-lg p-6 hover:border-green-300 transition-colors cursor-pointer"
                     onClick={() => navigate('/dashboard')}
                   >
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-3xl">🏫</span>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-800">
-                              {cohort.name}
-                            </h3>
-                            <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold text-gray-900">{cohort.name}</h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeClass(cohort.status)}`}>
+                        {getStatusIcon(cohort.status)} {cohort.status}
+                      </span>
+                    </div>
+                    {cohort.description && (
+                      <p className="text-gray-600 mb-4">{cohort.description}</p>
+                    )}
+                    <div className="bg-white rounded-lg p-4 mb-4">
+                      <p className="text-sm text-green-800 mb-2">
+                        <strong>{getStatusMessage(cohort.status)}</strong>
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                        <div>
+                          <span className="font-medium">Started:</span> {formatDate(cohort.startDate)}
                         </div>
-                      </div>
-
-                      {cohort.description && (
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                          {cohort.description}
-                        </p>
-                      )}
-
-                      <div className="space-y-2 text-xs text-gray-500">
-                        <div className="flex justify-between">
-                          <span>Started:</span>
-                          <span>{new Date(cohort.startDate).toLocaleDateString()}</span>
+                        <div>
+                          <span className="font-medium">Joined:</span> {formatDate(cohort.joinedAt)}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Joined:</span>
-                          <span>{new Date(cohort.joinedAt).toLocaleDateString()}</span>
+                        <div>
+                          <span className="font-medium">Current Step:</span> {cohort.currentStep || 0}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Current Step:</span>
-                          <span>{cohort.currentStep || 0}</span>
+                        <div>
+                          <span className="font-medium">Status Changed:</span> {formatDate(cohort.statusChangedAt)}
                         </div>
-                      </div>
-
-                      <div className="mt-4 text-center">
-                        <span className="text-xs text-green-600 font-medium">
-                          Click to continue training →
-                        </span>
                       </div>
                     </div>
+                    <button className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">
+                      📚 Continue Training
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Graduated Cohorts */}
-          {cohortHistory?.hasGraduatedCohorts && (
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <span className="mr-3 text-3xl">🎓</span>
-                Graduated Cohorts
+          {/* Training History */}
+          {cohortHistory?.hasHistoryCohorts && (
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                <span className="text-2xl mr-3">📚</span>
+                Training History
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cohortHistory.graduatedCohorts.map((cohort) => (
+              <div className="grid gap-4">
+                {cohortHistory.historyCohorts?.map((cohort) => (
                   <div
                     key={cohort.id}
-                    className="bg-white rounded-xl shadow-lg border-2 border-gold-200 transition-all duration-300 hover:shadow-xl"
+                    className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"
                   >
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-3xl">🏆</span>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-800">
-                              {cohort.name}
-                            </h3>
-                            <span className="text-xs px-2 py-1 rounded-full font-medium bg-yellow-100 text-yellow-800">
-                              Graduated
-                            </span>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold text-gray-900">{cohort.name}</h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeClass(cohort.status)}`}>
+                        {getStatusIcon(cohort.status)} {cohort.status}
+                      </span>
+                    </div>
+                    
+                    {cohort.description && (
+                      <p className="text-gray-600 mb-4">{cohort.description}</p>
+                    )}
+                    
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                      <p className="text-sm text-gray-700 mb-2">
+                        <strong>{getStatusMessage(cohort.status)}</strong>
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                        <div>
+                          <span className="font-medium">Started:</span> {formatDate(cohort.startDate)}
+                        </div>
+                        <div>
+                          <span className="font-medium">Joined:</span> {formatDate(cohort.joinedAt)}
+                        </div>
+                        <div>
+                          <span className="font-medium">Final Step:</span> {cohort.finalStep || cohort.currentStep || 0}
+                        </div>
+                        <div>
+                          <span className="font-medium">Status Changed:</span> {formatDate(cohort.statusChangedAt)}
+                        </div>
+                        {cohort.statusChangedBy && (
+                          <div className="col-span-2">
+                            <span className="font-medium">Changed by:</span> {cohort.statusChangedBy}
                           </div>
-                        </div>
-                      </div>
-
-                      {cohort.description && (
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                          {cohort.description}
-                        </p>
-                      )}
-
-                      <div className="space-y-2 text-xs text-gray-500">
-                        <div className="flex justify-between">
-                          <span>Started:</span>
-                          <span>{new Date(cohort.startDate).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Joined:</span>
-                          <span>{new Date(cohort.joinedAt).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Graduated:</span>
-                          <span>{new Date(cohort.graduatedAt!).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Final Step:</span>
-                          <span>{cohort.finalStep || 0}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 text-center">
-                        <span className="text-xs text-yellow-600 font-medium">
-                          ✨ Training Completed ✨
-                        </span>
+                        )}
                       </div>
                     </div>
+
+                    {/* Special message for graduated cohorts */}
+                    {cohort.status === 'GRADUATED' && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-blue-800 text-sm">
+                          🎉 <strong>Congratulations!</strong> You successfully completed this training program.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Note for removed/suspended cohorts */}
+                    {(cohort.status === 'REMOVED' || cohort.status === 'SUSPENDED') && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-yellow-800 text-sm">
+                          <strong>Note:</strong> Your training data and progress have been preserved for this cohort.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -378,15 +395,6 @@ const CohortHistory: React.FC = () => {
           }
           .animate-float {
             animation: float 6s ease-in-out infinite;
-          }
-          .line-clamp-2 {
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-          }
-          .border-gold-200 {
-            border-color: #fde68a;
           }
         `
       }} />
