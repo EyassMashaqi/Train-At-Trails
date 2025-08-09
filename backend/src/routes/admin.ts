@@ -758,7 +758,9 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
         
         if (isFlat) {
           // Handle flat structure - create one content section with multiple mini questions
-          let contentSection = existingContent[0];
+          // IMPORTANT: For flat structure, we should only work with the FIRST content section
+          // to avoid mixing mini questions from different content sections
+          let contentSection = existingContent.find((content: any) => content.orderIndex === 1) || existingContent[0];
           
           if (!contentSection) {
             // Create new content section if none exists
@@ -772,10 +774,13 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
             });
           }
 
-          // Get existing mini questions for this content
+          // Get existing mini questions ONLY for THIS specific content section
           const existingMiniQuestions = await (tx as any).miniQuestion.findMany({
-            where: { contentId: contentSection.id },
-            include: { miniAnswers: true }
+            where: { 
+              contentId: contentSection.id  // Only this content section!
+            },
+            include: { miniAnswers: true },
+            orderBy: { orderIndex: 'asc' }
           });
 
           // Process each mini question from the update request
@@ -818,6 +823,24 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
           for (const mq of miniQuestionsToDelete) {
             await (tx as any).miniQuestion.delete({
               where: { id: mq.id }
+            });
+          }
+
+          // IMPORTANT: For flat structure, remove any extra content sections that might cause confusion
+          // Keep only the first content section (the one we're working with)
+          const contentSectionsToRemove = existingContent.filter((content: any) => 
+            content.id !== contentSection.id && 
+            content.miniQuestions.every((mq: any) => mq.miniAnswers.length === 0)
+          );
+
+          for (const content of contentSectionsToRemove) {
+            // Delete mini questions first
+            await (tx as any).miniQuestion.deleteMany({
+              where: { contentId: content.id }
+            });
+            // Then delete the content section
+            await (tx as any).content.delete({
+              where: { id: content.id }
             });
           }
 
