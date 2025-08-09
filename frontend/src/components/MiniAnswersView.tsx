@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface User {
-  id: string;
+  id: number;
   fullName: string;
   trainName: string;
   email: string;
@@ -54,30 +54,41 @@ interface UserWithMiniQuestions {
   }[];
 }
 
-const MiniAnswersView: React.FC = () => {
+interface MiniAnswersViewProps {
+  selectedCohortId?: string;
+  cohortUsers?: User[];
+}
+
+const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, cohortUsers }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [allMiniAnswers, setAllMiniAnswers] = useState<MiniAnswer[]>([]);
   const [allReleasedMiniQuestions, setAllReleasedMiniQuestions] = useState<MiniQuestion[]>([]);
   const [userMiniQuestions, setUserMiniQuestions] = useState<UserWithMiniQuestions[]>([]);
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
   const [selectedAnswer, setSelectedAnswer] = useState<MiniAnswer | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [usersResponse, miniAnswersResponse, questionsResponse] = await Promise.all([
-        adminService.getAllUsers(),
+      
+      // Use provided cohort users or load all users if no cohort is selected
+      let usersData: User[] = [];
+      if (selectedCohortId && cohortUsers) {
+        console.log(`🎯 Using cohort users for cohort: ${selectedCohortId}`);
+        usersData = cohortUsers;
+      } else {
+        console.log('📊 Loading all users for Self Learning');
+        const usersResponse = await adminService.getAllUsers();
+        usersData = usersResponse.data.users;
+      }
+
+      const [miniAnswersResponse, questionsResponse] = await Promise.all([
         adminService.getAllMiniAnswers(),
         adminService.getAllQuestions()
       ]);
 
-      const usersData = usersResponse.data.users;
       const miniAnswersData = miniAnswersResponse.data.miniAnswers;
       const questionsData = questionsResponse.data.questions;
 
@@ -162,9 +173,13 @@ const MiniAnswersView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCohortId, cohortUsers]);
 
-  const toggleUserExpansion = (userId: string) => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const toggleUserExpansion = (userId: number) => {
     const newExpanded = new Set(expandedUsers);
     if (newExpanded.has(userId)) {
       newExpanded.delete(userId);

@@ -107,6 +107,7 @@ const GameView: React.FC = () => {
   const [showTrainAnimation] = useState(false); // Static false - animation triggered by main questions which are disabled
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
+  const [userCohortInfo, setUserCohortInfo] = useState<{id: string, name: string, description?: string} | null>(null);
   
   // Self learning activities state
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
@@ -294,11 +295,19 @@ const GameView: React.FC = () => {
   const loadGameData = async () => {
     try {
       setLoading(true);
+      console.log('🎮 GameView: Loading game data...');
+      
       const [progressResponse, leaderboardResponse, modulesResponse] = await Promise.all([
         gameService.getProgress(),
         gameService.getLeaderboard(),
         gameService.getModules()
       ]);
+
+      console.log('🎮 GameView: Raw API responses:', {
+        progress: progressResponse.data,
+        leaderboard: leaderboardResponse.data,
+        modules: modulesResponse.data
+      });
 
       const data = progressResponse.data;
 
@@ -309,6 +318,15 @@ const GameView: React.FC = () => {
         answers: data.answers
       });
       setCurrentQuestion(data.currentQuestion);
+
+      // Extract cohort information if available
+      if (data.cohort) {
+        setUserCohortInfo({
+          id: data.cohort.id,
+          name: data.cohort.name,
+          description: data.cohort.description
+        });
+      }
 
       // Collect all mini-questions from all released topics in modules
       let allMiniQuestions: MiniQuestion[] = [];

@@ -1148,7 +1148,12 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'answers' && renderPendingAnswers()}
           {activeTab === 'modules' && renderModules()}
-          {activeTab === 'mini-questions' && <MiniAnswersView />}
+          {activeTab === 'mini-questions' && (
+            <MiniAnswersView 
+              selectedCohortId={selectedCohortId || undefined}
+              cohortUsers={selectedCohortId ? users : undefined}
+            />
+          )}
         </div>
       </div>
 

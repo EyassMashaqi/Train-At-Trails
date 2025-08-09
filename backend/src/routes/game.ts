@@ -685,7 +685,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Get all questions that user can potentially access (released questions + step-based questions)
     const releasedQuestions = await prisma.question.findMany({
       where: { 
-        // cohortId: userCohort.cohortId,  // Temporarily disabled
+        cohortId: userCohort?.cohortId,  // FIXED: Re-enabled cohort filtering
         OR: [
           { isReleased: true }, // Include all released questions (for module/topic system)
           { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
@@ -815,7 +815,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Get total topics count - only count RELEASED topics (assignments)
     const totalQuestions = await prisma.question.count({
       where: { 
-        // cohortId: userCohort.cohortId,  // Temporarily disabled
+        cohortId: userCohort?.cohortId,  // FIXED: Re-enabled cohort filtering
         isReleased: true,
         moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
         topicNumber: { not: null }, // Only count questions that have a topic number
@@ -874,8 +874,8 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Get user's answers in the format expected by original GameView
     const allAnswers = await prisma.answer.findMany({
       where: { 
-        userId
-        // cohortId: userCohort.cohortId  // Temporarily disabled
+        userId,
+        cohortId: userCohort?.cohortId  // FIXED: Re-enabled cohort filtering
       },
       include: {
         question: {
@@ -953,6 +953,15 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       userId, 
       cohortId: userCohort.cohortId, 
       cohortName: userCohort.cohort.name 
+    });
+
+    console.log('🔍 DEBUG: User details:', {
+      userId,
+      userEmail: req.user!.email,
+      cohortId: userCohort.cohortId,
+      cohortName: userCohort.cohort.name,
+      membershipStatus: userCohort.status,
+      membershipActive: userCohort.isActive
     });
 
     // Get all modules with their questions using the proper Module table

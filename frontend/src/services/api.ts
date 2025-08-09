@@ -126,7 +126,7 @@ export const gameService = {
   // User cohort status
   checkCohortStatus: () => api.get('/auth/cohort-status'),
 
-  getProgress: () => api.get('/game/progress'),
+  getProgress: () => api.get(`/game/progress?_t=${Date.now()}`), // Add cache busting
   
   getCohortHistory: () => api.get('/game/cohort-history'),
   
@@ -163,7 +163,7 @@ export const gameService = {
 
   getLeaderboard: () => api.get('/game/leaderboard'),
 
-  getModules: () => api.get('/game/modules'),
+  getModules: () => api.get(`/game/modules?_t=${Date.now()}`), // Add cache busting
 
   getModuleDetails: (moduleNumber: number) => api.get(`/game/modules/${moduleNumber}`),
 
