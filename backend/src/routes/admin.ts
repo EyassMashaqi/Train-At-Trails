@@ -1,6 +1,8 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -311,7 +313,18 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
       orderBy: { submittedAt: 'asc' }
     });
 
-    res.json({ pendingAnswers });
+    // Map answers to include attachment information
+    const answersWithAttachments = pendingAnswers.map(answer => ({
+      ...answer,
+      hasAttachment: !!answer.attachmentFileName,
+      attachmentInfo: answer.attachmentFileName ? {
+        fileName: answer.attachmentFileName,
+        fileSize: answer.attachmentFileSize,
+        mimeType: answer.attachmentMimeType
+      } : null
+    }));
+
+    res.json({ pendingAnswers: answersWithAttachments });
   } catch (error) {
     console.error('Get pending answers error:', error);
     res.status(500).json({ error: 'Failed to get pending answers' });
@@ -2506,6 +2519,64 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Get users with cohorts error:', error);
     res.status(500).json({ error: 'Failed to get users with cohort information' });
+  }
+});
+
+// Download attachment file for an answer
+router.get('/answer/:answerId/attachment', async (req: AuthRequest, res) => {
+  try {
+    const { answerId } = req.params;
+    const adminUserId = req.user!.id;
+    
+    console.log(`📥 Download request for answer ${answerId} by user ${adminUserId}`);
+    
+    // Verify admin access (additional check even though middleware should handle this)
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true, email: true }
+    });
+
+    console.log(`👤 User details:`, { userId: adminUserId, isAdmin: adminUser?.isAdmin, email: adminUser?.email });
+
+    if (!adminUser?.isAdmin) {
+      console.log(`❌ Access denied - user is not admin`);
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get the answer with attachment info
+    const answer = await prisma.answer.findUnique({
+      where: { id: answerId },
+      select: {
+        attachmentFileName: true,
+        attachmentFilePath: true,
+        attachmentMimeType: true,
+        cohortId: true
+      }
+    });
+
+    if (!answer) {
+      return res.status(404).json({ error: 'Answer not found' });
+    }
+
+    if (!answer.attachmentFileName || !answer.attachmentFilePath) {
+      return res.status(404).json({ error: 'No attachment found for this answer' });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(answer.attachmentFilePath)) {
+      return res.status(404).json({ error: 'Attachment file not found on server' });
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Disposition', `attachment; filename="${answer.attachmentFileName}"`);
+    res.setHeader('Content-Type', answer.attachmentMimeType || 'application/octet-stream');
+
+    // Stream the file
+    const fileStream = fs.createReadStream(answer.attachmentFilePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Download attachment error:', error);
+    res.status(500).json({ error: 'Failed to download attachment' });
   }
 });
 

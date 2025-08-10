@@ -30,6 +30,12 @@ interface PendingAnswer {
   id: number;
   content: string;
   submittedAt: string;
+  hasAttachment: boolean;
+  attachmentInfo?: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  };
   user: {
     id: number;
     fullName: string;
@@ -131,6 +137,15 @@ interface TopicFormData {
   contents: ContentSection[];
 }
 
+// Helper function to format file sizes
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 interface ModuleFormData {
   moduleNumber: number;
   title: string;
@@ -138,10 +153,52 @@ interface ModuleFormData {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const selectedCohortId = searchParams.get('cohort');
+  
+  // Helper function to download attachment
+  const downloadAttachment = async (answerId: string, fileName: string) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/admin/answer/${answerId}/attachment`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to download attachment';
+        
+        if (response.status === 403) {
+          errorMessage = 'Access denied. Admin privileges required to download attachments.';
+        } else if (response.status === 404) {
+          errorMessage = 'Attachment not found or has been deleted.';
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication required. Please login again.';
+        }
+        
+        console.error('Download error:', { status: response.status, error: errorText });
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(`Downloaded ${fileName} successfully!`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to download attachment');
+    }
+  };
   
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
@@ -569,6 +626,20 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-gray-700 text-sm">{answer.content}</p>
+                  
+                  {answer.hasAttachment && answer.attachmentInfo && (
+                    <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                      <span className="text-sm">📎</span>
+                      <span className="text-sm text-blue-700">{answer.attachmentInfo.fileName}</span>
+                      <button
+                        onClick={() => downloadAttachment(answer.id.toString(), answer.attachmentInfo!.fileName)}
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
+                  
                   <p className="text-xs text-gray-400 mt-2">
                     Submitted: {new Date(answer.submittedAt).toLocaleString()}
                   </p>
@@ -753,6 +824,29 @@ const AdminDashboard: React.FC = () => {
               <h5 className="font-medium text-gray-900 mb-2">Answer:</h5>
               <p className="text-gray-700">{answer.content}</p>
             </div>
+
+            {answer.hasAttachment && answer.attachmentInfo && (
+              <div className="bg-blue-50 rounded-md p-4 mb-4 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">📎</span>
+                    <div>
+                      <h5 className="font-medium text-blue-900">Attachment:</h5>
+                      <p className="text-sm text-blue-700">{answer.attachmentInfo.fileName}</p>
+                      <p className="text-xs text-blue-600">
+                        {formatFileSize(answer.attachmentInfo.fileSize)} • {answer.attachmentInfo.mimeType}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => downloadAttachment(answer.id.toString(), answer.attachmentInfo!.fileName)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors text-sm font-medium"
+                  >
+                    📥 Download
+                  </button>
+                </div>
+              </div>
+            )}
             
             <p className="text-xs text-gray-400">
               Submitted: {new Date(answer.submittedAt).toLocaleString()}
