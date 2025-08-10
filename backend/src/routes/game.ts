@@ -390,7 +390,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       where: { questionId: currentQuestion.id },
       include: {
         miniQuestions: {
-          where: { isReleased: true },
+          where: { 
+            isReleased: true,
+            releaseDate: {
+              lte: new Date() // And release date must be in the past
+            }
+          },
           include: {
             miniAnswers: {
               where: { userId }
@@ -696,7 +701,10 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           include: {
             miniQuestions: {
               where: {
-                isReleased: true
+                isReleased: true,
+                releaseDate: {
+                  lte: new Date() // And release date must be in the past
+                }
               },
               include: {
                 miniAnswers: {
@@ -976,7 +984,10 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
               include: {
                 miniQuestions: {
                   where: {
-                    isReleased: true // Only include released mini-questions
+                    isReleased: true, // Only include released mini-questions
+                    releaseDate: {
+                      lte: new Date() // And release date must be in the past
+                    }
                   },
                   include: {
                     miniAnswers: {

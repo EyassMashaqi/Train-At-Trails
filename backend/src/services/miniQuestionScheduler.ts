@@ -50,6 +50,45 @@ export const startMiniQuestionScheduler = () => {
           console.log(`✅ Released mini question: "${miniQuestion.title}" for assignment "${miniQuestion.content.question.title}"`);
         }
       }
+
+      // Find mini questions that should be hidden (release date > now and currently released)
+      const miniQuestionsToHide = await (prisma as any).miniQuestion.findMany({
+        where: {
+          releaseDate: {
+            gt: now
+          },
+          isReleased: true,
+          content: {
+            question: {
+              isReleased: true // Only check mini questions for released assignments
+            }
+          }
+        },
+        include: {
+          content: {
+            include: {
+              question: true
+            }
+          }
+        }
+      });
+
+      if (miniQuestionsToHide.length > 0) {
+        console.log(`🔒 Hiding ${miniQuestionsToHide.length} mini question(s) with future release dates...`);
+        
+        // Hide each mini question
+        for (const miniQuestion of miniQuestionsToHide) {
+          await (prisma as any).miniQuestion.update({
+            where: { id: miniQuestion.id },
+            data: {
+              isReleased: false,
+              actualReleaseDate: null
+            }
+          });
+          
+          console.log(`🔒 Hidden mini question: "${miniQuestion.title}" for assignment "${miniQuestion.content.question.title}" (release date moved to future)`);
+        }
+      }
       
     } catch (error) {
       console.error('❌ Mini question scheduler error:', error);

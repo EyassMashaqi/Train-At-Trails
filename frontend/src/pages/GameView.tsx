@@ -343,6 +343,7 @@ const GameView: React.FC = () => {
                     const releaseDate = new Date(mq.releaseDate);
                     const currentDate = new Date();
                     
+                    // Only include mini-questions that are both marked as released AND have a release date in the past
                     if (mq.isReleased && releaseDate <= currentDate) {
                       allMiniQuestions.push({
                         ...mq,
