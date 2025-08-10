@@ -437,6 +437,16 @@ export const adminService = {
   // Graduate user from cohort
   graduateUser: (userId: string, cohortId: string) => 
     api.post('/admin/graduate-user', { userId, cohortId }),
+
+  // Theme management
+  updateCohort: (cohortId: string, cohortData: {
+    name?: string;
+    description?: string;
+    defaultTheme?: string;
+  }) => api.patch(`/admin/cohorts/${cohortId}`, cohortData),
+
+  updateModuleTheme: (moduleId: string, theme: string) => 
+    api.put(`/admin/modules/${moduleId}/theme`, { theme }),
 };
 
 // Game API for content and mini-questions

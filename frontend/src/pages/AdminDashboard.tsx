@@ -65,11 +65,24 @@ interface GameStats {
   averageProgress: number;
 }
 
+interface Cohort {
+  id: string;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  defaultTheme: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Module {
   id: string;
   moduleNumber: number;
   title: string;
   description: string;
+  theme: string;
   isActive: boolean;
   isReleased: boolean;
   releaseDate?: string;
@@ -205,7 +218,7 @@ const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions' | 'cohort-config'>('overview');
   
   // User status filtering
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -1146,6 +1159,218 @@ const AdminDashboard: React.FC = () => {
     );
   };
 
+  const renderCohortConfig = () => {
+    if (!selectedCohortId) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">🎨</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Cohort Selected</h3>
+            <p className="text-gray-600">Please select a cohort from the dropdown above to configure themes.</p>
+          </div>
+        </div>
+      );
+    }
+
+    const currentCohort = allCohorts.find(c => c.id === selectedCohortId);
+    if (!currentCohort) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">❌</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Cohort Not Found</h3>
+            <p className="text-gray-600">The selected cohort could not be found.</p>
+          </div>
+        </div>
+      );
+    }
+
+    const availableThemes = [
+      { id: 'trains', name: 'Trains', icon: '🚂', description: 'Classic train theme with stations and tracks' },
+      { id: 'planes', name: 'Planes', icon: '✈️', description: 'Aviation theme with airports and flight paths' },
+      { id: 'sailboat', name: 'Sailboat', icon: '⛵', description: 'Maritime theme with harbors and sailing routes' },
+      { id: 'cars', name: 'Cars', icon: '🚗', description: 'Automotive theme with roads and destinations' },
+      { id: 'f1', name: 'Formula 1', icon: '🏎️', description: 'High-speed racing theme with circuits and pit stops' }
+    ];
+
+    const handleDefaultThemeUpdate = async (newTheme: string) => {
+      try {
+        await adminService.updateCohort(selectedCohortId, {
+          defaultTheme: newTheme
+        });
+        toast.success('Default theme updated successfully');
+        loadAdminData(); // Reload data to get updated cohort info
+      } catch (error) {
+        console.error('Failed to update default theme:', error);
+        toast.error('Failed to update default theme');
+      }
+    };
+
+    const handleModuleThemeUpdate = async (moduleId: string, newTheme: string) => {
+      try {
+        await adminService.updateModuleTheme(moduleId, newTheme);
+        toast.success('Module theme updated successfully');
+        
+        // Update the modules state directly
+        setModules(prevModules => 
+          prevModules.map(module => 
+            module.id === moduleId 
+              ? { ...module, theme: newTheme }
+              : module
+          )
+        );
+      } catch (error) {
+        console.error('Failed to update module theme:', error);
+        toast.error('Failed to update module theme');
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Default Theme Configuration */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">🎨</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Default Cohort Theme</h3>
+              <p className="text-sm text-gray-600">
+                Set the default theme that will be used for all users in this cohort unless overridden by module-specific themes.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {availableThemes.map((theme) => (
+              <div
+                key={theme.id}
+                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all hover:border-primary-300 ${
+                  currentCohort.defaultTheme === theme.id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+                onClick={() => handleDefaultThemeUpdate(theme.id)}
+              >
+                <div className="text-center">
+                  <div className="text-4xl mb-2">{theme.icon}</div>
+                  <h4 className="font-medium text-gray-900">{theme.name}</h4>
+                  <p className="text-xs text-gray-600 mt-1">{theme.description}</p>
+                </div>
+                {currentCohort.defaultTheme === theme.id && (
+                  <div className="absolute top-2 right-2">
+                    <div className="bg-primary-500 text-white rounded-full p-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Module Theme Configuration */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">📚</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Module-Specific Themes</h3>
+              <p className="text-sm text-gray-600">
+                Configure individual themes for each module. Module themes override the default cohort theme.
+              </p>
+            </div>
+          </div>
+
+          {modules.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-4">📚</div>
+              <p className="text-gray-600">No modules found for this cohort.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {modules.map((module) => (
+                <div key={module.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        Module {module.moduleNumber}: {module.title}
+                      </h4>
+                      <p className="text-sm text-gray-600">{module.description}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-500">Current theme:</span>
+                      <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
+                        <span className="text-lg">
+                          {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'}
+                        </span>
+                        <span className="text-sm font-medium">
+                          {availableThemes.find(t => t.id === module.theme)?.name || 'Trains'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {availableThemes.map((theme) => (
+                      <button
+                        key={theme.id}
+                        className={`relative border rounded-lg p-3 text-center transition-all hover:border-primary-300 ${
+                          module.theme === theme.id
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                        onClick={() => handleModuleThemeUpdate(module.id, theme.id)}
+                      >
+                        <div className="text-2xl mb-1">{theme.icon}</div>
+                        <div className="text-xs font-medium text-gray-900">{theme.name}</div>
+                        {module.theme === theme.id && (
+                          <div className="absolute top-1 right-1">
+                            <div className="bg-primary-500 text-white rounded-full p-0.5">
+                              <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Theme Preview */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">👁️</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Theme Preview</h3>
+              <p className="text-sm text-gray-600">
+                How the current default theme will appear to users.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 rounded-lg p-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">
+                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.icon || '🚂'}
+              </div>
+              <h4 className="text-xl font-bold text-gray-800 mb-2">
+                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.name || 'Trains'} Theme
+              </h4>
+              <p className="text-gray-600">
+                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.description || 'Classic train theme with stations and tracks'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center">
@@ -1212,10 +1437,11 @@ const AdminDashboard: React.FC = () => {
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
               { id: 'mini-questions', name: 'Self Learning', icon: '🎯' },
+              { id: 'cohort-config', name: 'Cohort Config', icon: '🎨' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules' | 'mini-questions')}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules' | 'mini-questions' | 'cohort-config')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
                     ? 'border-primary-500 text-primary-600'
@@ -1248,6 +1474,7 @@ const AdminDashboard: React.FC = () => {
               cohortUsers={selectedCohortId ? users : undefined}
             />
           )}
+          {activeTab === 'cohort-config' && renderCohortConfig()}
         </div>
       </div>
 

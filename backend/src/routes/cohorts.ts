@@ -102,7 +102,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { cohortId } = req.params;
-    const { name, description, startDate, endDate, isActive } = req.body;
+    const { name, description, startDate, endDate, isActive, defaultTheme } = req.body;
 
     const updateData: any = {};
 
@@ -126,6 +126,7 @@ router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => 
     if (startDate !== undefined) updateData.startDate = new Date(startDate);
     if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (defaultTheme !== undefined) updateData.defaultTheme = defaultTheme;
 
     const cohort = await (prisma as any).cohort.update({
       where: { id: cohortId },

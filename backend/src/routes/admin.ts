@@ -1230,6 +1230,45 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
   }
 });
 
+// Update module theme
+router.put('/modules/:moduleId/theme', async (req: AuthRequest, res) => {
+  try {
+    const moduleId = req.params.moduleId;
+    const { theme } = req.body;
+
+    if (!theme) {
+      return res.status(400).json({ error: 'Theme is required' });
+    }
+
+    // Validate theme value
+    const validThemes = ['trains', 'planes', 'sailboat', 'cars', 'f1'];
+    if (!validThemes.includes(theme)) {
+      return res.status(400).json({ 
+        error: `Invalid theme. Must be one of: ${validThemes.join(', ')}` 
+      });
+    }
+
+    // Find the module by ID
+    const module = await (prisma as any).module.findUnique({
+      where: { id: moduleId }
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    const updatedModule = await (prisma as any).module.update({
+      where: { id: moduleId },
+      data: { theme }
+    });
+
+    res.json({ module: updatedModule });
+  } catch (error) {
+    console.error('Update module theme error:', error);
+    res.status(500).json({ error: 'Failed to update module theme' });
+  }
+});
+
 // Delete a module
 router.delete('/modules/:moduleId', async (req: AuthRequest, res) => {
   try {
