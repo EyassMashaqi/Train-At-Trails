@@ -226,7 +226,10 @@ const GameView: React.FC = () => {
           if (topic.isReleased) {
             const topicNumber = topic.questionNumber || topic.topicNumber;
             
-            // Get mini-questions for this topic
+            // Check if backend says this topic is available (it handles all future mini-questions logic)
+            const isTopicAvailable = topic.status === 'available';
+            
+            // Get mini-questions for this topic (for display purposes)
             const topicMiniQuestions = miniQuestions.filter(mq => 
               mq.questionNumber === topicNumber
             );
@@ -239,6 +242,9 @@ const GameView: React.FC = () => {
               answer.question.questionNumber === topicNumber
             );
             
+            // Check if there are future mini-questions by comparing backend progress data
+            const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
+            
             console.log(`🔍 Checking topic ${topicNumber}:`, {
               topicTitle: topic.title,
               topicNumber,
@@ -247,12 +253,14 @@ const GameView: React.FC = () => {
               completedMiniQuestions,
               allMiniQuestionsCompleted,
               hasAnswered,
-              isAvailable: allMiniQuestionsCompleted && !hasAnswered
+              isTopicAvailable,
+              hasFutureMiniQuestions,
+              backendStatus: topic.status,
+              isAvailable: isTopicAvailable && !hasAnswered
             });
             
-            // If mini-questions are completed and user hasn't answered, this is our target
-            // Remove the step restriction to allow access to any unlocked question
-            if (allMiniQuestionsCompleted && !hasAnswered) {
+            // Use backend status to determine if this topic is available
+            if (isTopicAvailable && !hasAnswered) {
               foundTargetQuestion = {
                 id: topic.id, // Keep as string, don't convert to int
                 questionNumber: topicNumber,
@@ -940,10 +948,26 @@ const GameView: React.FC = () => {
     const totalQuestionMiniQuestions = questionMiniQuestions.length;
     const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
 
+    // Check if there are future mini-questions by looking at the backend progress data
+    const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 
+      t.questionNumber === targetQuestion.questionNumber || t.topicNumber === targetQuestion.questionNumber
+    );
+    const hasFutureMiniQuestions = relatedTopic?.miniQuestionProgress?.hasFutureMiniQuestions || false;
+    const totalAllMiniQuestions = relatedTopic?.miniQuestionProgress?.totalAll || totalQuestionMiniQuestions;
+    const completedAllMiniQuestions = relatedTopic?.miniQuestionProgress?.completedAll || completedQuestionMiniQuestions;
+
+    // Main assignment is locked if there are any incomplete mini-questions (current or future)
+    const isMainAssignmentLocked = totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions;
+
     // Only show main question form if:
-    // 1. This question's mini-questions are completed (or no mini-questions exist)
+    // 1. All mini-questions (including future ones) are completed
     // 2. User hasn't already answered this question
-    if (!questionMiniQuestionsCompleted) {
+    if (isMainAssignmentLocked) {
+      const remainingMiniQuestions = totalAllMiniQuestions - completedAllMiniQuestions;
+      const futureQuestionsText = hasFutureMiniQuestions 
+        ? " (including upcoming activities not yet available)" 
+        : "";
+      
       return (
         <div className="mb-8">
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-6 shadow-lg">
@@ -973,17 +997,18 @@ const GameView: React.FC = () => {
                 <div>
                   <p className="text-orange-800 font-medium">Self-Learning Required</p>
                   <p className="text-orange-700 text-sm">
-                    Complete {totalQuestionMiniQuestions - completedQuestionMiniQuestions} more self-learning activities to unlock this assignment.
+                    Complete {remainingMiniQuestions} more self-learning activities to unlock this assignment{futureQuestionsText}.
                   </p>
                   <div className="mt-2">
                     <div className="w-full bg-orange-200 rounded-full h-2">
                       <div
                         className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${totalQuestionMiniQuestions > 0 ? (completedQuestionMiniQuestions / totalQuestionMiniQuestions) * 100 : 0}%` }}
+                        style={{ width: `${totalAllMiniQuestions > 0 ? (completedAllMiniQuestions / totalAllMiniQuestions) * 100 : 0}%` }}
                       />
                     </div>
                     <p className="text-xs text-orange-600 mt-1">
-                      Progress: {completedQuestionMiniQuestions}/{totalQuestionMiniQuestions} activities completed
+                      Progress: {completedAllMiniQuestions}/{totalAllMiniQuestions} activities completed
+                      {hasFutureMiniQuestions && ` (${totalQuestionMiniQuestions} currently available)`}
                     </p>
                   </div>
                 </div>
@@ -1382,6 +1407,13 @@ const GameView: React.FC = () => {
                           {module.topics.map((topic) => {
                             const topicIsReleased = topic.isReleased;
                             
+                            // Use backend status instead of local calculation
+                            const topicStatus = topic.status || 'locked';
+                            const isAvailable = topicStatus === 'available';
+                            const isLocked = topicStatus === 'locked' || topicStatus === 'mini_questions_required';
+                            const isCompleted = topicStatus === 'completed';
+                            const isSubmitted = topicStatus === 'submitted';
+                            
                             // Get self learning activities for this topic/question
                             const topicMiniQuestions = topic.contents?.flatMap(content => 
                               content.miniQuestions || []
@@ -1389,76 +1421,73 @@ const GameView: React.FC = () => {
                             
                             const hasMiniQuestions = topicMiniQuestions.length > 0;
                             const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
-                            const allMiniQuestionsCompleted = !hasMiniQuestions || completedMiniQuestions === topicMiniQuestions.length;
+                            
+                            // Check if there are future mini-questions
+                            const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
+                            const totalAllMiniQuestions = topic.miniQuestionProgress?.totalAll || topicMiniQuestions.length;
+                            const completedAllMiniQuestions = topic.miniQuestionProgress?.completedAll || completedMiniQuestions;
                             
                             // Assignment display logic: Show released topics
-                            let shouldShow = false;
-                            let isDisabled = false;
-                            
-                            if (topicIsReleased && progress) {
-                              shouldShow = true; // Show all released topics
-                              
-                              // Determine if this assignment should be disabled
-                              const topicQuestionNumber = topic.questionNumber || topic.topicNumber;
-                              
-                              // If this is beyond user's current progress + 1, disable it
-                              if (topicQuestionNumber > (progress.currentStep + 1)) {
-                                isDisabled = true; // Future assignments are disabled
-                              } else if (topicQuestionNumber === (progress.currentStep + 1)) {
-                                // This is the user's next assignment - check mini-questions
-                                if (hasMiniQuestions && !allMiniQuestionsCompleted) {
-                                  isDisabled = true; // Disable if has self learning activities but not all completed
-                                } else {
-                                  isDisabled = false; // Enable if no self learning activities or all completed
-                                }
-                              } else {
-                                // This is a completed assignment - always enabled
-                                isDisabled = false;
-                              }
+                            if (!topicIsReleased) {
+                              return null;
                             }
                             
-                            if (!shouldShow) {
-                              return null;
+                            // Determine display styling based on backend status
+                            let bgColor, borderColor, textColor, statusIcon, statusText, statusBg;
+                            
+                            if (isCompleted) {
+                              bgColor = 'bg-blue-50';
+                              borderColor = 'border-blue-200';
+                              textColor = 'text-blue-800';
+                              statusIcon = '✅';
+                              statusText = 'Completed';
+                              statusBg = 'bg-blue-100 text-blue-800';
+                            } else if (isSubmitted) {
+                              bgColor = 'bg-purple-50';
+                              borderColor = 'border-purple-200';
+                              textColor = 'text-purple-800';
+                              statusIcon = '📤';
+                              statusText = 'Submitted';
+                              statusBg = 'bg-purple-100 text-purple-800';
+                            } else if (isAvailable) {
+                              bgColor = 'bg-green-50';
+                              borderColor = 'border-green-200 hover:bg-green-100';
+                              textColor = 'text-green-800';
+                              statusIcon = '📝';
+                              statusText = 'Available';
+                              statusBg = 'bg-green-100 text-green-800';
+                            } else if (isLocked) {
+                              bgColor = 'bg-orange-50';
+                              borderColor = 'border-orange-200';
+                              textColor = 'text-orange-800';
+                              statusIcon = '🔐';
+                              statusText = topicStatus === 'mini_questions_required' ? 'Self-Learning Required' : 'Locked';
+                              statusBg = 'bg-orange-100 text-orange-800';
+                            } else {
+                              bgColor = 'bg-gray-50';
+                              borderColor = 'border-gray-200';
+                              textColor = 'text-gray-800';
+                              statusIcon = '🔒';
+                              statusText = 'Locked';
+                              statusBg = 'bg-gray-100 text-gray-600';
                             }
                             
                             return (
                               <div
                                 key={topic.id}
-                                className={`rounded-lg p-4 border transition-all duration-200 ${
-                                  isDisabled 
-                                    ? 'bg-orange-50 border-orange-200 opacity-90' 
-                                    : topicIsReleased
-                                      ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                                      : 'bg-gray-50 border-gray-200 opacity-60'
-                                }`}
+                                className={`rounded-lg p-4 border transition-all duration-200 ${bgColor} ${borderColor} opacity-90`}
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center">
-                                    <span className="text-xl mr-3">
-                                      {isDisabled ? '🔐' : topicIsReleased ? '📝' : '🔒'}
-                                    </span>
+                                    <span className="text-xl mr-3">{statusIcon}</span>
                                     <div>
-                                      <h5 className={`font-medium ${
-                                        isDisabled 
-                                          ? 'text-orange-800' 
-                                          : topicIsReleased 
-                                            ? 'text-green-800' 
-                                            : 'text-gray-500'
-                                      }`}>
+                                      <h5 className={`font-medium ${textColor}`}>
                                         Topic {topic.topicNumber}: {topic.title}
                                       </h5>
-                                      <p className={`text-sm ${
-                                        isDisabled 
-                                          ? 'text-orange-600' 
-                                          : topicIsReleased 
-                                            ? 'text-green-600' 
-                                            : 'text-gray-400'
-                                      }`}>
-                                        {isDisabled 
-                                          ? `Complete ${topicMiniQuestions.length - completedMiniQuestions} more activity${topicMiniQuestions.length - completedMiniQuestions !== 1 ? 'ies' : 'y'} to unlock`
-                                          : topicIsReleased 
-                                            ? topic.description 
-                                            : 'Topic not yet released'
+                                      <p className={`text-sm ${textColor.replace('800', '600')}`}>
+                                        {isLocked && topicStatus === 'mini_questions_required'
+                                          ? `Complete ${totalAllMiniQuestions - completedAllMiniQuestions} more activity${totalAllMiniQuestions - completedAllMiniQuestions !== 1 ? 'ies' : 'y'} to unlock${hasFutureMiniQuestions ? ' (including upcoming activities)' : ''}`
+                                          : topic.description
                                         }
                                       </p>
                                       {topicIsReleased && (
@@ -1470,58 +1499,50 @@ const GameView: React.FC = () => {
                                               Bonus: {topic.bonusPoints}
                                             </span>
                                           )}
-                                          {hasMiniQuestions && (
+                                          {(hasMiniQuestions || hasFutureMiniQuestions) && (
                                             <span className={`font-medium ${
-                                              allMiniQuestionsCompleted 
+                                              completedAllMiniQuestions === totalAllMiniQuestions
                                                 ? 'text-green-600' 
                                                 : 'text-orange-600'
                                             }`}>
-                                              Self Learning: {completedMiniQuestions}/{topicMiniQuestions.length}
+                                              Self Learning: {completedAllMiniQuestions}/{totalAllMiniQuestions}
+                                              {hasFutureMiniQuestions && ` (${completedMiniQuestions}/${topicMiniQuestions.length} available)`}
                                             </span>
                                           )}
                                         </div>
                                       )}
                                     </div>
                                   </div>
-                                  {isDisabled ? (
-                                    <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                      Locked
-                                    </span>
-                                  ) : topicIsReleased ? (
-                                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                      Available
-                                    </span>
-                                  ) : (
-                                    <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                      Locked
-                                    </span>
-                                  )}
+                                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusBg}`}>
+                                    {statusText}
+                                  </span>
                                 </div>
-                                {topicIsReleased && topic.content && !isDisabled && (
+                                {topicIsReleased && topic.content && isAvailable && (
                                   <div className="mt-3 p-3 bg-white rounded border border-green-100">
                                     <p className="text-sm text-gray-700">
                                       {topic.content}
                                     </p>
                                   </div>
                                 )}
-                                {topicIsReleased && isDisabled && hasMiniQuestions && (
+                                {topicIsReleased && isLocked && topicStatus === 'mini_questions_required' && (
                                   <div className="mt-3 p-3 bg-orange-100 rounded border border-orange-200">
                                     <div className="flex items-center text-orange-800 text-sm font-medium mb-2">
                                       <span className="mr-2">🎯</span>
                                       Complete Self Learning Activities First
                                     </div>
                                     <p className="text-xs text-orange-700">
-                                      You need to complete all {topicMiniQuestions.length} self learning activities above before you can access this main question.
+                                      You need to complete all {totalAllMiniQuestions} self learning activities{hasFutureMiniQuestions ? ' (including upcoming ones)' : ''} before you can access this main assignment.
                                     </p>
                                     <div className="mt-2">
                                       <div className="w-full bg-orange-200 rounded-full h-2">
                                         <div
                                           className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                                          style={{ width: `${(completedMiniQuestions / topicMiniQuestions.length) * 100}%` }}
+                                          style={{ width: `${totalAllMiniQuestions > 0 ? (completedAllMiniQuestions / totalAllMiniQuestions) * 100 : 0}%` }}
                                         />
                                       </div>
                                       <p className="text-xs text-orange-600 mt-1">
-                                        Progress: {completedMiniQuestions}/{topicMiniQuestions.length} activities completed
+                                        Progress: {completedAllMiniQuestions}/{totalAllMiniQuestions} activities completed
+                                        {hasFutureMiniQuestions && ` (${completedMiniQuestions}/${topicMiniQuestions.length} currently available)`}
                                       </p>
                                     </div>
                                   </div>

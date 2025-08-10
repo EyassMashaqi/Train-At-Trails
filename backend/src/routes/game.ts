@@ -1037,6 +1037,33 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       isReleased: m.isReleased 
     })));
 
+    // Get ALL mini-questions (including future ones) for proper counting
+    const allMiniQuestionsMap = new Map();
+    for (const module of modules) {
+      for (const question of module.questions) {
+        const allMiniQuestions = await prisma.content.findMany({
+          where: { questionId: question.id },
+          include: {
+            miniQuestions: {
+              include: {
+                miniAnswers: {
+                  where: { userId },
+                  select: {
+                    id: true,
+                    linkUrl: true,
+                    notes: true,
+                    submittedAt: true
+                  }
+                }
+              },
+              orderBy: { orderIndex: 'asc' }
+            }
+          }
+        });
+        allMiniQuestionsMap.set(question.id, allMiniQuestions);
+      }
+    }
+
     // Convert to format that frontend expects
     const formattedModules = modules.map((module: any) => ({
       id: module.id,
@@ -1048,17 +1075,28 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       releaseDate: module.releaseDate,
       releasedAt: module.releasedAt,
       topics: module.questions.map((question: any) => {
-        // Calculate mini-question progress for status determination
-        const contents = question.contents || [];
-        const totalMiniQuestions = contents.reduce((total: number, content: any) => 
+        // Get ALL mini-questions for this question (including future ones) for proper counting
+        const allContentsForQuestion = allMiniQuestionsMap.get(question.id) || [];
+        const totalAllMiniQuestions = allContentsForQuestion.reduce((total: number, content: any) => 
           total + content.miniQuestions.length, 0
         );
         
-        const completedMiniQuestions = contents.reduce((total: number, content: any) =>
+        const completedAllMiniQuestions = allContentsForQuestion.reduce((total: number, content: any) =>
           total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
         );
 
-        const canSolveMainQuestion = totalMiniQuestions === 0 || completedMiniQuestions === totalMiniQuestions;
+        // Calculate currently released mini-question progress for UI display
+        const contents = question.contents || [];
+        const totalReleasedMiniQuestions = contents.reduce((total: number, content: any) => 
+          total + content.miniQuestions.length, 0
+        );
+        
+        const completedReleasedMiniQuestions = contents.reduce((total: number, content: any) =>
+          total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+        );
+
+        // Main assignment is only available if ALL mini-questions (including future ones) are completed
+        const canSolveMainQuestion = totalAllMiniQuestions === 0 || completedAllMiniQuestions === totalAllMiniQuestions;
 
         // Check if user has already submitted a main answer for this question
         const hasMainAnswer = question.answers.length > 0;
@@ -1075,24 +1113,29 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
           questionNumber: question.questionNumber,
           userCurrentStep: userCohort.currentStep,
           isQuestionAccessible,
-          totalMiniQuestions,
-          completedMiniQuestions,
+          totalAllMiniQuestions,
+          completedAllMiniQuestions,
+          totalReleasedMiniQuestions,
+          completedReleasedMiniQuestions,
           canSolveMainQuestion,
           hasMainAnswer,
           mainAnswerStatus
         });
         
         if (isQuestionAccessible) {
-          if (totalMiniQuestions > 0) {
-            if (completedMiniQuestions < totalMiniQuestions) {
+          if (totalReleasedMiniQuestions > 0) {
+            if (completedReleasedMiniQuestions < totalReleasedMiniQuestions) {
               topicStatus = 'mini_questions_required';
             } else if (canSolveMainQuestion && !hasMainAnswer) {
               topicStatus = 'available';
             } else if (hasMainAnswer) {
               topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
             }
+          } else if (totalAllMiniQuestions > 0 && !canSolveMainQuestion) {
+            // There are future mini-questions that haven't been completed yet
+            topicStatus = 'locked'; // Keep locked until ALL mini-questions are done
           } else {
-            // No mini questions
+            // No mini questions or all completed
             if (!hasMainAnswer) {
               topicStatus = 'available';
             } else {
@@ -1121,9 +1164,13 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
           hasMainAnswer,
           mainAnswer: hasMainAnswer ? question.answers[0] : null,
           miniQuestionProgress: {
-            total: totalMiniQuestions,
-            completed: completedMiniQuestions,
-            percentage: totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0
+            total: totalReleasedMiniQuestions,
+            completed: completedReleasedMiniQuestions,
+            percentage: totalReleasedMiniQuestions > 0 ? Math.round((completedReleasedMiniQuestions / totalReleasedMiniQuestions) * 100) : 0,
+            // Also include info about future mini-questions
+            totalAll: totalAllMiniQuestions,
+            completedAll: completedAllMiniQuestions,
+            hasFutureMiniQuestions: totalAllMiniQuestions > totalReleasedMiniQuestions
           },
           question: {
             id: question.id,
