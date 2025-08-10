@@ -1406,13 +1406,6 @@ const GameView: React.FC = () => {
                           {module.topics.map((topic) => {
                             const topicIsReleased = topic.isReleased;
                             
-                            // Use backend status instead of local calculation
-                            const topicStatus = topic.status || 'locked';
-                            const isAvailable = topicStatus === 'available';
-                            const isLocked = topicStatus === 'locked' || topicStatus === 'mini_questions_required';
-                            const isCompleted = topicStatus === 'completed';
-                            const isSubmitted = topicStatus === 'submitted';
-                            
                             // Get self learning activities for this topic/question
                             const topicMiniQuestions = topic.contents?.flatMap(content => 
                               content.miniQuestions || []
@@ -1425,6 +1418,56 @@ const GameView: React.FC = () => {
                             const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
                             const totalAllMiniQuestions = topic.miniQuestionProgress?.totalAll || topicMiniQuestions.length;
                             const completedAllMiniQuestions = topic.miniQuestionProgress?.completedAll || completedMiniQuestions;
+                            
+                            // Determine topic status with frontend override logic
+                            let topicStatus = topic.status || 'locked';
+                            
+                            // Check if user has already answered this question
+                            const hasAnswered = progress?.answers?.some(answer => 
+                              answer.question.id === topic.id || 
+                              answer.question.questionNumber === topic.questionNumber ||
+                              answer.question.topicNumber === topic.topicNumber
+                            );
+                            
+                            // Override backend status based on frontend calculations
+                            if (hasAnswered) {
+                              // Check the answer status
+                              const userAnswer = progress?.answers?.find(answer => 
+                                answer.question.id === topic.id || 
+                                answer.question.questionNumber === topic.questionNumber ||
+                                answer.question.topicNumber === topic.topicNumber
+                              );
+                              if (userAnswer?.status === 'APPROVED') {
+                                topicStatus = 'completed';
+                              } else {
+                                topicStatus = 'submitted';
+                              }
+                            } else if (totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions) {
+                              // Still have mini-questions to complete
+                              topicStatus = 'mini_questions_required';
+                            } else if (topicIsReleased) {
+                              // All mini-questions completed (or no mini-questions) and topic is released
+                              topicStatus = 'available';
+                            }
+                            
+                            const isAvailable = topicStatus === 'available';
+                            const isLocked = topicStatus === 'locked' || topicStatus === 'mini_questions_required';
+                            const isCompleted = topicStatus === 'completed';
+                            const isSubmitted = topicStatus === 'submitted';
+                            
+                            // Debug logging for topic status
+                            console.log(`🔍 Topic ${topic.topicNumber} Status Debug:`, {
+                              topicTitle: topic.title,
+                              originalBackendStatus: topic.status,
+                              finalStatus: topicStatus,
+                              totalAllMiniQuestions,
+                              completedAllMiniQuestions,
+                              hasAnswered,
+                              isAvailable,
+                              isLocked,
+                              isCompleted,
+                              isSubmitted
+                            });
                             
                             // Assignment display logic: Show released topics
                             if (!topicIsReleased) {
