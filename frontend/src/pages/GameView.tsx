@@ -40,15 +40,6 @@ interface Topic {
   module: Module;
   contents?: Content[];
   questionNumber?: number;
-  status?: string;
-  miniQuestionProgress?: {
-    total: number;
-    completed: number;
-    percentage: number;
-    totalAll: number;
-    completedAll: number;
-    hasFutureMiniQuestions: boolean;
-  };
 }
 
 interface Content {
@@ -116,6 +107,7 @@ const GameView: React.FC = () => {
   const [showTrainAnimation] = useState(false); // Static false - animation triggered by main questions which are disabled
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
+  const [userCohortInfo, setUserCohortInfo] = useState<{id: string, name: string, description?: string} | null>(null);
   
   // Self learning activities state
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
@@ -334,6 +326,15 @@ const GameView: React.FC = () => {
         answers: data.answers
       });
       setCurrentQuestion(data.currentQuestion);
+
+      // Extract cohort information if available
+      if (data.cohort) {
+        setUserCohortInfo({
+          id: data.cohort.id,
+          name: data.cohort.name,
+          description: data.cohort.description
+        });
+      }
 
       // Collect all mini-questions from all released topics in modules
       let allMiniQuestions: MiniQuestion[] = [];
@@ -944,6 +945,7 @@ const GameView: React.FC = () => {
     
     const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => mq.hasAnswer).length;
     const totalQuestionMiniQuestions = questionMiniQuestions.length;
+    const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
 
     // Check if there are future mini-questions by looking at the backend progress data
     const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 
@@ -985,7 +987,7 @@ const GameView: React.FC = () => {
               <h4 className="font-semibold text-gray-800 mb-2">
                 Question {targetQuestion.questionNumber}: {targetQuestion.title}
               </h4>
-              {/* <p className="text-gray-700 mb-2">{targetQuestion.description}</p> */}
+              <p className="text-gray-700 mb-2">{targetQuestion.description}</p>
             </div>
             
             <div className="bg-orange-100 border border-orange-200 rounded-lg p-4">
@@ -1551,7 +1553,7 @@ const GameView: React.FC = () => {
                       ) : (
                         <div className="text-center py-8 text-gray-500">
                           <span className="text-4xl mb-2 block">📝</span>
-                          <p>No assignments available in this module yet.</p>
+                          <p>No topics available in this module yet.</p>
                         </div>
                       )}
                     </div>

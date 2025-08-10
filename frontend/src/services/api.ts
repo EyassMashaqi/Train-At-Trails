@@ -178,7 +178,10 @@ export const gameService = {
 export const adminService = {
   getAllUsers: () => api.get('/admin/users'),
   
-  getPendingAnswers: () => api.get('/admin/pending-answers'),
+  getPendingAnswers: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/pending-answers${params}`);
+  },
   
   reviewAnswer: (answerId: number, status: 'approved' | 'rejected', feedback?: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 
@@ -186,7 +189,10 @@ export const adminService = {
       feedback 
     }),
   
-  getGameStats: () => api.get('/admin/stats'),
+  getGameStats: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/stats${params}`);
+  },
 
   // Module management (mapped to questions for compatibility)
   getAllModules: (cohortId?: string) => {

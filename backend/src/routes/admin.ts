@@ -80,6 +80,7 @@ router.get('/users', async (req: AuthRequest, res) => {
 router.get('/stats', async (req: AuthRequest, res) => {
   try {
     const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string; // Get cohort filter from query params
     
     // Check if user is admin
     const adminUser = await prisma.user.findUnique({
@@ -90,14 +91,31 @@ router.get('/stats', async (req: AuthRequest, res) => {
     let cohortIds: string[] = [];
     
     if (adminUser?.isAdmin) {
-      // For admin users, get all active cohorts instead of requiring membership
-      const allCohorts = await prisma.cohort.findMany({
-        where: { isActive: true },
-        select: { id: true }
-      });
-      cohortIds = allCohorts.map(c => c.id);
+      // If a specific cohort is requested, only use that cohort
+      if (requestedCohortId) {
+        // Verify the requested cohort exists and is active
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { 
+            id: requestedCohortId,
+            isActive: true 
+          }
+        });
+        
+        if (requestedCohort) {
+          cohortIds = [requestedCohortId];
+        } else {
+          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+        }
+      } else {
+        // If no specific cohort requested, get all active cohorts (legacy behavior)
+        const allCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = allCohorts.map(c => c.id);
+      }
     } else {
-      // For non-admin users, get their cohort access
+      // For non-admin users, get their cohort access (original logic)
       const adminCohorts = await prisma.cohortMember.findMany({
         where: { 
           userId: adminUserId,
@@ -108,6 +126,13 @@ router.get('/stats', async (req: AuthRequest, res) => {
         }
       });
       cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      // If a specific cohort is requested, ensure admin has access to it
+      if (requestedCohortId && !cohortIds.includes(requestedCohortId)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (requestedCohortId) {
+        cohortIds = [requestedCohortId];
+      }
     }
 
     if (cohortIds.length === 0) {
@@ -193,6 +218,7 @@ router.get('/stats', async (req: AuthRequest, res) => {
 router.get('/pending-answers', async (req: AuthRequest, res) => {
   try {
     const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string; // Get cohort filter from query params
     
     // Check if user is admin
     const adminUser = await prisma.user.findUnique({
@@ -203,14 +229,31 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
     let cohortIds: string[] = [];
     
     if (adminUser?.isAdmin) {
-      // For admin users, get all active cohorts instead of requiring membership
-      const allCohorts = await prisma.cohort.findMany({
-        where: { isActive: true },
-        select: { id: true }
-      });
-      cohortIds = allCohorts.map(c => c.id);
+      // If a specific cohort is requested, only use that cohort
+      if (requestedCohortId) {
+        // Verify the requested cohort exists and is active
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { 
+            id: requestedCohortId,
+            isActive: true 
+          }
+        });
+        
+        if (requestedCohort) {
+          cohortIds = [requestedCohortId];
+        } else {
+          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+        }
+      } else {
+        // If no specific cohort requested, get all active cohorts (legacy behavior)
+        const allCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = allCohorts.map(c => c.id);
+      }
     } else {
-      // For non-admin users, get their cohort access
+      // For non-admin users, get their cohort access (original logic)
       const adminCohorts = await prisma.cohortMember.findMany({
         where: { 
           userId: adminUserId,
@@ -221,6 +264,13 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
         }
       });
       cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      // If a specific cohort is requested, ensure admin has access to it
+      if (requestedCohortId && !cohortIds.includes(requestedCohortId)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (requestedCohortId) {
+        cohortIds = [requestedCohortId];
+      }
     }
 
     // If no cohort access, return empty
@@ -720,32 +770,6 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
         updateData.isReleased = isReleased;
         if (isReleased && !question.isReleased) {
           updateData.releasedAt = new Date();
-        } else if (!isReleased && question.isReleased) {
-          // When unreleasing a question, also unrelease all its mini-questions
-          updateData.releasedAt = null;
-          
-          // Find all mini-questions for this question
-          const questionContents = await tx.content.findMany({
-            where: { questionId },
-            include: {
-              miniQuestions: true
-            }
-          });
-          
-          // Unrelease all mini-questions
-          for (const content of questionContents) {
-            for (const miniQuestion of content.miniQuestions) {
-              await (tx as any).miniQuestion.update({
-                where: { id: miniQuestion.id },
-                data: {
-                  isReleased: false,
-                  actualReleaseDate: null
-                }
-              });
-            }
-          }
-          
-          console.log(`🔒 Unreleased question "${question.title}" and all its mini-questions`);
         }
       }
       if (typeof isActive === 'boolean') updateData.isActive = isActive;
@@ -1174,61 +1198,16 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
-    // Use transaction to ensure consistency when unreleasing
-    const updatedModule = await (prisma as any).$transaction(async (tx: any) => {
-      if (typeof isReleased === 'boolean') {
-        updateData.isReleased = isReleased;
-        if (isReleased && !module.isReleased) {
-          updateData.releasedAt = new Date();
-        } else if (!isReleased && module.isReleased) {
-          // When unreleasing a module, also unrelease all its questions and mini-questions
-          updateData.releasedAt = null;
-          
-          // Find all questions in this module
-          const moduleQuestions = await tx.question.findMany({
-            where: { moduleId },
-            include: {
-              contents: {
-                include: {
-                  miniQuestions: true
-                }
-              }
-            }
-          });
-          
-          // Unrelease all questions and their mini-questions
-          for (const question of moduleQuestions) {
-            // Unrelease the question
-            await tx.question.update({
-              where: { id: question.id },
-              data: {
-                isReleased: false,
-                releasedAt: null
-              }
-            });
-            
-            // Unrelease all mini-questions for this question
-            for (const content of question.contents) {
-              for (const miniQuestion of content.miniQuestions) {
-                await tx.miniQuestion.update({
-                  where: { id: miniQuestion.id },
-                  data: {
-                    isReleased: false,
-                    actualReleaseDate: null
-                  }
-                });
-              }
-            }
-          }
-          
-          console.log(`🔒 Unreleased module "${module.title}" and all its questions and mini-questions`);
-        }
+    if (typeof isReleased === 'boolean') {
+      updateData.isReleased = isReleased;
+      if (isReleased && !module.isReleased) {
+        updateData.releasedAt = new Date();
       }
+    }
 
-      return await tx.module.update({
-        where: { id: moduleId },
-        data: updateData
-      });
+    const updatedModule = await (prisma as any).module.update({
+      where: { id: moduleId },
+      data: updateData
     });
 
     res.json({ module: updatedModule });
@@ -1622,47 +1601,15 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       updateData.isReleased = isReleased;
       if (isReleased && !question.isReleased) {
         updateData.releasedAt = new Date();
-      } else if (!isReleased && question.isReleased) {
-        // When unreleasing a topic, also unrelease all its mini-questions
-        updateData.releasedAt = null;
       }
     }
 
-    // Use transaction to ensure consistency when unreleasing
-    const updatedQuestion = await prisma.$transaction(async (tx) => {
-      // If we're unreleasing, handle mini-questions
-      if (typeof isReleased === 'boolean' && !isReleased && question.isReleased) {
-        // Find all mini-questions for this topic
-        const topicContents = await tx.content.findMany({
-          where: { questionId: topicId },
-          include: {
-            miniQuestions: true
-          }
-        });
-        
-        // Unrelease all mini-questions
-        for (const content of topicContents) {
-          for (const miniQuestion of content.miniQuestions) {
-            await (tx as any).miniQuestion.update({
-              where: { id: miniQuestion.id },
-              data: {
-                isReleased: false,
-                actualReleaseDate: null
-              }
-            });
-          }
-        }
-        
-        console.log(`🔒 Unreleased topic "${question.title}" and all its mini-questions`);
-      }
-
-      return await tx.question.update({
-        where: { id: topicId },
-        data: updateData,
-        include: {
-          module: true
-        } as any
-      });
+    const updatedQuestion = await prisma.question.update({
+      where: { id: topicId },
+      data: updateData,
+      include: {
+        module: true
+      } as any
     });
 
     // Return in topic format for compatibility

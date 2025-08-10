@@ -235,14 +235,14 @@ const AdminDashboard: React.FC = () => {
             console.error('❌ Failed to load cohort users:', err);
             throw err;
           }),
-          adminService.getPendingAnswers().catch(err => {
+          adminService.getPendingAnswers(selectedCohortId).catch(err => {
             console.error('❌ Failed to load pending answers:', err);
             throw err;
-          }), // TODO: filter by cohort if endpoint supports it
-          adminService.getGameStats().catch(err => {
+          }),
+          adminService.getGameStats(selectedCohortId).catch(err => {
             console.error('❌ Failed to load game stats:', err);
             throw err;
-          }), // TODO: filter by cohort if endpoint supports it
+          }),
         ]);
         console.log('✅ Cohort data loaded:', { 
           users: usersResponse.data.members || usersResponse.data.users || [], 

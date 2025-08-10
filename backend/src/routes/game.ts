@@ -146,7 +146,8 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       where: { 
         NOT: {
           moduleId: null
-        }
+        },
+        cohortId: userCohort?.cohortId // FIXED: Added cohort filtering
       }
     });
 
@@ -158,6 +159,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         isReleased: true,
         moduleId: { not: null }, // Only count questions that are part of modules (topics/assignments)
         topicNumber: { not: null }, // Only count questions that have a topic number
+        cohortId: userCohort?.cohortId, // FIXED: Added cohort filtering
         module: {
           isReleased: true
         }
@@ -339,6 +341,32 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       return res.status(400).json({ error: 'Answer content is required' });
     }
 
+    // Get user's cohort first to ensure cohort isolation in all queries
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
+
+    console.log('User cohort check:');
+    console.log('  User cohort found:', !!userCohort);
+    console.log('  Cohort details:', userCohort ? { id: userCohort.cohortId, name: userCohort.cohort.name } : 'None');
+
+    // Check if user is admin - admins don't need cohort membership
+    const isAdmin = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true }
+    });
+
+    if (!userCohort && !isAdmin?.isAdmin) {
+      console.log('ERROR: User not enrolled in any cohort');
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
+
     let currentQuestion = null;
     
     if (topicId) {
@@ -348,7 +376,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       currentQuestion = await prisma.question.findFirst({
         where: { 
           id: topicId, // topicId maps directly to questionId in our current schema
-          isReleased: true
+          isReleased: true,
+          cohortId: userCohort?.cohortId // FIXED: Added cohort filtering
           // Removed isActive: true - a released question should be answerable
         }
       });
@@ -359,7 +388,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       currentQuestion = await prisma.question.findFirst({
         where: { 
           id: questionId,
-          isReleased: true
+          isReleased: true,
+          cohortId: userCohort?.cohortId // FIXED: Added cohort filtering
           // Removed isActive: true - a released question should be answerable
         }
       });
@@ -371,7 +401,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         where: { 
           isReleased: true,
           isActive: true,
-          deadline: { gt: new Date() }
+          deadline: { gt: new Date() },
+          cohortId: userCohort?.cohortId // FIXED: Added cohort filtering
         },
         orderBy: { questionNumber: 'asc' }
       });
@@ -425,10 +456,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     }
 
     // Check if user already answered with pending status (block only pending submissions)
+    // FIXED: Include cohortId filter to ensure cohort isolation
     const existingAnswer = await prisma.answer.findFirst({
       where: { 
         userId, 
-        questionId: currentQuestion.id 
+        questionId: currentQuestion.id,
+        cohortId: userCohort?.cohortId
       },
       orderBy: { submittedAt: 'desc' }
     });
@@ -443,32 +476,6 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           submittedAt: existingAnswer.submittedAt
         }
       });
-    }
-
-    // Get user's default cohort for now (first active membership)
-    const userCohort = await prisma.cohortMember.findFirst({
-      where: { 
-        userId,
-        status: 'ENROLLED'
-      },
-      include: {
-        cohort: true
-      }
-    });
-
-    console.log('User cohort check:');
-    console.log('  User cohort found:', !!userCohort);
-    console.log('  Cohort details:', userCohort ? { id: userCohort.cohortId, name: userCohort.cohort.name } : 'None');
-
-    // Check if user is admin - admins don't need cohort membership
-    const isAdmin = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { isAdmin: true }
-    });
-
-    if (!userCohort && !isAdmin?.isAdmin) {
-      console.log('ERROR: User not enrolled in any cohort');
-      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
     // Create new answer (this allows for resubmissions while maintaining history)
@@ -600,6 +607,23 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
 // Get next question release time
 router.get('/next-question', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+    
+    // Get user's cohort
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: true
+      }
+    });
+
+    if (!userCohort) {
+      return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
+    }
+
     // Get game config
     const config = await prisma.gameConfig.findUnique({
       where: { id: 'singleton' }
@@ -609,9 +633,12 @@ router.get('/next-question', authenticateToken, async (req: AuthRequest, res) =>
       return res.status(500).json({ error: 'Game configuration not found' });
     }
 
-    // Get the latest released question
+    // Get the latest released question from user's cohort
     const latestQuestion = await prisma.question.findFirst({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        cohortId: userCohort.cohortId // FIXED: Added cohort filtering
+      },
       orderBy: { questionNumber: 'desc' }
     });
 
@@ -687,11 +714,14 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Update mini question release status based on current time
     await updateMiniQuestionReleaseStatus();
 
-    // Get all questions that user can potentially access (only released questions)
+    // Get all questions that user can potentially access (released questions + step-based questions)
     const releasedQuestions = await prisma.question.findMany({
       where: { 
         cohortId: userCohort?.cohortId,  // FIXED: Re-enabled cohort filtering
-        isReleased: true // Only include released questions
+        OR: [
+          { isReleased: true }, // Include all released questions (for module/topic system)
+          { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
+        ]
       },
       include: {
         contents: {
@@ -757,8 +787,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       // Determine question availability - for module/topic system, use isReleased instead of step-based logic
       let questionStatus = 'locked';
       
-      // Check if question is released (only allow released questions)
-      const isQuestionAccessible = question.isReleased;
+      // Check if BOTH module and question are released and active
+      const isQuestionAccessible = question.isReleased && question.isActive && 
+                                  question.module.isReleased && question.module.isActive;
       
       if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
@@ -976,9 +1007,6 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       },
       include: {
         questions: {
-          where: {
-            isReleased: true // Only include released questions/topics
-          },
           include: {
             contents: {
               include: {
@@ -1037,18 +1065,6 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       isReleased: m.isReleased 
     })));
 
-    // 🚨 CRITICAL DEBUG: Check modules.questions immediately after query
-    console.log('🚨 CRITICAL DEBUG: Raw modules with questions:');
-    modules.forEach((module: any) => {
-      console.log(`Module ${module.moduleNumber}: ${module.title}`);
-      console.log(`  Questions found: ${module.questions?.length || 0}`);
-      if (module.questions?.length > 0) {
-        module.questions.forEach((q: any) => {
-          console.log(`    - ${q.title} (${q.id}) isReleased: ${q.isReleased}`);
-        });
-      }
-    });
-
     // Get ALL mini-questions (including future ones) for proper counting
     const allMiniQuestionsMap = new Map();
     for (const module of modules) {
@@ -1075,16 +1091,6 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         allMiniQuestionsMap.set(question.id, allMiniQuestions);
       }
     }
-
-    // Debug: Log modules and their questions before formatting
-    console.log('🔍 DEBUG: Modules before formatting:');
-    modules.forEach((module: any) => {
-      console.log(`Module ${module.moduleNumber}: ${module.title}`);
-      console.log(`  Questions found: ${module.questions.length}`);
-      module.questions.forEach((q: any) => {
-        console.log(`    - ${q.title} (${q.id})`);
-      });
-    });
 
     // Convert to format that frontend expects
     const formattedModules = modules.map((module: any) => ({
@@ -1127,8 +1133,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         // Determine topic status - use same logic as /progress endpoint
         let topicStatus = 'locked';
         
-        // Check if question is released (only allow released questions)
-        const isQuestionAccessible = question.isReleased;
+        // Check if BOTH module and question are released and active
+        const isQuestionAccessible = question.isReleased && question.isActive && 
+                                    module.isReleased && module.isActive;
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,
