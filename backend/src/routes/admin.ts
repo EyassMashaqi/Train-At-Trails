@@ -1036,6 +1036,7 @@ router.get('/modules', async (req: AuthRequest, res) => {
       moduleNumber: module.moduleNumber,
       title: module.title,
       description: module.description,
+      theme: module.theme, // Add theme field
       isReleased: module.isReleased,
       isActive: module.isActive,
       releaseDate: module.releaseDate,
