@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService, gameService } from '../services/api';
@@ -275,6 +275,25 @@ const AdminDashboard: React.FC = () => {
   // Cohort state
   const [allCohorts, setAllCohorts] = useState<any[]>([]);
   const [selectedCohort, setSelectedCohort] = useState<any>(null);
+
+  // Memoized values for performance optimization
+  const availableThemes = useMemo(() => [
+    { id: 'trains', name: 'Trains', icon: '🚂', description: 'Classic train theme with stations and tracks' },
+    { id: 'planes', name: 'Planes', icon: '✈️', description: 'Aviation theme with airports and flight paths' },
+    { id: 'sailboat', name: 'Sailboat', icon: '⛵', description: 'Maritime theme with harbors and sailing routes' },
+    { id: 'cars', name: 'Cars', icon: '🚗', description: 'Automotive theme with roads and destinations' },
+    { id: 'f1', name: 'Formula 1', icon: '🏎️', description: 'High-speed racing theme with circuits and pit stops' }
+  ], []);
+
+  const currentCohort = useMemo(() => 
+    allCohorts.find(c => c.id === selectedCohortId), 
+    [allCohorts, selectedCohortId]
+  );
+
+  const filteredUsers = useMemo(() => {
+    if (statusFilter === 'all') return users;
+    return users.filter(user => user.status === statusFilter);
+  }, [users, statusFilter]);
 
   const loadAdminData = useCallback(async () => {
     try {
@@ -1159,7 +1178,84 @@ const AdminDashboard: React.FC = () => {
     );
   };
 
-  const renderCohortConfig = () => {
+  // Theme management handlers
+  const handleDefaultThemeFromModule = useCallback(async (moduleId: string) => {
+    try {
+      if (!moduleId) {
+        // Reset to fixed theme if no module selected
+        await adminService.updateCohort(selectedCohortId, {
+          defaultTheme: 'trains'
+        });
+        toast.success('Cohort default theme reset to Trains');
+      } else {
+        const selectedModule = modules.find(m => m.id === moduleId);
+        if (!selectedModule) {
+          toast.error('Module not found');
+          return;
+        }
+
+        await adminService.updateCohort(selectedCohortId, {
+          defaultTheme: selectedModule.theme || 'trains'
+        });
+        toast.success(`Cohort default theme set to match Module ${selectedModule.moduleNumber}`);
+      }
+      
+      // Update cohorts state to reflect the change
+      setAllCohorts(prevCohorts => 
+        prevCohorts.map(cohort => 
+          cohort.id === selectedCohortId 
+            ? { ...cohort, defaultTheme: moduleId ? modules.find(m => m.id === moduleId)?.theme || 'trains' : 'trains' }
+            : cohort
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update cohort default theme:', error);
+      toast.error('Failed to update cohort default theme');
+    }
+  }, [selectedCohortId, modules]);
+
+  const handleModuleThemeUpdate = useCallback(async (moduleId: string, newTheme: string) => {
+    try {
+      const oldModule = modules.find(m => m.id === moduleId);
+      const wasLinkedToDefault = oldModule && currentCohort?.defaultTheme === oldModule.theme;
+      
+      await adminService.updateModuleTheme(moduleId, newTheme);
+      
+      // If this module's theme was being used as the cohort default, update the cohort too
+      if (wasLinkedToDefault) {
+        await adminService.updateCohort(selectedCohortId, {
+          defaultTheme: newTheme
+        });
+        
+        // Update cohorts state
+        setAllCohorts(prevCohorts => 
+          prevCohorts.map(cohort => 
+            cohort.id === selectedCohortId 
+              ? { ...cohort, defaultTheme: newTheme }
+              : cohort
+          )
+        );
+        
+        toast.success('Module theme and cohort default theme updated successfully');
+      } else {
+        toast.success('Module theme updated successfully');
+      }
+      
+      // Update the modules state directly
+      setModules(prevModules => 
+        prevModules.map(module => 
+          module.id === moduleId 
+            ? { ...module, theme: newTheme }
+            : module
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update module theme:', error);
+      toast.error('Failed to update module theme');
+    }
+  }, [modules, currentCohort, selectedCohortId]);
+
+  const renderCohortConfig = useCallback(() => {
     if (!selectedCohortId) {
       return (
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -1172,7 +1268,6 @@ const AdminDashboard: React.FC = () => {
       );
     }
 
-    const currentCohort = allCohorts.find(c => c.id === selectedCohortId);
     if (!currentCohort) {
       return (
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -1185,87 +1280,52 @@ const AdminDashboard: React.FC = () => {
       );
     }
 
-    const availableThemes = [
-      { id: 'trains', name: 'Trains', icon: '🚂', description: 'Classic train theme with stations and tracks' },
-      { id: 'planes', name: 'Planes', icon: '✈️', description: 'Aviation theme with airports and flight paths' },
-      { id: 'sailboat', name: 'Sailboat', icon: '⛵', description: 'Maritime theme with harbors and sailing routes' },
-      { id: 'cars', name: 'Cars', icon: '🚗', description: 'Automotive theme with roads and destinations' },
-      { id: 'f1', name: 'Formula 1', icon: '🏎️', description: 'High-speed racing theme with circuits and pit stops' }
-    ];
-
-    const handleDefaultThemeUpdate = async (newTheme: string) => {
-      try {
-        await adminService.updateCohort(selectedCohortId, {
-          defaultTheme: newTheme
-        });
-        toast.success('Default theme updated successfully');
-        loadAdminData(); // Reload data to get updated cohort info
-      } catch (error) {
-        console.error('Failed to update default theme:', error);
-        toast.error('Failed to update default theme');
-      }
-    };
-
-    const handleModuleThemeUpdate = async (moduleId: string, newTheme: string) => {
-      try {
-        await adminService.updateModuleTheme(moduleId, newTheme);
-        toast.success('Module theme updated successfully');
-        
-        // Update the modules state directly
-        setModules(prevModules => 
-          prevModules.map(module => 
-            module.id === moduleId 
-              ? { ...module, theme: newTheme }
-              : module
-          )
-        );
-      } catch (error) {
-        console.error('Failed to update module theme:', error);
-        toast.error('Failed to update module theme');
-      }
-    };
-
     return (
       <div className="space-y-6">
-        {/* Default Theme Configuration */}
+        {/* Default Theme Source Selection */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center mb-6">
-            <div className="text-2xl mr-3">🎨</div>
+            <div className="text-2xl mr-3">�</div>
             <div>
-              <h3 className="text-lg font-medium text-gray-900">Default Cohort Theme</h3>
+              <h3 className="text-lg font-medium text-gray-900">Cohort Default Theme</h3>
               <p className="text-sm text-gray-600">
-                Set the default theme that will be used for all users in this cohort unless overridden by module-specific themes.
+                Select which module's theme should be used as the default for this cohort.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableThemes.map((theme) => (
-              <div
-                key={theme.id}
-                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all hover:border-primary-300 ${
-                  currentCohort.defaultTheme === theme.id
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
-                onClick={() => handleDefaultThemeUpdate(theme.id)}
-              >
-                <div className="text-center">
-                  <div className="text-4xl mb-2">{theme.icon}</div>
-                  <h4 className="font-medium text-gray-900">{theme.name}</h4>
-                  <p className="text-xs text-gray-600 mt-1">{theme.description}</p>
-                </div>
-                {currentCohort.defaultTheme === theme.id && (
-                  <div className="absolute top-2 right-2">
-                    <div className="bg-primary-500 text-white rounded-full p-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  </div>
-                )}
+          <div className="max-w-md">
+            <select
+              value={modules.find(m => m.theme === currentCohort.defaultTheme)?.id || ''}
+              onChange={(e) => handleDefaultThemeFromModule(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">🚂 Use Fixed Theme (Trains)</option>
+              {modules.map((module) => (
+                <option key={module.id} value={module.id}>
+                  {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'} Module {module.moduleNumber}: {module.title} ({availableThemes.find(t => t.id === module.theme)?.name || 'Trains'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Current Default Theme Display */}
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <div className="text-3xl">
+                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.icon || '🚂'}
               </div>
-            ))}
+              <div>
+                <h4 className="font-medium text-gray-900">
+                  Current Default: {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.name || 'Trains'}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {modules.find(m => m.theme === currentCohort.defaultTheme) 
+                    ? `Linked to Module ${modules.find(m => m.theme === currentCohort.defaultTheme)?.moduleNumber}`
+                    : 'Fixed theme (not linked to any module)'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1274,9 +1334,10 @@ const AdminDashboard: React.FC = () => {
           <div className="flex items-center mb-6">
             <div className="text-2xl mr-3">📚</div>
             <div>
-              <h3 className="text-lg font-medium text-gray-900">Module-Specific Themes</h3>
+              <h3 className="text-lg font-medium text-gray-900">Module Themes</h3>
               <p className="text-sm text-gray-600">
-                Configure individual themes for each module. Module themes override the default cohort theme.
+                Configure the theme for each module. If a module is selected as the cohort default above, 
+                changing its theme will also update the cohort default.
               </p>
             </div>
           </div>
@@ -1288,88 +1349,76 @@ const AdminDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {modules.map((module) => (
-                <div key={module.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        Module {module.moduleNumber}: {module.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">{module.description}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-500">Current theme:</span>
-                      <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
-                        <span className="text-lg">
-                          {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'}
-                        </span>
-                        <span className="text-sm font-medium">
-                          {availableThemes.find(t => t.id === module.theme)?.name || 'Trains'}
-                        </span>
+              {modules.map((module) => {
+                const isLinkedToDefault = module.theme === currentCohort.defaultTheme;
+                return (
+                  <div key={module.id} className={`border rounded-lg p-4 ${isLinkedToDefault ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium text-gray-900">
+                            Module {module.moduleNumber}: {module.title}
+                          </h4>
+                          {isLinkedToDefault && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              🎯 Cohort Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">{module.description}</p>
+                        {isLinkedToDefault && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            ⚡ This module's theme is used as the cohort default
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500">Theme:</span>
+                        <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
+                          <span className="text-lg">
+                            {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {availableThemes.find(t => t.id === module.theme)?.name || 'Trains'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {availableThemes.map((theme) => (
-                      <button
-                        key={theme.id}
-                        className={`relative border rounded-lg p-3 text-center transition-all hover:border-primary-300 ${
-                          module.theme === theme.id
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleModuleThemeUpdate(module.id, theme.id)}
-                      >
-                        <div className="text-2xl mb-1">{theme.icon}</div>
-                        <div className="text-xs font-medium text-gray-900">{theme.name}</div>
-                        {module.theme === theme.id && (
-                          <div className="absolute top-1 right-1">
-                            <div className="bg-primary-500 text-white rounded-full p-0.5">
-                              <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {availableThemes.map((theme) => (
+                        <button
+                          key={theme.id}
+                          className={`relative border rounded-lg p-3 text-center transition-all hover:border-primary-300 ${
+                            module.theme === theme.id
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                          onClick={() => handleModuleThemeUpdate(module.id, theme.id)}
+                        >
+                          <div className="text-2xl mb-1">{theme.icon}</div>
+                          <div className="text-xs font-medium text-gray-900">{theme.name}</div>
+                          {module.theme === theme.id && (
+                            <div className="absolute top-1 right-1">
+                              <div className="bg-primary-500 text-white rounded-full p-0.5">
+                                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-
-        {/* Theme Preview */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center mb-6">
-            <div className="text-2xl mr-3">👁️</div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">Theme Preview</h3>
-              <p className="text-sm text-gray-600">
-                How the current default theme will appear to users.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 rounded-lg p-6">
-            <div className="text-center">
-              <div className="text-6xl mb-4">
-                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.icon || '🚂'}
-              </div>
-              <h4 className="text-xl font-bold text-gray-800 mb-2">
-                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.name || 'Trains'} Theme
-              </h4>
-              <p className="text-gray-600">
-                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.description || 'Classic train theme with stations and tracks'}
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     );
-  };
+  }, [selectedCohortId, currentCohort, modules, availableThemes, handleDefaultThemeFromModule, handleModuleThemeUpdate]);
 
   if (loading) {
     return (
