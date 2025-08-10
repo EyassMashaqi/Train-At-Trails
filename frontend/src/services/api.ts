@@ -126,6 +126,8 @@ export const gameService = {
   // User cohort status
   checkCohortStatus: () => api.get('/auth/cohort-status'),
 
+  getCohortInfo: () => api.get('/game/cohort-info'), // New endpoint for theme info
+
   getProgress: () => api.get(`/game/progress?_t=${Date.now()}`), // Add cache busting
   
   getCohortHistory: () => api.get('/game/cohort-history'),

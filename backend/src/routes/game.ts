@@ -218,6 +218,57 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Get user's cohort history (active and graduated cohorts)
+router.get('/cohort-info', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+
+    // Get user's active cohort with theme information
+    const userCohort = await prisma.cohortMember.findFirst({
+      where: { 
+        userId,
+        status: 'ENROLLED'
+      },
+      include: {
+        cohort: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            defaultTheme: true,
+            isActive: true
+          }
+        }
+      }
+    });
+
+    if (!userCohort) {
+      return res.status(400).json({ 
+        error: 'User is not enrolled in any active cohort',
+        cohort: null,
+        theme: 'trains' // default theme
+      });
+    }
+
+    res.json({
+      cohort: {
+        id: userCohort.cohort.id,
+        name: userCohort.cohort.name,
+        description: userCohort.cohort.description,
+        defaultTheme: userCohort.cohort.defaultTheme || 'trains',
+        isActive: userCohort.cohort.isActive
+      },
+      theme: userCohort.cohort.defaultTheme || 'trains'
+    });
+  } catch (error) {
+    console.error('Error fetching cohort info:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch cohort information',
+      cohort: null,
+      theme: 'trains' // default theme on error
+    });
+  }
+});
+
 router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;

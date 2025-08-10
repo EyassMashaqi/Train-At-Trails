@@ -3,6 +3,8 @@ import { toast } from 'react-hot-toast';
 import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
+import { getThemeClasses, getVehicleIcon } from '../utils/themes';
 
 interface Question {
   id: string | number; // Allow both string and number for compatibility
@@ -98,6 +100,13 @@ interface LeaderboardUser {
 
 const GameView: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { currentTheme } = useTheme();
+  const navigate = useNavigate();
+  
+  // Get theme-specific classes
+  const themeClasses = useMemo(() => getThemeClasses(currentTheme), [currentTheme]);
+  const vehicleIcon = useMemo(() => getVehicleIcon(currentTheme), [currentTheme]);
+  
   const [progress, setProgress] = useState<TrailProgress | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
@@ -122,8 +131,6 @@ const GameView: React.FC = () => {
   
   // Target question state for main assignment
   const [targetQuestion, setTargetQuestion] = useState<Question | null>(null);
-  
-  const navigate = useNavigate();
 
   // URL validation function
   const validateUrl = (url: string): {isValid: boolean, message: string} => {
@@ -601,7 +608,7 @@ const GameView: React.FC = () => {
             }}
           >
             <div className="relative">
-              <span className="text-6xl drop-shadow-lg">🚂</span>
+              <span className="text-6xl drop-shadow-lg">{vehicleIcon}</span>
               {showTrainAnimation && (
                 <div className="absolute -top-2 -right-2 animate-ping">
                   <span className="text-2xl">💨</span>
@@ -618,14 +625,14 @@ const GameView: React.FC = () => {
               style={{ left: `${(step / progress.totalSteps) * 100}%` }}
             >
               <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
-                  ? 'bg-accent-500 border-accent-600 text-white shadow-lg'
+                  ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText} shadow-lg`
                   : step === progress.currentStep + 1
-                    ? 'bg-secondary-500 border-secondary-600 text-white animate-pulse shadow-lg'
-                    : 'bg-gray-200 border-gray-300 text-gray-500'
+                    ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText} animate-pulse shadow-lg`
+                    : 'bg-gray-300 border-gray-400 text-gray-700'
                 }`}>
                 {step}
               </div>
-              <div className="text-xs text-center mt-1 font-medium text-gray-600">
+              <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
                 {step <= progress.currentStep ? '✓' : step === progress.currentStep + 1 ? '⭐' : '○'}
               </div>
             </div>
@@ -634,17 +641,17 @@ const GameView: React.FC = () => {
 
         {/* Progress Stats */}
         <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg p-4 shadow-lg border border-primary-100">
-            <div className="text-2xl font-bold text-primary-600">{progress.currentStep}</div>
-            <div className="text-sm text-gray-600">Steps Completed</div>
+          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
+            <div className={`text-2xl font-bold ${themeClasses.primaryText}`}>{progress.currentStep}</div>
+            <div className={`text-sm ${themeClasses.textSecondary}`}>Steps Completed</div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-lg border border-green-100">
-            <div className="text-2xl font-bold text-accent-600">{Math.round((progress.currentStep / progress.totalSteps) * 100)}%</div>
-            <div className="text-sm text-gray-600">Progress</div>
+          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.accentBorder}`}>
+            <div className={`text-2xl font-bold ${themeClasses.accentText}`}>{Math.round((progress.currentStep / progress.totalSteps) * 100)}%</div>
+            <div className={`text-sm ${themeClasses.textSecondary}`}>Progress</div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-lg border border-primary-100">
-            <div className="text-2xl font-bold text-primary-600">{progress.totalSteps - progress.currentStep}</div>
-            <div className="text-sm text-gray-600">Steps Remaining</div>
+          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
+            <div className={`text-2xl font-bold ${themeClasses.primaryText}`}>{progress.totalSteps - progress.currentStep}</div>
+            <div className={`text-sm ${themeClasses.textSecondary}`}>Steps Remaining</div>
           </div>
         </div>
       </div>
@@ -723,16 +730,16 @@ const GameView: React.FC = () => {
 
     return (
       <div className="mb-8">
-        <div className="bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 rounded-xl p-6 shadow-lg">
+        <div className={`bg-gradient-to-br ${themeClasses.cardBg} border ${themeClasses.primaryBorder} rounded-xl p-6 shadow-lg`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <span className="text-3xl mr-3">🎯</span>
               <div>
-                <h3 className="text-xl font-bold text-primary-800">Learning Activities</h3>
-                <p className="text-primary-600">Complete these activities by providing relevant links</p>
+                <h3 className={`text-xl font-bold ${themeClasses.primaryText}`}>Learning Activities</h3>
+                <p className={`${themeClasses.primaryText} opacity-80`}>Complete these activities by providing relevant links</p>
               </div>
             </div>
-            <div className="bg-primary-100 rounded-lg px-3 py-1">
+            <div className={`${themeClasses.accentBg} rounded-lg px-3 py-1`}>
               <span className="text-primary-800 font-semibold">
                 {completedMiniQuestions}/{totalMiniQuestions} completed
               </span>
@@ -741,13 +748,13 @@ const GameView: React.FC = () => {
 
           {/* Overall Progress Bar */}
           <div className="mb-6">
-            <div className="flex justify-between text-sm text-primary-600 mb-1">
+            <div className={`flex justify-between text-sm ${themeClasses.primaryText} mb-1`}>
               <span>Overall Progress</span>
               <span>{totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0}%</span>
             </div>
-            <div className="w-full bg-primary-200 rounded-full h-2">
+            <div className={`w-full ${themeClasses.primaryBg} rounded-full h-2`}>
               <div
-                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                className={`${themeClasses.primaryButton} h-2 rounded-full transition-all duration-300`}
                 style={{ width: `${totalMiniQuestions > 0 ? (completedMiniQuestions / totalMiniQuestions) * 100 : 0}%` }}
               />
             </div>
@@ -762,13 +769,13 @@ const GameView: React.FC = () => {
               const isFullyCompleted = groupCompleted === groupTotal;
 
               return (
-                <div key={questionKey} className="border border-primary-200 rounded-lg overflow-hidden">
+                <div key={questionKey} className={`border ${themeClasses.primaryBorder} rounded-lg overflow-hidden`}>
                   {/* Question Group Header */}
                   <div
                     className={`p-4 cursor-pointer transition-colors ${
                       isFullyCompleted 
-                        ? 'bg-accent-50 hover:bg-accent-100 border-accent-200' 
-                        : 'bg-white hover:bg-primary-50'
+                        ? `${themeClasses.accentBg} ${themeClasses.accentBgHover} ${themeClasses.accentBorder}` 
+                        : `bg-white hover:${themeClasses.accentBg}`
                     }`}
                     onClick={() => toggleQuestionGroup(questionKey)}
                   >
@@ -779,12 +786,12 @@ const GameView: React.FC = () => {
                         </span>
                         <div>
                           <h4 className={`font-semibold ${
-                            isFullyCompleted ? 'text-accent-800' : 'text-primary-800'
+                            isFullyCompleted ? themeClasses.accentTextSafe : themeClasses.primaryTextDark
                           }`}>
                             {questionKey}: {group.questionTitle}
                           </h4>
                           <p className={`text-sm ${
-                            isFullyCompleted ? 'text-accent-600' : 'text-primary-600'
+                            isFullyCompleted ? themeClasses.accentText : themeClasses.primaryText
                           }`}>
                             {groupCompleted}/{groupTotal} activities completed
                           </p>
@@ -796,12 +803,12 @@ const GameView: React.FC = () => {
                           <div className="w-20 bg-gray-200 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full transition-all duration-300 ${
-                                isFullyCompleted ? 'bg-accent-500' : 'bg-primary-500'
+                                isFullyCompleted ? themeClasses.accentButton : themeClasses.primaryButton
                               }`}
                               style={{ width: `${(groupCompleted / groupTotal) * 100}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-500 min-w-[3rem]">
+                          <span className={`text-xs ${themeClasses.textMuted} min-w-[3rem]`}>
                             {Math.round((groupCompleted / groupTotal) * 100)}%
                           </span>
                         </div>
@@ -809,7 +816,7 @@ const GameView: React.FC = () => {
                         <div className={`transform transition-transform duration-200 ${
                           isExpanded ? 'rotate-180' : ''
                         }`}>
-                          <span className="text-primary-600 text-xl">▼</span>
+                          <span className={`${themeClasses.primaryText} text-xl`}>▼</span>
                         </div>
                       </div>
                     </div>
@@ -817,13 +824,13 @@ const GameView: React.FC = () => {
 
                   {/* Question Group Content */}
                   {isExpanded && (
-                    <div className="border-t border-primary-100 bg-gray-50">
+                    <div className={`border-t ${themeClasses.primaryBorder} bg-gray-50`}>
                       <div className="p-4 space-y-3">
                         {group.miniQuestions.map((miniQuestion, index) => (
                           <div 
                             key={miniQuestion.id}
                             className={`border rounded-lg p-4 ${
-                              miniQuestion.hasAnswer ? 'bg-accent-50 border-accent-200' : 'bg-white border-gray-200'
+                              miniQuestion.hasAnswer ? `${themeClasses.accentBg} ${themeClasses.accentBorder}` : 'bg-white border-gray-200'
                             }`}
                           >
                             <div className="flex items-start justify-between mb-3">
@@ -832,21 +839,21 @@ const GameView: React.FC = () => {
                                   {miniQuestion.hasAnswer ? '✅' : '❓'}
                                 </span>
                                 <div>
-                                  <h5 className="font-semibold text-gray-800">
+                                  <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
                                     #{index + 1}: {miniQuestion.title}
                                   </h5>
                                   {miniQuestion.description && (
-                                    <p className="text-xs text-gray-800 mt-1">{miniQuestion.description}</p>
+                                    <p className={`text-xs ${themeClasses.textSecondary} mt-1`}>{miniQuestion.description}</p>
                                   )}
                                 </div>
                               </div>
                             </div>
 
                             {miniQuestion.hasAnswer ? (
-                              <div className="bg-accent-100 rounded-lg p-3">
-                                <p className="text-accent-800 font-medium mb-2">✅ Completed</p>
-                                <div className="text-sm text-accent-700">
-                                  <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">{miniQuestion.answer?.linkUrl}</a></p>
+                              <div className={`${themeClasses.accentBg} rounded-lg p-3`}>
+                                <p className={`${themeClasses.accentTextSafe} font-medium mb-2`}>✅ Completed</p>
+                                <div className={`text-sm ${themeClasses.accentTextSafeLight}`}>
+                                  <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className={`${themeClasses.primaryText} hover:underline`}>{miniQuestion.answer?.linkUrl}</a></p>
                                   {miniQuestion.answer?.notes && (
                                     <p className="mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
                                   )}
@@ -855,7 +862,7 @@ const GameView: React.FC = () => {
                             ) : (
                               <div className="space-y-3">
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-1`}>
                                     Link URL *
                                   </label>
                                   <input
@@ -874,7 +881,7 @@ const GameView: React.FC = () => {
                                   {urlValidation[miniQuestion.id]?.message && (
                                     <p className={`text-xs mt-1 ${
                                       urlValidation[miniQuestion.id]?.isValid 
-                                        ? 'text-accent-600' 
+                                        ? themeClasses.accentTextSafeMedium 
                                         : 'text-red-500'
                                     }`}>
                                       {urlValidation[miniQuestion.id]?.message}
@@ -882,7 +889,7 @@ const GameView: React.FC = () => {
                                   )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-1`}>
                                     Notes (optional)
                                   </label>
                                   <textarea
@@ -896,7 +903,7 @@ const GameView: React.FC = () => {
                                 <button
                                   onClick={() => handleMiniAnswerSubmit(miniQuestion.id)}
                                   disabled={submittingMini === miniQuestion.id || !miniAnswers[miniQuestion.id]?.linkUrl?.trim()}
-                                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                  className={`${themeClasses.primaryButton} ${themeClasses.buttonText} px-4 py-2 rounded-lg ${themeClasses.primaryButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                                 >
                                   {submittingMini === miniQuestion.id ? (
                                     <div className="flex items-center">
@@ -920,12 +927,12 @@ const GameView: React.FC = () => {
           </div>
 
           {allMiniQuestionsCompleted && (
-            <div className="mt-6 bg-accent-100 border border-accent-200 rounded-lg p-4">
+            <div className={`mt-6 ${themeClasses.accentBg} border ${themeClasses.accentBorder} rounded-lg p-4`}>
               <div className="flex items-center">
-                <span className="text-accent-600 text-xl mr-3">🎉</span>
+                <span className={`${themeClasses.accentTextSafeMedium} text-xl mr-3`}>🎉</span>
                 <div>
-                  <p className="text-accent-800 font-medium">Excellent work!</p>
-                  <p className="text-accent-700 text-sm">You've completed all available self learning activities for this assignment.</p>
+                  <p className={`${themeClasses.accentTextSafe} font-medium`}>Excellent work!</p>
+                  <p className={`${themeClasses.accentTextSafeLight} text-sm`}>You've completed all available self learning activities for this assignment.</p>
                 </div>
               </div>
             </div>
@@ -984,10 +991,10 @@ const GameView: React.FC = () => {
             </div>
             
             <div className="bg-white rounded-lg p-4 mb-6 border border-orange-200">
-              <h4 className="font-semibold text-gray-800 mb-2">
+              <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
                 Question {targetQuestion.questionNumber}: {targetQuestion.title}
               </h4>
-              <p className="text-gray-700 mb-2">{targetQuestion.description}</p>
+              <p className={`${themeClasses.textSecondary} mb-2`}>{targetQuestion.description}</p>
             </div>
             
             <div className="bg-orange-100 border border-orange-200 rounded-lg p-4">
@@ -1031,25 +1038,25 @@ const GameView: React.FC = () => {
             <div className="flex items-center">
               <span className="text-3xl mr-3">📝</span>
               <div>
-                <h3 className="text-xl font-bold text-accent-800">Main Assignment</h3>
-                <p className="text-accent-600">Ready to submit your answer</p>
+                <h3 className={`text-xl font-bold ${themeClasses.accentTextSafe}`}>Main Assignment</h3>
+                <p className={`${themeClasses.accentTextSafeMedium}`}>Ready to submit your answer</p>
               </div>
             </div>
-            <div className="bg-accent-100 rounded-lg px-3 py-1">
-              <span className="text-accent-800 font-semibold">
+            <div className={`${themeClasses.accentBg} rounded-lg px-3 py-1`}>
+              <span className={`${themeClasses.accentTextSafe} font-semibold`}>
                 {hasAnswered ? 'Completed' : 'Available'}
               </span>
             </div>
           </div>
 
           <div className="bg-white rounded-lg p-4 mb-6 border border-accent-200">
-            <h4 className="font-semibold text-gray-800 mb-2">
+            <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
               Question {targetQuestion.questionNumber}: {targetQuestion.title}
             </h4>
-            <p className="text-gray-700 mb-2">{targetQuestion.description}</p>
+            <p className={`${themeClasses.textSecondary} mb-2`}>{targetQuestion.description}</p>
             {targetQuestion.content && (
               <div className="bg-gray-50 rounded-lg p-3 mt-3">
-                <p className="text-sm text-gray-600">{targetQuestion.content}</p>
+                <p className={`text-sm ${themeClasses.textSecondary}`}>{targetQuestion.content}</p>
               </div>
             )}
           </div>
@@ -1067,7 +1074,7 @@ const GameView: React.FC = () => {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
                   Your Answer *
                 </label>
                 <textarea
@@ -1080,7 +1087,7 @@ const GameView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
                   Attachment (optional)
                 </label>
                 <input
@@ -1090,11 +1097,11 @@ const GameView: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
                 />
                 {answerFile && (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className={`text-sm ${themeClasses.textSecondary} mt-1`}>
                     Selected: {answerFile.name} ({Math.round(answerFile.size / 1024)} KB)
                   </p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
+                <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
                   Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, GIF (Max 10MB)
                 </p>
               </div>
@@ -1102,7 +1109,7 @@ const GameView: React.FC = () => {
               <button
                 onClick={handleMainAnswerSubmit}
                 disabled={submitting || !answerContent.trim()}
-                className="bg-accent-600 text-white px-6 py-3 rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
               >
                 {submitting ? (
                   <div className="flex items-center">
@@ -1124,12 +1131,12 @@ const GameView: React.FC = () => {
     if (leaderboardLoading) {
       return (
         <div className="mt-12 mb-8">
-          <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+          <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             Trail Leaderboard
-            <span className="ml-3">🚂</span>
+            <span className="ml-3">{vehicleIcon}</span>
           </h3>
-          <div className="text-center text-gray-500">
+          <div className={`text-center ${themeClasses.textMuted}`}>
             Loading leaderboard...
           </div>
         </div>
@@ -1139,18 +1146,18 @@ const GameView: React.FC = () => {
     if (!leaderboard || leaderboard.length === 0) {
       return (
         <div className="mt-12 mb-8">
-          <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+          <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             Trail Leaderboard
-            <span className="ml-3">🚂</span>
+            <span className="ml-3">{vehicleIcon}</span>
           </h3>
-          <div className="text-center py-12 bg-gradient-to-r from-primary-50 via-primary-100 to-secondary-50 rounded-2xl shadow-xl border border-primary-100">
-            <div className="text-6xl mb-4">🚂</div>
-            <h4 className="text-xl font-semibold text-gray-700 mb-2">All Trains Are Still at the Station!</h4>
-            <p className="text-gray-600 max-w-md mx-auto">
+          <div className={`text-center py-12 bg-gradient-to-r ${themeClasses.cardBg} rounded-2xl shadow-xl border ${themeClasses.primaryBorder}`}>
+            <div className="text-6xl mb-4">{vehicleIcon}</div>
+            <h4 className={`text-xl font-semibold mb-2 ${themeClasses.primaryText}`}>All {currentTheme?.name} Are Still at the Station!</h4>
+            <p className={`${themeClasses.textSecondary} max-w-md mx-auto`}>
               The journey hasn't begun yet. Be the first to answer questions and start your adventure on the trail!
             </p>
-            <div className="mt-6 inline-flex items-center px-4 py-2 bg-secondary-100 text-secondary-800 rounded-full text-sm font-medium">
+            <div className={`mt-6 inline-flex items-center px-4 py-2 ${themeClasses.accentBg} ${themeClasses.accentText} rounded-full text-sm font-medium`}>
               <span>🎯</span>
               <span className="ml-2">Ready to embark? Answer your first question below!</span>
             </div>
@@ -1163,14 +1170,14 @@ const GameView: React.FC = () => {
 
     return (
       <div className="mt-12 mb-8">
-        <h3 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+        <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
           <span className="mr-3">🏆</span>
           Trail Leaderboard
-          <span className="ml-3">🚂</span>
+          <span className="ml-3">{vehicleIcon}</span>
         </h3>
 
         {/* Leaderboard Railway Track */}
-        <div className="relative bg-gradient-to-r from-primary-50 via-primary-100 to-secondary-50 rounded-2xl p-8 shadow-xl border border-primary-100">
+        <div className={`relative bg-gradient-to-r ${themeClasses.cardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder}`}>
           <div className="relative h-32 bg-gradient-to-r from-amber-100 to-amber-50 rounded-xl overflow-hidden shadow-inner">
             {/* Rails */}
             <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
@@ -1193,7 +1200,7 @@ const GameView: React.FC = () => {
                 style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
               >
                 <div className="bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-gray-300">
-                  <span className="text-xs font-bold text-gray-600">{step}</span>
+                  <span className={`text-xs font-bold ${themeClasses.textSecondary}`}>{step}</span>
                 </div>
               </div>
             ))}
@@ -1214,20 +1221,20 @@ const GameView: React.FC = () => {
                   }}
                 >
                   <div className={`relative ${isCurrentUser ? 'animate-bounce' : ''}`}>
-                    {/* Train Emoji */}
+                    {/* Vehicle Emoji */}
                     <span className={`text-2xl ${isCurrentUser ? 'filter drop-shadow-lg' : ''}`}>
-                      🚂
+                      {vehicleIcon}
                     </span>
 
                     {/* User Info Tooltip */}
                     <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max">
-                      <div className="text-xs font-bold text-gray-800">{user.trainName}</div>
-                      <div className="text-xs text-gray-600">{user.fullName}</div>
-                      <div className="text-xs font-semibold text-primary-600">Step {user.currentStep}/{totalReleasedQuestions}</div>
+                      <div className={`text-xs font-bold ${themeClasses.textPrimary}`}>{user.trainName}</div>
+                      <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
+                      <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div>
                     </div>
 
                     {/* Rank Badge */}
-                    <div className="absolute -top-1 -right-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg">
+                    <div className={`absolute -top-1 -right-1 ${themeClasses.accentButton} ${themeClasses.buttonText} rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
                       {index + 1}
                     </div>
                   </div>
@@ -1238,8 +1245,8 @@ const GameView: React.FC = () => {
 
           {/* Leaderboard Table */}
           <div className="mt-8 bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-6 py-4">
-              <h4 className="text-xl font-bold text-white flex items-center">
+            <div className={`${themeClasses.primaryButton} px-6 py-4`}>
+              <h4 className={`text-xl font-bold ${themeClasses.buttonText} flex items-center`}>
                 <span className="mr-2">📊</span>
                 Current Rankings
               </h4>
@@ -1251,25 +1258,25 @@ const GameView: React.FC = () => {
                   <div
                     key={user.id}
                     className={`px-6 py-4 transition-colors ${isCurrentUser
-                        ? 'bg-gradient-to-r from-primary-50 to-primary-100 border-l-4 border-primary-500'
+                        ? `bg-gradient-to-r ${themeClasses.cardBg} border-l-4 ${themeClasses.primaryBorder}`
                         : 'hover:bg-gray-50'
                       }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold mr-4 ${index === 0 ? 'bg-secondary-500' :
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${themeClasses.buttonText} font-bold mr-4 ${index === 0 ? themeClasses.secondaryButton :
                             index === 1 ? 'bg-gray-400' :
-                              index === 2 ? 'bg-secondary-600' : 'bg-primary-500'
+                              index === 2 ? themeClasses.secondaryButton : themeClasses.primaryButton
                           }`}>
                           {index + 1}
                         </div>
                         <div>
-                          <div className={`font-semibold flex items-center ${isCurrentUser ? 'text-primary-800' : 'text-gray-800'
+                          <div className={`font-semibold flex items-center ${isCurrentUser ? themeClasses.primaryTextDark : themeClasses.textPrimary
                             }`}>
-                            🚂 {user.trainName}
-                            <span className="ml-2 text-sm text-gray-500">({user.fullName})</span>
+                            {vehicleIcon} {user.trainName}
+                            <span className={`ml-2 text-sm ${themeClasses.textMuted}`}>({user.fullName})</span>
                             {isCurrentUser && (
-                              <span className="ml-2 bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs font-bold">
+                              <span className={`ml-2 ${themeClasses.accentBg} ${themeClasses.primaryText} px-2 py-1 rounded-full text-xs font-bold`}>
                                 YOU
                               </span>
                             )}
@@ -1277,11 +1284,10 @@ const GameView: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`font-bold text-lg ${isCurrentUser ? 'text-primary-700' : 'text-primary-600'
-                          }`}>
+                        <div className={`font-bold text-lg ${isCurrentUser ? themeClasses.primaryText : themeClasses.primaryText} opacity-90`}>
                           {user.currentStep}/{totalReleasedQuestions}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className={`text-sm ${themeClasses.textMuted}`}>
                           {Math.round((user.currentStep / totalReleasedQuestions) * 100)}% Complete
                         </div>
                       </div>
@@ -1300,7 +1306,7 @@ const GameView: React.FC = () => {
     if (!modules || modules.length === 0) {
       return (
         <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+          <h2 className={`text-3xl font-bold ${themeClasses.textPrimary} mb-8 text-center flex items-center justify-center`}>
             <span className="mr-3">📚</span>
             Released Assignments
           </h2>
@@ -1326,7 +1332,7 @@ const GameView: React.FC = () => {
 
     return (
       <div className="mb-12">
-        <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center flex items-center justify-center">
+        <h2 className={`text-3xl font-bold ${themeClasses.textPrimary} mb-8 text-center flex items-center justify-center`}>
           <span className="mr-3">📚</span>
           Released Assignments
         </h2>
@@ -1339,14 +1345,14 @@ const GameView: React.FC = () => {
               <div
                 key={module.id}
                 className={`rounded-xl shadow-lg border transition-all duration-300 ${isReleased
-                    ? 'bg-white border-primary-200 hover:shadow-xl'
+                    ? `bg-white ${themeClasses.primaryBorder} hover:shadow-xl`
                     : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
               >
                 {/* Module Header */}
                 <div
                   className={`p-6 ${isReleased
-                      ? 'cursor-pointer hover:bg-primary-50'
+                      ? `cursor-pointer hover:${themeClasses.accentBg}`
                       : 'cursor-not-allowed'
                     } transition-colors duration-200`}
                   onClick={() => isReleased && toggleModule(module.id)}
@@ -1357,16 +1363,16 @@ const GameView: React.FC = () => {
                         {isReleased ? '📘' : '🔒'}
                       </span>
                       <div>
-                        <h3 className={`text-xl font-bold ${isReleased ? 'text-primary-800' : 'text-gray-500'
+                        <h3 className={`text-xl font-bold ${isReleased ? themeClasses.primaryTextDark : themeClasses.textMuted
                           }`}>
                           Module {module.moduleNumber}: {module.title}
                         </h3>
-                        <p className={`text-sm ${isReleased ? 'text-primary-600' : 'text-gray-400'
+                        <p className={`text-sm ${isReleased ? themeClasses.primaryText : themeClasses.textSubtle
                           }`}>
                           {isReleased ? module.description : 'Module not yet released'}
                         </p>
                         {isReleased && (
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
                             Deadline: {new Date(module.deadline).toLocaleDateString()}
                           </p>
                         )}
@@ -1385,7 +1391,7 @@ const GameView: React.FC = () => {
                         </>
                       )}
                       {!isReleased && (
-                        <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                        <span className={`bg-gray-100 ${themeClasses.textMuted} text-xs font-medium px-2.5 py-0.5 rounded-full`}>
                           Locked
                         </span>
                       )}
@@ -1675,10 +1681,10 @@ const GameView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
+      <div className={`min-h-screen bg-gradient-to-br ${themeClasses.cardBg} flex items-center justify-center`}>
         <div className="text-center">
           <div className="relative">
-            <span className="text-8xl animate-bounce">🚂</span>
+            <span className="text-8xl animate-bounce">{vehicleIcon}</span>
             <div className="absolute -top-2 -right-2 animate-ping">
               <span className="text-4xl">💨</span>
             </div>
@@ -1695,7 +1701,7 @@ const GameView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50">
+    <div className={`min-h-screen bg-gradient-to-br ${themeClasses.cardBg}`}>
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 animate-float">
@@ -1722,7 +1728,7 @@ const GameView: React.FC = () => {
               className="w-44 h-16 px-3 py-2 bvisionary-logo"
             />
             <div className="flex-1">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold text-gray-900">
                 BVisionRY Lighthouse
               </h1>
               <p className="text-xl text-gray-600">Your Adventure Journey</p>
@@ -1735,7 +1741,7 @@ const GameView: React.FC = () => {
           </div>
           <button
             onClick={() => navigate('/dashboard')}
-            className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg"
+            className={`${themeClasses.primaryButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.primaryButtonHover} transition-all duration-200 font-medium shadow-lg`}
           >
             ← Back to Dashboard
           </button>
