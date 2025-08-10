@@ -687,14 +687,11 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     // Update mini question release status based on current time
     await updateMiniQuestionReleaseStatus();
 
-    // Get all questions that user can potentially access (released questions + step-based questions)
+    // Get all questions that user can potentially access (only released questions)
     const releasedQuestions = await prisma.question.findMany({
       where: { 
         cohortId: userCohort?.cohortId,  // FIXED: Re-enabled cohort filtering
-        OR: [
-          { isReleased: true }, // Include all released questions (for module/topic system)
-          { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
-        ]
+        isReleased: true // Only include released questions
       },
       include: {
         contents: {
@@ -760,8 +757,8 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       // Determine question availability - for module/topic system, use isReleased instead of step-based logic
       let questionStatus = 'locked';
       
-      // Check if question is released (for module/topic system) or within step range (for legacy system)
-      const isQuestionAccessible = question.isReleased || (question.questionNumber <= (userCohort?.currentStep || user.currentStep) + 1);
+      // Check if question is released (only allow released questions)
+      const isQuestionAccessible = question.isReleased;
       
       if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
@@ -979,6 +976,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       },
       include: {
         questions: {
+          where: {
+            isReleased: true // Only include released questions/topics
+          },
           include: {
             contents: {
               include: {
@@ -1037,6 +1037,18 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       isReleased: m.isReleased 
     })));
 
+    // 🚨 CRITICAL DEBUG: Check modules.questions immediately after query
+    console.log('🚨 CRITICAL DEBUG: Raw modules with questions:');
+    modules.forEach((module: any) => {
+      console.log(`Module ${module.moduleNumber}: ${module.title}`);
+      console.log(`  Questions found: ${module.questions?.length || 0}`);
+      if (module.questions?.length > 0) {
+        module.questions.forEach((q: any) => {
+          console.log(`    - ${q.title} (${q.id}) isReleased: ${q.isReleased}`);
+        });
+      }
+    });
+
     // Get ALL mini-questions (including future ones) for proper counting
     const allMiniQuestionsMap = new Map();
     for (const module of modules) {
@@ -1063,6 +1075,16 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         allMiniQuestionsMap.set(question.id, allMiniQuestions);
       }
     }
+
+    // Debug: Log modules and their questions before formatting
+    console.log('🔍 DEBUG: Modules before formatting:');
+    modules.forEach((module: any) => {
+      console.log(`Module ${module.moduleNumber}: ${module.title}`);
+      console.log(`  Questions found: ${module.questions.length}`);
+      module.questions.forEach((q: any) => {
+        console.log(`    - ${q.title} (${q.id})`);
+      });
+    });
 
     // Convert to format that frontend expects
     const formattedModules = modules.map((module: any) => ({
@@ -1105,8 +1127,8 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         // Determine topic status - use same logic as /progress endpoint
         let topicStatus = 'locked';
         
-        // Check if question is released (for module/topic system) or within step range (for legacy system)
-        const isQuestionAccessible = question.isReleased || (question.questionNumber <= userCohort.currentStep + 1);
+        // Check if question is released (only allow released questions)
+        const isQuestionAccessible = question.isReleased;
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,

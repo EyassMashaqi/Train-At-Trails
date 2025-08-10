@@ -720,6 +720,32 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
         updateData.isReleased = isReleased;
         if (isReleased && !question.isReleased) {
           updateData.releasedAt = new Date();
+        } else if (!isReleased && question.isReleased) {
+          // When unreleasing a question, also unrelease all its mini-questions
+          updateData.releasedAt = null;
+          
+          // Find all mini-questions for this question
+          const questionContents = await tx.content.findMany({
+            where: { questionId },
+            include: {
+              miniQuestions: true
+            }
+          });
+          
+          // Unrelease all mini-questions
+          for (const content of questionContents) {
+            for (const miniQuestion of content.miniQuestions) {
+              await (tx as any).miniQuestion.update({
+                where: { id: miniQuestion.id },
+                data: {
+                  isReleased: false,
+                  actualReleaseDate: null
+                }
+              });
+            }
+          }
+          
+          console.log(`🔒 Unreleased question "${question.title}" and all its mini-questions`);
         }
       }
       if (typeof isActive === 'boolean') updateData.isActive = isActive;
@@ -1148,16 +1174,61 @@ router.put('/modules/:moduleId', async (req: AuthRequest, res) => {
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
-    if (typeof isReleased === 'boolean') {
-      updateData.isReleased = isReleased;
-      if (isReleased && !module.isReleased) {
-        updateData.releasedAt = new Date();
+    // Use transaction to ensure consistency when unreleasing
+    const updatedModule = await (prisma as any).$transaction(async (tx: any) => {
+      if (typeof isReleased === 'boolean') {
+        updateData.isReleased = isReleased;
+        if (isReleased && !module.isReleased) {
+          updateData.releasedAt = new Date();
+        } else if (!isReleased && module.isReleased) {
+          // When unreleasing a module, also unrelease all its questions and mini-questions
+          updateData.releasedAt = null;
+          
+          // Find all questions in this module
+          const moduleQuestions = await tx.question.findMany({
+            where: { moduleId },
+            include: {
+              contents: {
+                include: {
+                  miniQuestions: true
+                }
+              }
+            }
+          });
+          
+          // Unrelease all questions and their mini-questions
+          for (const question of moduleQuestions) {
+            // Unrelease the question
+            await tx.question.update({
+              where: { id: question.id },
+              data: {
+                isReleased: false,
+                releasedAt: null
+              }
+            });
+            
+            // Unrelease all mini-questions for this question
+            for (const content of question.contents) {
+              for (const miniQuestion of content.miniQuestions) {
+                await tx.miniQuestion.update({
+                  where: { id: miniQuestion.id },
+                  data: {
+                    isReleased: false,
+                    actualReleaseDate: null
+                  }
+                });
+              }
+            }
+          }
+          
+          console.log(`🔒 Unreleased module "${module.title}" and all its questions and mini-questions`);
+        }
       }
-    }
 
-    const updatedModule = await (prisma as any).module.update({
-      where: { id: moduleId },
-      data: updateData
+      return await tx.module.update({
+        where: { id: moduleId },
+        data: updateData
+      });
     });
 
     res.json({ module: updatedModule });
@@ -1551,15 +1622,47 @@ router.put('/topics/:topicId', async (req: AuthRequest, res) => {
       updateData.isReleased = isReleased;
       if (isReleased && !question.isReleased) {
         updateData.releasedAt = new Date();
+      } else if (!isReleased && question.isReleased) {
+        // When unreleasing a topic, also unrelease all its mini-questions
+        updateData.releasedAt = null;
       }
     }
 
-    const updatedQuestion = await prisma.question.update({
-      where: { id: topicId },
-      data: updateData,
-      include: {
-        module: true
-      } as any
+    // Use transaction to ensure consistency when unreleasing
+    const updatedQuestion = await prisma.$transaction(async (tx) => {
+      // If we're unreleasing, handle mini-questions
+      if (typeof isReleased === 'boolean' && !isReleased && question.isReleased) {
+        // Find all mini-questions for this topic
+        const topicContents = await tx.content.findMany({
+          where: { questionId: topicId },
+          include: {
+            miniQuestions: true
+          }
+        });
+        
+        // Unrelease all mini-questions
+        for (const content of topicContents) {
+          for (const miniQuestion of content.miniQuestions) {
+            await (tx as any).miniQuestion.update({
+              where: { id: miniQuestion.id },
+              data: {
+                isReleased: false,
+                actualReleaseDate: null
+              }
+            });
+          }
+        }
+        
+        console.log(`🔒 Unreleased topic "${question.title}" and all its mini-questions`);
+      }
+
+      return await tx.question.update({
+        where: { id: topicId },
+        data: updateData,
+        include: {
+          module: true
+        } as any
+      });
     });
 
     // Return in topic format for compatibility

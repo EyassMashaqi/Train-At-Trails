@@ -835,9 +835,8 @@ const GameView: React.FC = () => {
                                   <h5 className="font-semibold text-gray-800">
                                     #{index + 1}: {miniQuestion.title}
                                   </h5>
-                                  <p className="text-sm text-gray-600">{miniQuestion.question}</p>
                                   {miniQuestion.description && (
-                                    <p className="text-xs text-gray-500 mt-1">{miniQuestion.description}</p>
+                                    <p className="text-xs text-gray-800 mt-1">{miniQuestion.description}</p>
                                   )}
                                 </div>
                               </div>
