@@ -122,6 +122,11 @@ export const getThemeClasses = (theme: ThemeInfo) => {
     // Card backgrounds
     cardBg: `from-slate-50 via-${primaryColor}-50 to-${secondaryColor}-50`,
     
+    // Theme-specific leaderboard backgrounds and terminology
+    leaderboardBg: getLeaderboardBackground(theme),
+    leaderboardTitle: getLeaderboardTitle(theme),
+    pathDescription: getPathDescription(theme),
+    
     // Focus states
     focusRing: `focus:ring-${primaryColor}-500 focus:border-${primaryColor}-500`,
   };
@@ -130,4 +135,58 @@ export const getThemeClasses = (theme: ThemeInfo) => {
 // Special function for theme-based vehicle icons
 export const getVehicleIcon = (theme: ThemeInfo) => {
   return theme.icon;
+};
+
+// Theme-specific leaderboard backgrounds
+export const getLeaderboardBackground = (theme: ThemeInfo) => {
+  switch (theme.id) {
+    case 'trains':
+      return 'from-gray-300 via-gray-400 to-gray-300'; // Railway tracks
+    case 'planes':
+      return 'from-sky-100 via-blue-100 to-cyan-100'; // Sky
+    case 'sailboat':
+      return 'from-blue-200 via-teal-200 to-emerald-200'; // Ocean waves
+    case 'cars':
+      return 'from-gray-400 via-stone-300 to-gray-400'; // Road
+    case 'f1':
+      return 'from-red-200 via-black/10 to-red-200'; // Racing track
+    default:
+      return 'from-gray-300 via-gray-400 to-gray-300';
+  }
+};
+
+// Theme-specific leaderboard titles
+export const getLeaderboardTitle = (theme: ThemeInfo) => {
+  switch (theme.id) {
+    case 'trains':
+      return 'Trail Leaderboard';
+    case 'planes':
+      return 'Sky Leaderboard';
+    case 'sailboat':
+      return 'Ocean Leaderboard';
+    case 'cars':
+      return 'Road Leaderboard';
+    case 'f1':
+      return 'Race Track Leaderboard';
+    default:
+      return 'Trail Leaderboard';
+  }
+};
+
+// Theme-specific path descriptions
+export const getPathDescription = (theme: ThemeInfo) => {
+  switch (theme.id) {
+    case 'trains':
+      return 'journey on the trail';
+    case 'planes':
+      return 'flight through the sky';
+    case 'sailboat':
+      return 'voyage across the ocean';
+    case 'cars':
+      return 'road trip adventure';
+    case 'f1':
+      return 'race on the track';
+    default:
+      return 'journey on the trail';
+  }
 };

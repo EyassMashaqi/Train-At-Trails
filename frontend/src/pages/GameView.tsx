@@ -1133,7 +1133,7 @@ const GameView: React.FC = () => {
         <div className="mt-12 mb-8">
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
-            Trail Leaderboard
+            {themeClasses.leaderboardTitle}
             <span className="ml-3">{vehicleIcon}</span>
           </h3>
           <div className={`text-center ${themeClasses.textMuted}`}>
@@ -1148,14 +1148,14 @@ const GameView: React.FC = () => {
         <div className="mt-12 mb-8">
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
-            Trail Leaderboard
+            {themeClasses.leaderboardTitle}
             <span className="ml-3">{vehicleIcon}</span>
           </h3>
-          <div className={`text-center py-12 bg-gradient-to-r ${themeClasses.cardBg} rounded-2xl shadow-xl border ${themeClasses.primaryBorder}`}>
+          <div className={`text-center py-12 bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl shadow-xl border ${themeClasses.primaryBorder}`}>
             <div className="text-6xl mb-4">{vehicleIcon}</div>
             <h4 className={`text-xl font-semibold mb-2 ${themeClasses.primaryText}`}>All {currentTheme?.name} Are Still at the Station!</h4>
             <p className={`${themeClasses.textSecondary} max-w-md mx-auto`}>
-              The journey hasn't begun yet. Be the first to answer questions and start your adventure on the trail!
+              The journey hasn't begun yet. Be the first to answer questions and start your {themeClasses.pathDescription}!
             </p>
             <div className={`mt-6 inline-flex items-center px-4 py-2 ${themeClasses.accentBg} ${themeClasses.accentText} rounded-full text-sm font-medium`}>
               <span>🎯</span>
@@ -1172,13 +1172,13 @@ const GameView: React.FC = () => {
       <div className="mt-12 mb-8">
         <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
           <span className="mr-3">🏆</span>
-          Trail Leaderboard
+          {themeClasses.leaderboardTitle}
           <span className="ml-3">{vehicleIcon}</span>
         </h3>
 
-        {/* Leaderboard Railway Track */}
-        <div className={`relative bg-gradient-to-r ${themeClasses.cardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder}`}>
-          <div className="relative h-32 bg-gradient-to-r from-amber-100 to-amber-50 rounded-xl overflow-hidden shadow-inner">
+        {/* Theme-specific Path Background */}
+        <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder}`}>
+          <div className="relative h-32 bg-gradient-to-r from-white/30 to-white/10 rounded-xl overflow-hidden shadow-inner">
             {/* Rails */}
             <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
             <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
@@ -1248,7 +1248,7 @@ const GameView: React.FC = () => {
             <div className={`${themeClasses.primaryButton} px-6 py-4`}>
               <h4 className={`text-xl font-bold ${themeClasses.buttonText} flex items-center`}>
                 <span className="mr-2">📊</span>
-                Current Rankings
+                {themeClasses.leaderboardTitle} Rankings
               </h4>
             </div>
             <div className="divide-y divide-gray-200">
@@ -1689,7 +1689,7 @@ const GameView: React.FC = () => {
               <span className="text-4xl">💨</span>
             </div>
           </div>
-          <p className="mt-6 text-xl text-gray-600 font-medium">Loading your trail adventure...</p>
+          <p className="mt-6 text-xl text-gray-600 font-medium">Loading your {themeClasses.pathDescription.toLowerCase()} adventure...</p>
           <div className="mt-4 flex justify-center space-x-1">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse delay-100"></div>
@@ -1753,7 +1753,7 @@ const GameView: React.FC = () => {
         {/* Released Assignments (Modules) */}
         {renderModules()}
 
-        {/* Individual Trail Progress */}
+        {/* Individual Progress */}
         {renderTrailProgress()}
 
         {/* Active Questions Section - Hidden as per user requirements */}
