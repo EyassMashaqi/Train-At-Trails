@@ -1358,15 +1358,63 @@ const GameView: React.FC = () => {
                 case 'planes':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-sky-300/70 via-blue-200/70 to-cyan-300/70 rounded-xl"></div>
-                      {/* Clouds in leaderboard */}
-                      <div className="absolute inset-0 opacity-40 rounded-xl">
-                        <div className="absolute top-6 left-10 w-12 h-6 bg-white rounded-full opacity-60"></div>
-                        <div className="absolute top-8 left-30 w-16 h-8 bg-white rounded-full opacity-70"></div>
-                        <div className="absolute top-5 left-50 w-14 h-7 bg-white rounded-full opacity-65"></div>
-                        <div className="absolute top-9 left-70 w-18 h-9 bg-white rounded-full opacity-75"></div>
+                      {/* Realistic sky gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-sky-200/90 via-sky-300/80 to-sky-400/70 rounded-xl"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-100/50 via-sky-200/30 to-cyan-200/50 rounded-xl"></div>
+                      
+                      {/* High altitude atmosphere effect */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-white/20 rounded-xl"></div>
+                      
+                      {/* Realistic cloud formations */}
+                      <div className="absolute inset-0 rounded-xl">
+                        {/* Large cumulus clouds - distributed across full width */}
+                        <div className="absolute top-4 left-2 w-16 h-8 bg-white rounded-full opacity-70 shadow-sm"></div>
+                        <div className="absolute top-3 left-6 w-12 h-6 bg-white rounded-full opacity-65"></div>
+                        <div className="absolute top-5 left-4 w-8 h-4 bg-white rounded-full opacity-60"></div>
+                        
+                        <div className="absolute top-8 left-1/4 w-20 h-10 bg-white rounded-full opacity-75 shadow-sm"></div>
+                        <div className="absolute top-7 left-1/4 w-14 h-7 bg-white rounded-full opacity-70" style={{marginLeft: '16px'}}></div>
+                        <div className="absolute top-9 left-1/4 w-10 h-5 bg-white rounded-full opacity-65" style={{marginLeft: '-8px'}}></div>
+                        
+                        <div className="absolute top-2 left-1/2 w-18 h-9 bg-white rounded-full opacity-80 shadow-sm"></div>
+                        <div className="absolute top-1 left-1/2 w-12 h-6 bg-white rounded-full opacity-75" style={{marginLeft: '16px'}}></div>
+                        <div className="absolute top-3 left-1/2 w-8 h-4 bg-white rounded-full opacity-70" style={{marginLeft: '-12px'}}></div>
+                        
+                        <div className="absolute top-6 left-3/4 w-14 h-7 bg-white rounded-full opacity-65 shadow-sm"></div>
+                        <div className="absolute top-5 left-3/4 w-10 h-5 bg-white rounded-full opacity-60" style={{marginLeft: '20px'}}></div>
+                        
+                        <div className="absolute top-9 right-8 w-16 h-8 bg-white rounded-full opacity-75 shadow-sm"></div>
+                        <div className="absolute top-8 right-4 w-12 h-6 bg-white rounded-full opacity-70"></div>
+                        <div className="absolute top-10 right-12 w-8 h-4 bg-white rounded-full opacity-65"></div>
+                        
+                        {/* Medium clouds scattered throughout */}
+                        <div className="absolute top-11 left-12 w-10 h-5 bg-white rounded-full opacity-55"></div>
+                        <div className="absolute top-13 left-40 w-12 h-6 bg-white rounded-full opacity-60"></div>
+                        <div className="absolute top-12 left-60 w-8 h-4 bg-white rounded-full opacity-50"></div>
+                        <div className="absolute top-14 right-20 w-10 h-5 bg-white rounded-full opacity-55"></div>
+                        
+                        {/* Wispy cirrus clouds - spanning full width */}
+                        <div className="absolute top-15 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-40 rounded-full"></div>
+                        <div className="absolute top-17 left-0 right-0 h-1.5 bg-gradient-to-r from-white/40 via-transparent via-white/40 to-transparent opacity-30 rounded-full"></div>
+                        <div className="absolute top-4 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/30 via-transparent via-white/30 to-transparent opacity-25 rounded-full"></div>
                       </div>
-                      <div className="absolute top-18 left-0 right-0 h-1 border-t-2 border-dashed border-white opacity-60"></div>
+                      
+                      {/* Flight path with contrails */}
+                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-white/80 via-white/90 to-white/80 opacity-70 rounded-full"></div>
+                      <div className="absolute top-20.5 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/60 to-transparent rounded-full"></div>
+                      
+                      {/* Wind currents */}
+                      <div className="absolute top-16 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-40"></div>
+                      <div className="absolute top-24 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-35"></div>
+                      
+                      {/* Airport/waypoint markers */}
+                      {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
+                        <div
+                          key={step}
+                          className="absolute top-12 w-2 h-2 bg-orange-400/80 opacity-90 rounded-full shadow-sm"
+                          style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                        ></div>
+                      ))}
                     </>
                   );
 
