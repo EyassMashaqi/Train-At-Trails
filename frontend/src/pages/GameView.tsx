@@ -1342,7 +1342,7 @@ const GameView: React.FC = () => {
                 case 'trains':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-amber-100/50 to-amber-50/50"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-amber-100/50 to-amber-50/50 rounded-xl"></div>
                       <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                       <div className="absolute top-22 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
@@ -1358,9 +1358,9 @@ const GameView: React.FC = () => {
                 case 'planes':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-sky-300/70 via-blue-200/70 to-cyan-300/70"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-sky-300/70 via-blue-200/70 to-cyan-300/70 rounded-xl"></div>
                       {/* Clouds in leaderboard */}
-                      <div className="absolute inset-0 opacity-40">
+                      <div className="absolute inset-0 opacity-40 rounded-xl">
                         <div className="absolute top-6 left-10 w-12 h-6 bg-white rounded-full opacity-60"></div>
                         <div className="absolute top-8 left-30 w-16 h-8 bg-white rounded-full opacity-70"></div>
                         <div className="absolute top-5 left-50 w-14 h-7 bg-white rounded-full opacity-65"></div>
@@ -1373,13 +1373,39 @@ const GameView: React.FC = () => {
                 case 'sailboat':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/70 via-teal-300/70 to-emerald-400/70"></div>
-                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 160" preserveAspectRatio="none">
-                        <path d="M0,60 Q100,40 200,60 T400,60 L400,160 L0,160 Z" fill="rgba(59, 130, 246, 0.3)"/>
-                        <path d="M0,80 Q100,60 200,80 T400,80 L400,160 L0,160 Z" fill="rgba(20, 184, 166, 0.2)"/>
-                        <path d="M0,100 Q100,80 200,100 T400,100 L400,160 L0,160 Z" fill="rgba(16, 185, 129, 0.1)"/>
+                      {/* Ocean water with deeper blue gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-blue-300/80 via-blue-400/70 to-blue-600/80 rounded-xl"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-teal-400/60 via-blue-400/40 to-emerald-500/60 rounded-xl"></div>
+                      
+                      {/* Animated wave layers */}
+                      <svg className="absolute inset-0 w-full h-full rounded-xl" viewBox="0 0 400 160" preserveAspectRatio="none">
+                        {/* Deep water waves */}
+                        <path d="M0,70 Q50,50 100,70 T200,70 T300,70 T400,70 L400,160 L0,160 Z" fill="rgba(59, 130, 246, 0.4)"/>
+                        <path d="M0,90 Q75,70 150,90 T300,90 T400,90 L400,160 L0,160 Z" fill="rgba(20, 184, 166, 0.3)"/>
+                        <path d="M0,110 Q100,90 200,110 T400,110 L400,160 L0,160 Z" fill="rgba(16, 185, 129, 0.2)"/>
+                        
+                        {/* Surface ripples */}
+                        <path d="M0,50 Q60,35 120,50 T240,50 T360,50 T400,50" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none"/>
+                        <path d="M0,55 Q80,40 160,55 T320,55 T400,55" stroke="rgba(255,255,255,0.2)" strokeWidth="1" fill="none"/>
                       </svg>
-                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-blue-200 via-white to-blue-200 opacity-50"></div>
+                      
+                      {/* Sailing route with wake effect */}
+                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-blue-100/60 via-white/80 to-blue-100/60 opacity-70"></div>
+                      <div className="absolute top-21 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
+                      
+                      {/* Floating elements - seaweed/debris */}
+                      <div className="absolute top-16 left-1/4 w-1 h-1 bg-green-400/50 rounded-full"></div>
+                      <div className="absolute top-24 left-2/3 w-1 h-1 bg-green-500/40 rounded-full"></div>
+                      <div className="absolute top-18 right-1/4 w-0.5 h-0.5 bg-brown-400/60 rounded-full"></div>
+                      
+                      {/* Lighthouse/buoy markers at stations */}
+                      {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
+                        <div
+                          key={step}
+                          className="absolute top-14 w-1 h-3 bg-red-400/70 opacity-80 rounded-sm"
+                          style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                        ></div>
+                      ))}
                     </>
                   );
 
@@ -1421,7 +1447,7 @@ const GameView: React.FC = () => {
                 case 'f1':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-gray-800/70 to-black/70"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-gray-800/70 to-black/70 rounded-xl"></div>
                       <div className="absolute top-15 left-0 right-0 h-2 bg-red-500"></div>
                       <div className="absolute top-21 left-0 right-0 h-2 bg-red-500"></div>
                       <div className="absolute top-18 left-0 right-0 h-3 flex">
@@ -1435,7 +1461,7 @@ const GameView: React.FC = () => {
                 default:
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10 rounded-xl"></div>
                       <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                       <div className="absolute top-22 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                     </>
