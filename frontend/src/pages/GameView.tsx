@@ -1334,8 +1334,8 @@ const GameView: React.FC = () => {
         </h3>
 
         {/* Theme-specific Path Background */}
-        <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder}`}>
-          <div className="relative h-32 rounded-xl overflow-hidden shadow-inner">
+        <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder} overflow-visible`}>
+          <div className="relative h-40 rounded-xl overflow-visible shadow-inner">
             {/* Theme-specific track rendering for leaderboard */}
             {(() => {
               switch (currentTheme.id) {
@@ -1343,12 +1343,12 @@ const GameView: React.FC = () => {
                   return (
                     <>
                       <div className="absolute inset-0 bg-gradient-to-r from-amber-100/50 to-amber-50/50"></div>
-                      <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
-                      <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-22 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-8 w-1 h-16 bg-amber-800 opacity-70"
+                          className="absolute top-12 w-1 h-16 bg-amber-800 opacity-70"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
                         ></div>
                       ))}
@@ -1361,12 +1361,12 @@ const GameView: React.FC = () => {
                       <div className="absolute inset-0 bg-gradient-to-r from-sky-300/70 via-blue-200/70 to-cyan-300/70"></div>
                       {/* Clouds in leaderboard */}
                       <div className="absolute inset-0 opacity-40">
-                        <div className="absolute top-2 left-10 w-12 h-6 bg-white rounded-full opacity-60"></div>
-                        <div className="absolute top-4 left-30 w-16 h-8 bg-white rounded-full opacity-70"></div>
-                        <div className="absolute top-1 left-50 w-14 h-7 bg-white rounded-full opacity-65"></div>
-                        <div className="absolute top-5 left-70 w-18 h-9 bg-white rounded-full opacity-75"></div>
+                        <div className="absolute top-6 left-10 w-12 h-6 bg-white rounded-full opacity-60"></div>
+                        <div className="absolute top-8 left-30 w-16 h-8 bg-white rounded-full opacity-70"></div>
+                        <div className="absolute top-5 left-50 w-14 h-7 bg-white rounded-full opacity-65"></div>
+                        <div className="absolute top-9 left-70 w-18 h-9 bg-white rounded-full opacity-75"></div>
                       </div>
-                      <div className="absolute top-14 left-0 right-0 h-1 border-t-2 border-dashed border-white opacity-60"></div>
+                      <div className="absolute top-18 left-0 right-0 h-1 border-t-2 border-dashed border-white opacity-60"></div>
                     </>
                   );
 
@@ -1374,26 +1374,47 @@ const GameView: React.FC = () => {
                   return (
                     <>
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-400/70 via-teal-300/70 to-emerald-400/70"></div>
-                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 128" preserveAspectRatio="none">
-                        <path d="M0,45 Q100,25 200,45 T400,45 L400,128 L0,128 Z" fill="rgba(59, 130, 246, 0.3)"/>
-                        <path d="M0,65 Q100,45 200,65 T400,65 L400,128 L0,128 Z" fill="rgba(20, 184, 166, 0.2)"/>
-                        <path d="M0,85 Q100,65 200,85 T400,85 L400,128 L0,128 Z" fill="rgba(16, 185, 129, 0.1)"/>
+                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 160" preserveAspectRatio="none">
+                        <path d="M0,60 Q100,40 200,60 T400,60 L400,160 L0,160 Z" fill="rgba(59, 130, 246, 0.3)"/>
+                        <path d="M0,80 Q100,60 200,80 T400,80 L400,160 L0,160 Z" fill="rgba(20, 184, 166, 0.2)"/>
+                        <path d="M0,100 Q100,80 200,100 T400,100 L400,160 L0,160 Z" fill="rgba(16, 185, 129, 0.1)"/>
                       </svg>
-                      <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-blue-200 via-white to-blue-200 opacity-50"></div>
+                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-blue-200 via-white to-blue-200 opacity-50"></div>
                     </>
                   );
 
                 case 'cars':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-gray-600/70 via-gray-500/70 to-gray-600/70"></div>
-                      <div className="absolute top-12 left-0 right-0 h-2 bg-yellow-300"></div>
-                      <div className="absolute top-16 left-0 right-0 h-1 bg-white opacity-60"></div>
-                      <div className="absolute top-14 left-0 right-0 h-1 flex">
+                      {/* Road surface with realistic asphalt look */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-gray-700 via-gray-600 to-gray-700 rounded-xl"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-gray-800/50 via-transparent to-gray-800/50 rounded-xl"></div>
+                      
+                      {/* Main yellow center line */}
+                      <div className="absolute top-1/2 left-0 right-0 h-1 bg-yellow-300 transform -translate-y-1/2"></div>
+                      
+                      {/* Dashed center line directly below yellow line */}
+                      <div className="absolute left-0 right-0 h-0.5 flex transform -translate-y-1/2" style={{ top: 'calc(50% + 6px)' }}>
                         {Array.from({ length: 30 }).map((_, i) => (
-                          <div key={i} className="flex-1 border-t-2 border-dashed border-yellow-200 mr-1"></div>
+                          <div
+                            key={i}
+                            className="flex-1 border-t-2 border-dashed border-yellow-200 mr-1"
+                          ></div>
                         ))}
                       </div>
+
+                      {/* Road edge lines */}
+                      <div className="absolute top-4 left-0 right-0 h-0.5 bg-white opacity-40"></div>
+                      <div className="absolute bottom-4 left-0 right-0 h-0.5 bg-white opacity-40"></div>
+
+                      {/* Road markers at stations */}
+                      {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
+                        <div
+                          key={step}
+                          className="absolute top-1/2 w-1 h-8 bg-yellow-400 opacity-80 transform -translate-y-1/2"
+                          style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                        ></div>
+                      ))}
                     </>
                   );
 
@@ -1401,9 +1422,9 @@ const GameView: React.FC = () => {
                   return (
                     <>
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-gray-800/70 to-black/70"></div>
-                      <div className="absolute top-11 left-0 right-0 h-2 bg-red-500"></div>
-                      <div className="absolute top-17 left-0 right-0 h-2 bg-red-500"></div>
-                      <div className="absolute top-14 left-0 right-0 h-3 flex">
+                      <div className="absolute top-15 left-0 right-0 h-2 bg-red-500"></div>
+                      <div className="absolute top-21 left-0 right-0 h-2 bg-red-500"></div>
+                      <div className="absolute top-18 left-0 right-0 h-3 flex">
                         {Array.from({ length: 60 }).map((_, i) => (
                           <div key={i} className={`w-2 h-3 ${i % 2 === 0 ? 'bg-white' : 'bg-black'}`}></div>
                         ))}
@@ -1415,8 +1436,8 @@ const GameView: React.FC = () => {
                   return (
                     <>
                       <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10"></div>
-                      <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
-                      <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-22 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
                     </>
                   );
               }
@@ -1426,7 +1447,7 @@ const GameView: React.FC = () => {
             {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
               <div
                 key={step}
-                className="absolute top-2 transform -translate-x-1/2"
+                className="absolute top-8 transform -translate-x-1/2"
                 style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
               >
                 <div className="bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-gray-300">
@@ -1446,7 +1467,7 @@ const GameView: React.FC = () => {
                   className="absolute transform -translate-x-1/2 transition-all duration-1000"
                   style={{
                     left: `${position}%`,
-                    top: `${24 + (index * 8)}px`, // Stack trains vertically if at same position
+                    top: `${50 + (index * 8)}px`, // More space for user name tooltips
                     zIndex: isCurrentUser ? 20 : 10
                   }}
                 >
@@ -1457,7 +1478,7 @@ const GameView: React.FC = () => {
                     </span>
 
                     {/* User Info Tooltip */}
-                    <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max">
+                    <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max z-50">
                       <div className={`text-xs font-bold ${themeClasses.textPrimary}`}>{user.trainName}</div>
                       <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
                       <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div>
