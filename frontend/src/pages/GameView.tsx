@@ -12,6 +12,7 @@ interface Question {
   content: string;
   description?: string;
   questionNumber: number;
+  topicNumber?: number; // Add topicNumber property
   releaseDate: string;
   deadline?: string;
   points?: number;
@@ -39,9 +40,15 @@ interface Topic {
   points: number;
   bonusPoints: number;
   isReleased: boolean;
+  status?: string; // Add status property for backend compatibility
   module: Module;
   contents?: Content[];
   questionNumber?: number;
+  miniQuestionProgress?: {
+    hasFutureMiniQuestions: boolean;
+    totalAll: number;
+    completedAll: number;
+  };
 }
 
 interface Content {
@@ -67,6 +74,7 @@ interface MiniQuestion {
   title: string;
   question: string;
   description: string;
+  resourceUrl?: string; // NEW: URL for learning resource
   orderIndex: number;
   isReleased: boolean;
   releaseDate: string;
@@ -134,7 +142,8 @@ const GameView: React.FC = () => {
   const [showTrainAnimation] = useState(false); // Static false - animation triggered by main questions which are disabled
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
-  const [userCohortInfo, setUserCohortInfo] = useState<{id: string, name: string, description?: string} | null>(null);
+  // Remove unused userCohortInfo state
+  // const [userCohortInfo, setUserCohortInfo] = useState<{id: string, name: string, description?: string} | null>(null);
   
   // Self learning activities state
   const [miniQuestions, setMiniQuestions] = useState<MiniQuestion[]>([]);
@@ -352,14 +361,14 @@ const GameView: React.FC = () => {
       });
       setCurrentQuestion(data.currentQuestion);
 
-      // Extract cohort information if available
-      if (data.cohort) {
-        setUserCohortInfo({
-          id: data.cohort.id,
-          name: data.cohort.name,
-          description: data.cohort.description
-        });
-      }
+      // Extract cohort information if available (commented out since not used)
+      // if (data.cohort) {
+      //   setUserCohortInfo({
+      //     id: data.cohort.id,
+      //     name: data.cohort.name,
+      //     description: data.cohort.description
+      //   });
+      // }
 
       // Collect all mini-questions from all released topics in modules
       let allMiniQuestions: MiniQuestion[] = [];
@@ -1010,25 +1019,39 @@ const GameView: React.FC = () => {
                             }`}
                           >
                             <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center">
-                                <span className="text-lg mr-2">
-                                  {miniQuestion.hasAnswer ? '✅' : '❓'}
-                                </span>
-                                <div>
-                                  <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
-                                    #{index + 1}: 
-                                    <a 
-                                      href={miniQuestion.question} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className={`ml-1 ${themeClasses.primaryText} hover:${themeClasses.accentText} hover:underline transition-colors`}
-                                    >
-                                      {miniQuestion.title}
-                                    </a>
-                                  </h5>
-                                  {miniQuestion.description && (
-                                    <p className={`text-xs ${themeClasses.textSecondary} mt-1 hidden`}>{miniQuestion.description}</p>
-                                  )}
+                              <div className="flex-1">
+                                <div className="flex items-center mb-2">
+                                  <span className="text-lg mr-2">
+                                    {miniQuestion.hasAnswer ? '✅' : '❓'}
+                                  </span>
+                                  <div className="flex-1">
+                                    <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
+                                      #{index + 1}: 
+                                      {miniQuestion.resourceUrl ? (
+                                        <a 
+                                          href={miniQuestion.resourceUrl} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className={`ml-1 ${themeClasses.primaryText} hover:${themeClasses.accentText} hover:underline transition-colors`}
+                                        >
+                                          {miniQuestion.title}
+                                        </a>
+                                      ) : (
+                                        <span className="ml-1">{miniQuestion.title}</span>
+                                      )}
+                                    </h5>
+                                    {/* Show the question under the title */}
+                                    {miniQuestion.question && (
+                                      <p className={`text-sm ${themeClasses.textSecondary} mt-1 leading-relaxed`}>
+                                        {miniQuestion.question}
+                                      </p>
+                                    )}
+                                    {miniQuestion.description && (
+                                      <p className={`text-xs ${themeClasses.textSecondary} mt-1 italic`}>
+                                        {miniQuestion.description}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1136,7 +1159,8 @@ const GameView: React.FC = () => {
     
     const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => mq.hasAnswer).length;
     const totalQuestionMiniQuestions = questionMiniQuestions.length;
-    const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
+    // Remove unused variable
+    // const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
 
     // Check if there are future mini-questions by looking at the backend progress data
     const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 

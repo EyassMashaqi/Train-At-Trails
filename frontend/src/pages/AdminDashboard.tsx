@@ -17,6 +17,7 @@ interface User {
   createdAt: string;
   // Cohort-specific fields
   cohortStatus?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED';
+  status?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED'; // Add status property
   joinedAt?: string;
   statusChangedAt?: string;
   statusChangedBy?: string;
@@ -65,17 +66,18 @@ interface GameStats {
   averageProgress: number;
 }
 
-interface Cohort {
-  id: string;
-  name: string;
-  description?: string;
-  startDate: string;
-  endDate?: string;
-  defaultTheme: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+// Remove unused Cohort interface - using any[] for cohorts state instead
+// interface Cohort {
+//   id: string;
+//   name: string;
+//   description?: string;
+//   startDate: string;
+//   endDate?: string;
+//   defaultTheme: string;
+//   isActive: boolean;
+//   createdAt: string;
+//   updatedAt: string;
+// }
 
 interface Module {
   id: string;
@@ -125,6 +127,7 @@ interface MiniQuestion {
   id?: string;
   title: string;
   description: string;
+  resourceUrl?: string; // NEW: URL for learning resource
   orderIndex: number;
   releaseDate?: string;
 }
@@ -134,6 +137,7 @@ interface ContentSection {
   title: string;
   content: string;
   description: string;
+  resourceUrl?: string;
   orderIndex: number;
   miniQuestions: MiniQuestion[];
   releaseDate?: string;
@@ -290,10 +294,11 @@ const AdminDashboard: React.FC = () => {
     [allCohorts, selectedCohortId]
   );
 
-  const filteredUsers = useMemo(() => {
-    if (statusFilter === 'all') return users;
-    return users.filter(user => user.status === statusFilter);
-  }, [users, statusFilter]);
+  // Remove unused filteredUsers memoization since it's handled differently
+  // const filteredUsers = useMemo(() => {
+  //   if (statusFilter === 'all') return users;
+  //   return users.filter(user => user.status === statusFilter);
+  // }, [users, statusFilter]);
 
   const loadAdminData = useCallback(async () => {
     try {
@@ -1183,10 +1188,12 @@ const AdminDashboard: React.FC = () => {
     try {
       if (!moduleId) {
         // Reset to fixed theme if no module selected
-        await adminService.updateCohort(selectedCohortId, {
-          defaultTheme: 'trains'
-        });
-        toast.success('Cohort default theme reset to Trains');
+        if (selectedCohortId) {
+          await adminService.updateCohort(selectedCohortId, {
+            defaultTheme: 'trains'
+          });
+          toast.success('Cohort default theme reset to Trains');
+        }
       } else {
         const selectedModule = modules.find(m => m.id === moduleId);
         if (!selectedModule) {
@@ -1194,20 +1201,24 @@ const AdminDashboard: React.FC = () => {
           return;
         }
 
-        await adminService.updateCohort(selectedCohortId, {
-          defaultTheme: selectedModule.theme || 'trains'
-        });
-        toast.success(`Cohort default theme set to match Module ${selectedModule.moduleNumber}`);
+        if (selectedCohortId) {
+          await adminService.updateCohort(selectedCohortId, {
+            defaultTheme: selectedModule.theme || 'trains'
+          });
+          toast.success(`Cohort default theme set to match Module ${selectedModule.moduleNumber}`);
+        }
       }
       
       // Update cohorts state to reflect the change
-      setAllCohorts(prevCohorts => 
-        prevCohorts.map(cohort => 
-          cohort.id === selectedCohortId 
-            ? { ...cohort, defaultTheme: moduleId ? modules.find(m => m.id === moduleId)?.theme || 'trains' : 'trains' }
-            : cohort
-        )
-      );
+      if (selectedCohortId) {
+        setAllCohorts(prevCohorts => 
+          prevCohorts.map(cohort => 
+            cohort.id === selectedCohortId 
+              ? { ...cohort, defaultTheme: moduleId ? modules.find(m => m.id === moduleId)?.theme || 'trains' : 'trains' }
+              : cohort
+          )
+        );
+      }
     } catch (error) {
       console.error('Failed to update cohort default theme:', error);
       toast.error('Failed to update cohort default theme');
@@ -1222,19 +1233,21 @@ const AdminDashboard: React.FC = () => {
       await adminService.updateModuleTheme(moduleId, newTheme);
       
       // If this module's theme was being used as the cohort default, update the cohort too
-      if (wasLinkedToDefault) {
+      if (wasLinkedToDefault && selectedCohortId) {
         await adminService.updateCohort(selectedCohortId, {
           defaultTheme: newTheme
         });
         
         // Update cohorts state
-        setAllCohorts(prevCohorts => 
-          prevCohorts.map(cohort => 
-            cohort.id === selectedCohortId 
-              ? { ...cohort, defaultTheme: newTheme }
-              : cohort
-          )
-        );
+        if (selectedCohortId) {
+          setAllCohorts(prevCohorts => 
+            prevCohorts.map(cohort => 
+              cohort.id === selectedCohortId 
+                ? { ...cohort, defaultTheme: newTheme }
+                : cohort
+            )
+          );
+        }
         
         toast.success('Module theme and cohort default theme updated successfully');
       } else {
@@ -1704,6 +1717,7 @@ const AdminDashboard: React.FC = () => {
                       id: `temp-${Date.now()}`,
                       title: '',
                       description: '',
+                      resourceUrl: '',
                       orderIndex: topicForm.contents.length,
                       releaseDate: ''
                     };
@@ -1748,6 +1762,9 @@ const AdminDashboard: React.FC = () => {
                           Question
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Resource URL
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Release Date
                         </th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
@@ -1788,6 +1805,22 @@ const AdminDashboard: React.FC = () => {
                               }}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="url"
+                              value={miniQuestion.resourceUrl || ''}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  resourceUrl: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="https://example.com/resource..."
                             />
                           </td>
                           <td className="px-6 py-4 border-r border-gray-100">
@@ -1944,6 +1977,7 @@ const AdminDashboard: React.FC = () => {
                           title: mq.title,
                           question: mq.description, // API expects 'question' instead of 'description'
                           description: mq.description,
+                          resourceUrl: mq.resourceUrl,
                           releaseDate: mq.releaseDate
                         }))
                       }))
@@ -2306,6 +2340,7 @@ const AdminDashboard: React.FC = () => {
                       contents: [...currentContents, { 
                         content: '', 
                         description: '',
+                        resourceUrl: '',
                         title: '',
                         orderIndex: currentContents.length,
                         miniQuestions: [],
@@ -2330,6 +2365,9 @@ const AdminDashboard: React.FC = () => {
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Question
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Resource URL
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
                           Release Date
@@ -2366,6 +2404,19 @@ const AdminDashboard: React.FC = () => {
                               }}
                               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                               placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="url"
+                              value={contentItem.resourceUrl || ''}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], resourceUrl: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="https://example.com/resource..."
                             />
                           </td>
                           <td className="px-6 py-4 border-r border-gray-100">
@@ -2481,6 +2532,7 @@ const AdminDashboard: React.FC = () => {
                       ? selectedTopic.contents.map(item => ({
                           material: item.content,
                           question: item.description,
+                          resourceUrl: item.resourceUrl,
                           releaseDate: item.releaseDate
                         }))
                       : [];

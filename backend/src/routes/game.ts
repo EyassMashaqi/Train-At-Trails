@@ -889,6 +889,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
             title: mq.title,
             question: mq.question,
             description: mq.description,
+            resourceUrl: mq.resourceUrl, // NEW: Include resource URL
             orderIndex: mq.orderIndex,
             isReleased: mq.isReleased,
             releaseDate: mq.releaseDate,
@@ -1268,6 +1269,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
               title: mq.title,
               question: mq.question,
               description: mq.description,
+              resourceUrl: mq.resourceUrl, // NEW: Include resource URL
               orderIndex: mq.orderIndex,
               isReleased: mq.isReleased,
               releaseDate: mq.releaseDate,

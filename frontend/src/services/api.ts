@@ -288,6 +288,7 @@ export const adminService = {
         title: string;
         question: string;
         description?: string;
+        resourceUrl?: string;
         releaseDate?: string;
       }>;
     }>;
@@ -308,6 +309,7 @@ export const adminService = {
     contents?: Array<{
       material: string;
       question: string;
+      resourceUrl?: string;
       releaseDate?: string;
     }>;
   }) => {

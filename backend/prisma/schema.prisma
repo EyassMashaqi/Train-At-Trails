@@ -119,6 +119,7 @@ model MiniQuestion {
   title             String
   question          String       // The mini-question text
   description       String?      // Optional additional context
+  resourceUrl       String?      // URL link for learning resource (NEW FIELD)
   releaseDate       DateTime?    // Optional release date for the mini question
   isReleased        Boolean      @default(false) // Whether the mini question is released
   actualReleaseDate DateTime?    // When it was actually released

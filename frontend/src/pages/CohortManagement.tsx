@@ -31,9 +31,10 @@ interface CreateCohortData {
   endDate: string;
 }
 
-interface EditCohortData extends CreateCohortData {
-  id: string;
-}
+// Remove unused interface
+// interface EditCohortData extends CreateCohortData {
+//   id: string;
+// }
 
 const CohortManagement: React.FC = () => {
   const navigate = useNavigate();

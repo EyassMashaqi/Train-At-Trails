@@ -603,6 +603,7 @@ router.post('/questions', async (req: AuthRequest, res) => {
                   title: miniQuestionData.title,
                   question: miniQuestionData.question,
                   description: miniQuestionData.description || '',
+                  resourceUrl: miniQuestionData.resourceUrl || null, // NEW: Add resourceUrl field
                   orderIndex: j + 1,
                   contentId: content.id
                 }
@@ -859,6 +860,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                   title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
+                  resourceUrl: contentData.resourceUrl || null, // NEW: Add resourceUrl field
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
                   orderIndex: i + 1
                 }
@@ -870,6 +872,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                   title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
+                  resourceUrl: contentData.resourceUrl || null, // NEW: Add resourceUrl field
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
                   orderIndex: i + 1,
                   contentId: contentSection.id
@@ -940,6 +943,7 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                     title: miniQuestionData.title,
                     question: miniQuestionData.question,
                     description: miniQuestionData.description || '',
+                    resourceUrl: miniQuestionData.resourceUrl || null,
                     releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
                     orderIndex: j + 1,
                     contentId: newContent.id
@@ -1065,6 +1069,7 @@ router.get('/modules', async (req: AuthRequest, res) => {
           const contentItems = miniQuestions.map((miniQ: any) => ({
             content: miniQ.title,
             description: miniQ.question,
+            resourceUrl: miniQ.resourceUrl,
             releaseDate: miniQ.releaseDate ? miniQ.releaseDate.toISOString().slice(0, 16) : null
           }));
           return acc.concat(contentItems);
@@ -1546,6 +1551,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
                   title: contentData.material || `Learning Activity ${i + 1}`,
                   question: contentData.question,
                   description: contentData.question,
+                  resourceUrl: contentData.resourceUrl || null,
                   releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
                   orderIndex: i + 1,
                   contentId: newContent.id
@@ -1575,6 +1581,7 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
                     title: miniQuestionData.title,
                     question: miniQuestionData.question,
                     description: miniQuestionData.description || '',
+                    resourceUrl: miniQuestionData.resourceUrl || null,
                     releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
                     orderIndex: j + 1,
                     contentId: newContent.id
@@ -2073,12 +2080,13 @@ router.post('/contents/:contentId/mini-questions', async (req: AuthRequest, res)
 router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
   try {
     const miniQuestionId = req.params.miniQuestionId;
-    const { title, question, description, isActive } = req.body;
+    const { title, question, description, resourceUrl, isActive } = req.body;
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (question !== undefined) updateData.question = question;
     if (description !== undefined) updateData.description = description;
+    if (resourceUrl !== undefined) updateData.resourceUrl = resourceUrl;
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
 
     const updatedMiniQuestion = await (prisma as any).miniQuestion.update({

@@ -14,6 +14,7 @@ interface MiniQuestion {
   title: string;
   question: string;
   description: string;
+  resourceUrl?: string; // NEW: URL for learning resource
   content: {
     id: string;
     title: string;
