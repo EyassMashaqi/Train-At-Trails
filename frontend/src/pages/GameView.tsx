@@ -98,6 +98,24 @@ interface LeaderboardUser {
   createdAt: string;
 }
 
+// Helper function to get theme-specific background classes
+const getThemeSpecificBg = (themeId: string): string => {
+  switch (themeId) {
+    case 'trains':
+      return 'bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100';
+    case 'planes':
+      return 'bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-100';
+    case 'sailboat':
+      return 'bg-gradient-to-br from-blue-50 via-teal-50 to-emerald-100';
+    case 'cars':
+      return 'bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100';
+    case 'f1':
+      return 'bg-gradient-to-br from-gray-100 via-slate-100 to-gray-200';
+    default:
+      return 'bg-white';
+  }
+};
+
 const GameView: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { currentTheme } = useTheme();
@@ -707,36 +725,37 @@ const GameView: React.FC = () => {
           return (
             <>
               {/* F1 Racing Track */}
-              <div className="relative h-24 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 rounded-lg overflow-hidden shadow-inner">
-                {/* Track surface */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black via-gray-800 to-black opacity-90"></div>
+              <div className="relative h-24 bg-gradient-to-r from-gray-700 via-gray-600 to-gray-700 rounded-lg overflow-hidden shadow-inner">
+                {/* Track surface - cleaner asphalt */}
+                <div className="absolute inset-0 bg-gradient-to-b from-gray-600 via-gray-700 to-gray-800"></div>
                 
-                {/* Racing lines */}
-                <div className="absolute top-8 left-0 right-0 h-1 bg-red-500"></div>
-                <div className="absolute top-14 left-0 right-0 h-1 bg-red-500"></div>
+                {/* Center racing line - subtle white */}
+                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white opacity-60 transform -translate-y-1/2"></div>
                 
-                {/* Checkered pattern */}
-                <div className="absolute top-10 left-0 right-0 h-2 flex">
-                  {Array.from({ length: 50 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-2 h-2 ${i % 2 === 0 ? 'bg-white' : 'bg-black'}`}
-                    ></div>
-                  ))}
+                {/* Track boundaries - minimal kerbs */}
+                <div className="absolute top-2 left-0 right-0 h-1 bg-white opacity-40"></div>
+                <div className="absolute bottom-2 left-0 right-0 h-1 bg-white opacity-40"></div>
+                
+                {/* Subtle checkered finish line area (only at end) */}
+                <div className="absolute top-0 bottom-0 right-0 w-8 opacity-30">
+                  <div className="flex h-full flex-col">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-800'}`}
+                      ></div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Racing markers */}
+                {/* Track sector markers - minimal */}
                 {steps.map((step) => (
                   <div
                     key={step}
-                    className="absolute top-6 w-1 h-12 bg-red-400 opacity-80"
+                    className="absolute top-1/2 w-0.5 h-4 bg-yellow-300 opacity-50 transform -translate-y-1/2"
                     style={{ left: `${(step / progress.totalSteps) * 100}%` }}
                   ></div>
                 ))}
-                
-                {/* Tire marks */}
-                <div className="absolute top-16 left-0 right-0 h-0.5 bg-gray-400 opacity-30"></div>
-                <div className="absolute top-18 left-0 right-0 h-0.5 bg-gray-400 opacity-30"></div>
               </div>
             </>
           );
@@ -798,15 +817,15 @@ const GameView: React.FC = () => {
 
         {/* Progress Stats */}
         <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
+          <div className={`${getThemeSpecificBg(currentTheme.id)} rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
             <div className={`text-2xl font-bold ${themeClasses.primaryText}`}>{progress.currentStep}</div>
             <div className={`text-sm ${themeClasses.textSecondary}`}>Steps Completed</div>
           </div>
-          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.accentBorder}`}>
+          <div className={`${getThemeSpecificBg(currentTheme.id)} rounded-lg p-4 shadow-lg border ${themeClasses.accentBorder}`}>
             <div className={`text-2xl font-bold ${themeClasses.accentText}`}>{Math.round((progress.currentStep / progress.totalSteps) * 100)}%</div>
             <div className={`text-sm ${themeClasses.textSecondary}`}>Progress</div>
           </div>
-          <div className={`bg-white rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
+          <div className={`${getThemeSpecificBg(currentTheme.id)} rounded-lg p-4 shadow-lg border ${themeClasses.primaryBorder}`}>
             <div className={`text-2xl font-bold ${themeClasses.primaryText}`}>{progress.totalSteps - progress.currentStep}</div>
             <div className={`text-sm ${themeClasses.textSecondary}`}>Steps Remaining</div>
           </div>
@@ -1342,13 +1361,13 @@ const GameView: React.FC = () => {
                 case 'trains':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-amber-100/50 to-amber-50/50 rounded-xl"></div>
-                      <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
-                      <div className="absolute top-22 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl"></div>
+                      <div className="absolute top-16 left-0 right-0 h-1 bg-gray-500 opacity-60"></div>
+                      <div className="absolute top-22 left-0 right-0 h-1 bg-gray-500 opacity-60"></div>
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-12 w-1 h-16 bg-amber-800 opacity-70"
+                          className="absolute top-12 w-1 h-16 bg-amber-600 opacity-50"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
                         ></div>
                       ))}
@@ -1358,60 +1377,24 @@ const GameView: React.FC = () => {
                 case 'planes':
                   return (
                     <>
-                      {/* Realistic sky gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-sky-200/90 via-sky-300/80 to-sky-400/70 rounded-xl"></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-100/50 via-sky-200/30 to-cyan-200/50 rounded-xl"></div>
+                      {/* Simple sky gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-sky-100 to-sky-200 rounded-xl"></div>
                       
-                      {/* High altitude atmosphere effect */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-white/20 rounded-xl"></div>
-                      
-                      {/* Realistic cloud formations */}
+                      {/* Minimal cloud formations */}
                       <div className="absolute inset-0 rounded-xl">
-                        {/* Large cumulus clouds - distributed across full width */}
-                        <div className="absolute top-4 left-2 w-16 h-8 bg-white rounded-full opacity-70 shadow-sm"></div>
-                        <div className="absolute top-3 left-6 w-12 h-6 bg-white rounded-full opacity-65"></div>
-                        <div className="absolute top-5 left-4 w-8 h-4 bg-white rounded-full opacity-60"></div>
-                        
-                        <div className="absolute top-8 left-1/4 w-20 h-10 bg-white rounded-full opacity-75 shadow-sm"></div>
-                        <div className="absolute top-7 left-1/4 w-14 h-7 bg-white rounded-full opacity-70" style={{marginLeft: '16px'}}></div>
-                        <div className="absolute top-9 left-1/4 w-10 h-5 bg-white rounded-full opacity-65" style={{marginLeft: '-8px'}}></div>
-                        
-                        <div className="absolute top-2 left-1/2 w-18 h-9 bg-white rounded-full opacity-80 shadow-sm"></div>
-                        <div className="absolute top-1 left-1/2 w-12 h-6 bg-white rounded-full opacity-75" style={{marginLeft: '16px'}}></div>
-                        <div className="absolute top-3 left-1/2 w-8 h-4 bg-white rounded-full opacity-70" style={{marginLeft: '-12px'}}></div>
-                        
-                        <div className="absolute top-6 left-3/4 w-14 h-7 bg-white rounded-full opacity-65 shadow-sm"></div>
-                        <div className="absolute top-5 left-3/4 w-10 h-5 bg-white rounded-full opacity-60" style={{marginLeft: '20px'}}></div>
-                        
-                        <div className="absolute top-9 right-8 w-16 h-8 bg-white rounded-full opacity-75 shadow-sm"></div>
-                        <div className="absolute top-8 right-4 w-12 h-6 bg-white rounded-full opacity-70"></div>
-                        <div className="absolute top-10 right-12 w-8 h-4 bg-white rounded-full opacity-65"></div>
-                        
-                        {/* Medium clouds scattered throughout */}
-                        <div className="absolute top-11 left-12 w-10 h-5 bg-white rounded-full opacity-55"></div>
-                        <div className="absolute top-13 left-40 w-12 h-6 bg-white rounded-full opacity-60"></div>
-                        <div className="absolute top-12 left-60 w-8 h-4 bg-white rounded-full opacity-50"></div>
-                        <div className="absolute top-14 right-20 w-10 h-5 bg-white rounded-full opacity-55"></div>
-                        
-                        {/* Wispy cirrus clouds - spanning full width */}
-                        <div className="absolute top-15 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-40 rounded-full"></div>
-                        <div className="absolute top-17 left-0 right-0 h-1.5 bg-gradient-to-r from-white/40 via-transparent via-white/40 to-transparent opacity-30 rounded-full"></div>
-                        <div className="absolute top-4 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/30 via-transparent via-white/30 to-transparent opacity-25 rounded-full"></div>
+                        <div className="absolute top-4 left-1/4 w-12 h-6 bg-white rounded-full opacity-50"></div>
+                        <div className="absolute top-6 left-1/2 w-14 h-7 bg-white rounded-full opacity-50"></div>
+                        <div className="absolute top-3 left-3/4 w-10 h-5 bg-white rounded-full opacity-50"></div>
                       </div>
                       
-                      {/* Flight path with contrails */}
-                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-white/80 via-white/90 to-white/80 opacity-70 rounded-full"></div>
-                      <div className="absolute top-20.5 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/60 to-transparent rounded-full"></div>
+                      {/* Simple flight path */}
+                      <div className="absolute top-20 left-0 right-0 h-1 bg-white opacity-50 rounded-full"></div>
                       
-                      {/* Wind currents */}
-                      <div className="absolute top-16 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-40"></div>
-                      <div className="absolute top-24 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-35"></div>
-                      
-                      {/* Airport/waypoint markers */}
+                      {/* Airport markers */}
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-12 w-2 h-2 bg-orange-400/80 opacity-90 rounded-full shadow-sm"
+                          className="absolute top-12 w-2 h-2 bg-blue-400 opacity-70 rounded-full"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
                         ></div>
                       ))}
@@ -1421,36 +1404,22 @@ const GameView: React.FC = () => {
                 case 'sailboat':
                   return (
                     <>
-                      {/* Ocean water with deeper blue gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-blue-300/80 via-blue-400/70 to-blue-600/80 rounded-xl"></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-teal-400/60 via-blue-400/40 to-emerald-500/60 rounded-xl"></div>
+                      {/* Simple ocean gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-blue-200 to-blue-300 rounded-xl"></div>
                       
-                      {/* Animated wave layers */}
+                      {/* Simple wave effect */}
                       <svg className="absolute inset-0 w-full h-full rounded-xl" viewBox="0 0 400 160" preserveAspectRatio="none">
-                        {/* Deep water waves */}
-                        <path d="M0,70 Q50,50 100,70 T200,70 T300,70 T400,70 L400,160 L0,160 Z" fill="rgba(59, 130, 246, 0.4)"/>
-                        <path d="M0,90 Q75,70 150,90 T300,90 T400,90 L400,160 L0,160 Z" fill="rgba(20, 184, 166, 0.3)"/>
-                        <path d="M0,110 Q100,90 200,110 T400,110 L400,160 L0,160 Z" fill="rgba(16, 185, 129, 0.2)"/>
-                        
-                        {/* Surface ripples */}
-                        <path d="M0,50 Q60,35 120,50 T240,50 T360,50 T400,50" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none"/>
-                        <path d="M0,55 Q80,40 160,55 T320,55 T400,55" stroke="rgba(255,255,255,0.2)" strokeWidth="1" fill="none"/>
+                        <path d="M0,80 Q100,60 200,80 T400,80 L400,160 L0,160 Z" fill="rgba(59, 130, 246, 0.3)"/>
                       </svg>
                       
-                      {/* Sailing route with wake effect */}
-                      <div className="absolute top-20 left-0 right-0 h-1 bg-gradient-to-r from-blue-100/60 via-white/80 to-blue-100/60 opacity-70"></div>
-                      <div className="absolute top-21 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
+                      {/* Sailing route */}
+                      <div className="absolute top-20 left-0 right-0 h-1 bg-white opacity-50"></div>
                       
-                      {/* Floating elements - seaweed/debris */}
-                      <div className="absolute top-16 left-1/4 w-1 h-1 bg-green-400/50 rounded-full"></div>
-                      <div className="absolute top-24 left-2/3 w-1 h-1 bg-green-500/40 rounded-full"></div>
-                      <div className="absolute top-18 right-1/4 w-0.5 h-0.5 bg-brown-400/60 rounded-full"></div>
-                      
-                      {/* Lighthouse/buoy markers at stations */}
+                      {/* Buoy markers */}
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-14 w-1 h-3 bg-red-400/70 opacity-80 rounded-sm"
+                          className="absolute top-14 w-1 h-3 bg-red-400 opacity-60 rounded-sm"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
                         ></div>
                       ))}
@@ -1460,32 +1429,21 @@ const GameView: React.FC = () => {
                 case 'cars':
                   return (
                     <>
-                      {/* Road surface with realistic asphalt look */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-gray-700 via-gray-600 to-gray-700 rounded-xl"></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-gray-800/50 via-transparent to-gray-800/50 rounded-xl"></div>
+                      {/* Simple road surface */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-gray-500 to-gray-600 rounded-xl"></div>
                       
-                      {/* Main yellow center line */}
+                      {/* Center line */}
                       <div className="absolute top-1/2 left-0 right-0 h-1 bg-yellow-300 transform -translate-y-1/2"></div>
                       
-                      {/* Dashed center line directly below yellow line */}
-                      <div className="absolute left-0 right-0 h-0.5 flex transform -translate-y-1/2" style={{ top: 'calc(50% + 6px)' }}>
-                        {Array.from({ length: 30 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 border-t-2 border-dashed border-yellow-200 mr-1"
-                          ></div>
-                        ))}
-                      </div>
-
                       {/* Road edge lines */}
-                      <div className="absolute top-4 left-0 right-0 h-0.5 bg-white opacity-40"></div>
-                      <div className="absolute bottom-4 left-0 right-0 h-0.5 bg-white opacity-40"></div>
+                      <div className="absolute top-4 left-0 right-0 h-0.5 bg-white opacity-60"></div>
+                      <div className="absolute bottom-4 left-0 right-0 h-0.5 bg-white opacity-60"></div>
 
-                      {/* Road markers at stations */}
+                      {/* Road markers */}
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-1/2 w-1 h-8 bg-yellow-400 opacity-80 transform -translate-y-1/2"
+                          className="absolute top-1/2 w-1 h-8 bg-yellow-400 opacity-70 transform -translate-y-1/2"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
                         ></div>
                       ))}
@@ -1495,14 +1453,36 @@ const GameView: React.FC = () => {
                 case 'f1':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-gray-800/70 to-black/70 rounded-xl"></div>
-                      <div className="absolute top-15 left-0 right-0 h-2 bg-red-500"></div>
-                      <div className="absolute top-21 left-0 right-0 h-2 bg-red-500"></div>
-                      <div className="absolute top-18 left-0 right-0 h-3 flex">
-                        {Array.from({ length: 60 }).map((_, i) => (
-                          <div key={i} className={`w-2 h-3 ${i % 2 === 0 ? 'bg-white' : 'bg-black'}`}></div>
-                        ))}
+                      {/* Simple racing track */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-gray-600 to-gray-700 rounded-xl"></div>
+                      
+                      {/* Center racing line */}
+                      <div className="absolute top-1/2 left-0 right-0 h-1 bg-white opacity-70 transform -translate-y-1/2"></div>
+                      
+                      {/* Track boundaries */}
+                      <div className="absolute top-4 left-0 right-0 h-1 bg-white opacity-50"></div>
+                      <div className="absolute bottom-4 left-0 right-0 h-1 bg-white opacity-50"></div>
+                      
+                      {/* Simple checkered finish area */}
+                      <div className="absolute top-0 bottom-0 right-0 w-8 opacity-40">
+                        <div className="flex h-full flex-col">
+                          {Array.from({ length: 8 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`flex-1 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-800'}`}
+                            ></div>
+                          ))}
+                        </div>
                       </div>
+                      
+                      {/* Sector markers */}
+                      {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
+                        <div
+                          key={step}
+                          className="absolute top-1/2 w-1 h-6 bg-yellow-400 opacity-80 transform -translate-y-1/2"
+                          style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                        ></div>
+                      ))}
                     </>
                   );
 
