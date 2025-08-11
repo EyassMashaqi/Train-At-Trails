@@ -1016,10 +1016,18 @@ const GameView: React.FC = () => {
                                 </span>
                                 <div>
                                   <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
-                                    #{index + 1}: {miniQuestion.title}
+                                    #{index + 1}: 
+                                    <a 
+                                      href={miniQuestion.question} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className={`ml-1 ${themeClasses.primaryText} hover:${themeClasses.accentText} hover:underline transition-colors`}
+                                    >
+                                      {miniQuestion.title}
+                                    </a>
                                   </h5>
                                   {miniQuestion.description && (
-                                    <p className={`text-xs ${themeClasses.textSecondary} mt-1`}>{miniQuestion.description}</p>
+                                    <p className={`text-xs ${themeClasses.textSecondary} mt-1 hidden`}>{miniQuestion.description}</p>
                                   )}
                                 </div>
                               </div>
