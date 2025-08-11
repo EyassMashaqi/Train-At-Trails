@@ -581,63 +581,220 @@ const GameView: React.FC = () => {
 
     const steps = Array.from({ length: progress.totalSteps }, (_, i) => i + 1);
 
+    // Get theme-specific track rendering
+    const renderTrack = () => {
+      switch (currentTheme.id) {
+        case 'trains':
+          return (
+            <>
+              {/* Railway Track */}
+              <div className="relative h-24 bg-gradient-to-r from-amber-100 to-amber-50 rounded-lg overflow-hidden shadow-inner">
+                {/* Rails */}
+                <div className="absolute top-8 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                <div className="absolute top-14 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+
+                {/* Railway Ties */}
+                {steps.map((step) => (
+                  <div
+                    key={step}
+                    className="absolute top-6 w-1 h-12 bg-amber-800 opacity-70"
+                    style={{ left: `${(step / progress.totalSteps) * 100}%` }}
+                  ></div>
+                ))}
+              </div>
+            </>
+          );
+
+        case 'planes':
+          return (
+            <>
+              {/* Sky with Clouds */}
+              <div className="relative h-24 bg-gradient-to-r from-sky-300 via-blue-200 to-cyan-300 rounded-lg overflow-hidden shadow-inner">
+                {/* Cloud layer */}
+                <div className="absolute inset-0 opacity-40">
+                  <div className="absolute top-2 left-4 w-8 h-4 bg-white rounded-full opacity-60"></div>
+                  <div className="absolute top-1 left-6 w-6 h-3 bg-white rounded-full opacity-50"></div>
+                  <div className="absolute top-4 left-20 w-10 h-5 bg-white rounded-full opacity-70"></div>
+                  <div className="absolute top-3 left-22 w-7 h-4 bg-white rounded-full opacity-60"></div>
+                  <div className="absolute top-5 left-40 w-9 h-4 bg-white rounded-full opacity-65"></div>
+                  <div className="absolute top-2 left-60 w-8 h-4 bg-white rounded-full opacity-55"></div>
+                  <div className="absolute top-6 left-80 w-11 h-5 bg-white rounded-full opacity-75"></div>
+                </div>
+                
+                {/* Flight path (dotted line) */}
+                <div className="absolute top-10 left-0 right-0 h-0.5 border-t-2 border-dashed border-white opacity-60"></div>
+                
+                {/* Wind currents */}
+                <div className="absolute top-8 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent opacity-30"></div>
+                <div className="absolute top-12 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent opacity-30"></div>
+              </div>
+            </>
+          );
+
+        case 'sailboat':
+          return (
+            <>
+              {/* Ocean Water */}
+              <div className="relative h-24 bg-gradient-to-r from-blue-400 via-teal-300 to-emerald-400 rounded-lg overflow-hidden shadow-inner">
+                {/* Water waves */}
+                <div className="absolute inset-0">
+                  <svg className="w-full h-full" viewBox="0 0 400 96" preserveAspectRatio="none">
+                    <path
+                      d="M0,32 Q100,16 200,32 T400,32 L400,96 L0,96 Z"
+                      fill="rgba(59, 130, 246, 0.3)"
+                    />
+                    <path
+                      d="M0,48 Q100,32 200,48 T400,48 L400,96 L0,96 Z"
+                      fill="rgba(20, 184, 166, 0.2)"
+                    />
+                    <path
+                      d="M0,64 Q100,48 200,64 T400,64 L400,96 L0,96 Z"
+                      fill="rgba(16, 185, 129, 0.1)"
+                    />
+                  </svg>
+                </div>
+
+                {/* Sailing route */}
+                <div className="absolute top-10 left-0 right-0 h-1 bg-gradient-to-r from-blue-200 via-white to-blue-200 opacity-50"></div>
+                
+                {/* Water ripples at stations */}
+                {steps.map((step) => (
+                  <div
+                    key={step}
+                    className="absolute top-8 w-3 h-3 border border-white rounded-full opacity-30"
+                    style={{ left: `${(step / progress.totalSteps) * 100}%`, transform: 'translateX(-50%)' }}
+                  ></div>
+                ))}
+              </div>
+            </>
+          );
+
+        case 'cars':
+          return (
+            <>
+              {/* Road */}
+              <div className="relative h-24 bg-gradient-to-r from-gray-600 via-gray-500 to-gray-600 rounded-lg overflow-hidden shadow-inner">
+                {/* Road surface */}
+                <div className="absolute inset-0 bg-gradient-to-r from-gray-700 via-gray-600 to-gray-700"></div>
+                
+                {/* Lane markings */}
+                <div className="absolute top-9 left-0 right-0 h-1 bg-yellow-300"></div>
+                <div className="absolute top-13 left-0 right-0 h-0.5 bg-white opacity-60"></div>
+                
+                {/* Dashed center line */}
+                <div className="absolute top-11 left-0 right-0 h-0.5 flex">
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 border-t-2 border-dashed border-yellow-200 mr-1"
+                    ></div>
+                  ))}
+                </div>
+
+                {/* Road markers at stations */}
+                {steps.map((step) => (
+                  <div
+                    key={step}
+                    className="absolute top-6 w-2 h-12 bg-yellow-400 opacity-70"
+                    style={{ left: `${(step / progress.totalSteps) * 100}%`, transform: 'translateX(-50%)' }}
+                  ></div>
+                ))}
+              </div>
+            </>
+          );
+
+        case 'f1':
+          return (
+            <>
+              {/* F1 Racing Track */}
+              <div className="relative h-24 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 rounded-lg overflow-hidden shadow-inner">
+                {/* Track surface */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black via-gray-800 to-black opacity-90"></div>
+                
+                {/* Racing lines */}
+                <div className="absolute top-8 left-0 right-0 h-1 bg-red-500"></div>
+                <div className="absolute top-14 left-0 right-0 h-1 bg-red-500"></div>
+                
+                {/* Checkered pattern */}
+                <div className="absolute top-10 left-0 right-0 h-2 flex">
+                  {Array.from({ length: 50 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-2 h-2 ${i % 2 === 0 ? 'bg-white' : 'bg-black'}`}
+                    ></div>
+                  ))}
+                </div>
+
+                {/* Racing markers */}
+                {steps.map((step) => (
+                  <div
+                    key={step}
+                    className="absolute top-6 w-1 h-12 bg-red-400 opacity-80"
+                    style={{ left: `${(step / progress.totalSteps) * 100}%` }}
+                  ></div>
+                ))}
+                
+                {/* Tire marks */}
+                <div className="absolute top-16 left-0 right-0 h-0.5 bg-gray-400 opacity-30"></div>
+                <div className="absolute top-18 left-0 right-0 h-0.5 bg-gray-400 opacity-30"></div>
+              </div>
+            </>
+          );
+
+        default:
+          return (
+            <div className="relative h-24 bg-gradient-to-r from-amber-100 to-amber-50 rounded-lg overflow-hidden shadow-inner">
+              <div className="absolute top-8 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+              <div className="absolute top-14 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+            </div>
+          );
+      }
+    };
+
     return (
       <div className="relative mb-8">
-        {/* Railway Track */}
-        <div className="relative h-24 bg-gradient-to-r from-amber-100 to-amber-50 rounded-lg overflow-hidden shadow-inner">
-          {/* Rails */}
-          <div className="absolute top-8 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
-          <div className="absolute top-14 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+        {/* Theme-specific track/path */}
+        {renderTrack()}
 
-          {/* Railway Ties */}
-          {steps.map((step) => (
-            <div
-              key={step}
-              className="absolute top-6 w-1 h-12 bg-amber-800 opacity-70"
-              style={{ left: `${(step / progress.totalSteps) * 100}%` }}
-            ></div>
-          ))}
+        {/* Vehicle */}
+        <div
+          className={`absolute top-2 transition-all duration-1000 ease-out ${showTrainAnimation ? 'transform scale-110' : ''
+            }`}
+          style={{
+            left: `${(progress.currentStep / progress.totalSteps) * 95}%`,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="relative">
+            <span className="text-6xl drop-shadow-lg filter">{vehicleIcon}</span>
+            {showTrainAnimation && (
+              <div className="absolute -top-2 -right-2 animate-ping">
+                <span className="text-2xl">💨</span>
+              </div>
+            )}
+          </div>
+        </div>
 
-          {/* Train */}
+        {/* Station/Checkpoint Markers */}
+        {steps.map((step) => (
           <div
-            className={`absolute top-2 transition-all duration-1000 ease-out ${showTrainAnimation ? 'transform scale-110' : ''
-              }`}
-            style={{
-              left: `${(progress.currentStep / progress.totalSteps) * 95}%`,
-              transform: 'translateX(-50%)'
-            }}
+            key={step}
+            className="absolute top-16 transform -translate-x-1/2"
+            style={{ left: `${(step / progress.totalSteps) * 100}%` }}
           >
-            <div className="relative">
-              <span className="text-6xl drop-shadow-lg">{vehicleIcon}</span>
-              {showTrainAnimation && (
-                <div className="absolute -top-2 -right-2 animate-ping">
-                  <span className="text-2xl">💨</span>
-                </div>
-              )}
+            <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
+                ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText} shadow-lg`
+                : step === progress.currentStep + 1
+                  ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText} animate-pulse shadow-lg`
+                  : 'bg-gray-300 border-gray-400 text-gray-700'
+              }`}>
+              {step}
+            </div>
+            <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
+              {step <= progress.currentStep ? '✓' : step === progress.currentStep + 1 ? '⭐' : '○'}
             </div>
           </div>
-
-          {/* Station Markers */}
-          {steps.map((step) => (
-            <div
-              key={step}
-              className="absolute top-16 transform -translate-x-1/2"
-              style={{ left: `${(step / progress.totalSteps) * 100}%` }}
-            >
-              <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
-                  ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText} shadow-lg`
-                  : step === progress.currentStep + 1
-                    ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText} animate-pulse shadow-lg`
-                    : 'bg-gray-300 border-gray-400 text-gray-700'
-                }`}>
-                {step}
-              </div>
-              <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
-                {step <= progress.currentStep ? '✓' : step === progress.currentStep + 1 ? '⭐' : '○'}
-              </div>
-            </div>
-          ))}
-        </div>
+        ))}
 
         {/* Progress Stats */}
         <div className="mt-6 grid grid-cols-3 gap-4">
@@ -1178,21 +1335,94 @@ const GameView: React.FC = () => {
 
         {/* Theme-specific Path Background */}
         <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder}`}>
-          <div className="relative h-32 bg-gradient-to-r from-white/30 to-white/10 rounded-xl overflow-hidden shadow-inner">
-            {/* Rails */}
-            <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
-            <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+          <div className="relative h-32 rounded-xl overflow-hidden shadow-inner">
+            {/* Theme-specific track rendering for leaderboard */}
+            {(() => {
+              switch (currentTheme.id) {
+                case 'trains':
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-amber-100/50 to-amber-50/50"></div>
+                      <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
+                        <div
+                          key={step}
+                          className="absolute top-8 w-1 h-16 bg-amber-800 opacity-70"
+                          style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                        ></div>
+                      ))}
+                    </>
+                  );
 
-            {/* Railway Ties */}
-            {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
-              <div
-                key={step}
-                className="absolute top-8 w-1 h-16 bg-amber-800 opacity-70"
-                style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
-              ></div>
-            ))}
+                case 'planes':
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-sky-300/70 via-blue-200/70 to-cyan-300/70"></div>
+                      {/* Clouds in leaderboard */}
+                      <div className="absolute inset-0 opacity-40">
+                        <div className="absolute top-2 left-10 w-12 h-6 bg-white rounded-full opacity-60"></div>
+                        <div className="absolute top-4 left-30 w-16 h-8 bg-white rounded-full opacity-70"></div>
+                        <div className="absolute top-1 left-50 w-14 h-7 bg-white rounded-full opacity-65"></div>
+                        <div className="absolute top-5 left-70 w-18 h-9 bg-white rounded-full opacity-75"></div>
+                      </div>
+                      <div className="absolute top-14 left-0 right-0 h-1 border-t-2 border-dashed border-white opacity-60"></div>
+                    </>
+                  );
 
-            {/* Station Markers */}
+                case 'sailboat':
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/70 via-teal-300/70 to-emerald-400/70"></div>
+                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 128" preserveAspectRatio="none">
+                        <path d="M0,45 Q100,25 200,45 T400,45 L400,128 L0,128 Z" fill="rgba(59, 130, 246, 0.3)"/>
+                        <path d="M0,65 Q100,45 200,65 T400,65 L400,128 L0,128 Z" fill="rgba(20, 184, 166, 0.2)"/>
+                        <path d="M0,85 Q100,65 200,85 T400,85 L400,128 L0,128 Z" fill="rgba(16, 185, 129, 0.1)"/>
+                      </svg>
+                      <div className="absolute top-16 left-0 right-0 h-1 bg-gradient-to-r from-blue-200 via-white to-blue-200 opacity-50"></div>
+                    </>
+                  );
+
+                case 'cars':
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-gray-600/70 via-gray-500/70 to-gray-600/70"></div>
+                      <div className="absolute top-12 left-0 right-0 h-2 bg-yellow-300"></div>
+                      <div className="absolute top-16 left-0 right-0 h-1 bg-white opacity-60"></div>
+                      <div className="absolute top-14 left-0 right-0 h-1 flex">
+                        {Array.from({ length: 30 }).map((_, i) => (
+                          <div key={i} className="flex-1 border-t-2 border-dashed border-yellow-200 mr-1"></div>
+                        ))}
+                      </div>
+                    </>
+                  );
+
+                case 'f1':
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-gray-800/70 to-black/70"></div>
+                      <div className="absolute top-11 left-0 right-0 h-2 bg-red-500"></div>
+                      <div className="absolute top-17 left-0 right-0 h-2 bg-red-500"></div>
+                      <div className="absolute top-14 left-0 right-0 h-3 flex">
+                        {Array.from({ length: 60 }).map((_, i) => (
+                          <div key={i} className={`w-2 h-3 ${i % 2 === 0 ? 'bg-white' : 'bg-black'}`}></div>
+                        ))}
+                      </div>
+                    </>
+                  );
+
+                default:
+                  return (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10"></div>
+                      <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                      <div className="absolute top-18 left-0 right-0 h-1 bg-gradient-to-r from-gray-600 to-gray-500"></div>
+                    </>
+                  );
+              }
+            })()}
+
+            {/* Station/Checkpoint Markers */}
             {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
               <div
                 key={step}
