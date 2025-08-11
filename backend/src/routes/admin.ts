@@ -2562,6 +2562,87 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
   }
 });
 
+// Update cohort (for theme management and other settings)
+router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
+  try {
+    const { cohortId } = req.params;
+    const { name, description, defaultTheme } = req.body;
+
+    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme });
+
+    // Verify cohort exists
+    const existingCohort = await prisma.cohort.findUnique({
+      where: { id: cohortId }
+    });
+
+    if (!existingCohort) {
+      return res.status(404).json({ error: 'Cohort not found' });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (defaultTheme !== undefined) {
+      // Validate theme
+      const validThemes = ['trains', 'planes', 'sailboat', 'cars', 'f1'];
+      if (!validThemes.includes(defaultTheme)) {
+        return res.status(400).json({ error: 'Invalid theme. Must be one of: ' + validThemes.join(', ') });
+      }
+      updateData.defaultTheme = defaultTheme;
+    }
+
+    // Update cohort
+    const updatedCohort = await prisma.cohort.update({
+      where: { id: cohortId },
+      data: updateData
+    });
+
+    console.log(`✅ Cohort updated successfully:`, updatedCohort);
+    res.json({ cohort: updatedCohort });
+  } catch (error) {
+    console.error('Update cohort error:', error);
+    res.status(500).json({ error: 'Failed to update cohort' });
+  }
+});
+
+// Update module theme
+router.patch('/modules/:moduleId/theme', async (req: AuthRequest, res) => {
+  try {
+    const { moduleId } = req.params;
+    const { theme } = req.body;
+
+    console.log(`🎨 Updating module ${moduleId} theme to:`, theme);
+
+    // Validate theme
+    const validThemes = ['trains', 'planes', 'sailboat', 'cars', 'f1'];
+    if (!validThemes.includes(theme)) {
+      return res.status(400).json({ error: 'Invalid theme. Must be one of: ' + validThemes.join(', ') });
+    }
+
+    // Verify module exists
+    const existingModule = await (prisma as any).module.findUnique({
+      where: { id: moduleId }
+    });
+
+    if (!existingModule) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Update module theme
+    const updatedModule = await (prisma as any).module.update({
+      where: { id: moduleId },
+      data: { theme }
+    });
+
+    console.log(`✅ Module theme updated successfully:`, updatedModule);
+    res.json({ module: updatedModule });
+  } catch (error) {
+    console.error('Update module theme error:', error);
+    res.status(500).json({ error: 'Failed to update module theme' });
+  }
+});
+
 // Download attachment file for an answer
 router.get('/answer/:answerId/attachment', async (req: AuthRequest, res) => {
   try {

@@ -448,7 +448,7 @@ export const adminService = {
   }) => api.patch(`/admin/cohorts/${cohortId}`, cohortData),
 
   updateModuleTheme: (moduleId: string, theme: string) => 
-    api.put(`/admin/modules/${moduleId}/theme`, { theme }),
+    api.patch(`/admin/modules/${moduleId}/theme`, { theme }),
 };
 
 // Game API for content and mini-questions
