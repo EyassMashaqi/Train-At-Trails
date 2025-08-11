@@ -1977,7 +1977,7 @@ const GameView: React.FC = () => {
                   }`}>
                   <div className="flex items-center mb-2">
                     <span className="text-sm font-medium text-gray-700">
-                      Admin Feedback:
+                      BVisionRY Feedback:
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 italic">
