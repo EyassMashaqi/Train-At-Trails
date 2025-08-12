@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
+import GradingModal from '../components/GradingModal';
 
 // Import the dashboard icon
 import DashboardIcon from '../assets/dashboard-icon.png';
@@ -229,17 +230,10 @@ const AdminDashboard: React.FC = () => {
   const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]); // Store unfiltered users
   
-  // Feedback modal state
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackForm, setFeedbackForm] = useState<{
-    answerId: number | null;
-    status: 'approved' | 'rejected' | null;
-    feedback: string;
-  }>({
-    answerId: null,
-    status: null,
-    feedback: ''
-  });
+  // Grading modal state
+  const [showGradingModal, setShowGradingModal] = useState(false);
+  const [gradingAnswer, setGradingAnswer] = useState<PendingAnswer | null>(null);
+  const [gradingLoading, setGradingLoading] = useState(false);
 
   // Module and topic management state
   const [modules, setModules] = useState<Module[]>([]);
@@ -492,32 +486,23 @@ const AdminDashboard: React.FC = () => {
     validateEditForm();
   }, [validateEditForm]);
 
-  const handleReviewAnswer = async (answerId: number, status: 'approved' | 'rejected') => {
-    // Open feedback modal
-    setFeedbackForm({
-      answerId,
-      status,
-      feedback: ''
-    });
-    setShowFeedbackModal(true);
+  const handleGradeAnswer = (answer: PendingAnswer) => {
+    setGradingAnswer(answer);
+    setShowGradingModal(true);
   };
 
-  const submitReview = async () => {
-    if (!feedbackForm.answerId || !feedbackForm.status) return;
+  const submitGrade = async (grade: string, feedback: string) => {
+    if (!gradingAnswer) return;
     
-    if (!feedbackForm.feedback.trim()) {
-      toast.error('Feedback is required');
-      return;
-    }
-
+    setGradingLoading(true);
     try {
-      await adminService.reviewAnswer(feedbackForm.answerId, feedbackForm.status, feedbackForm.feedback);
-      toast.success(`Answer ${feedbackForm.status} successfully!`);
-      setShowFeedbackModal(false);
-      setFeedbackForm({ answerId: null, status: null, feedback: '' });
+      await adminService.gradeAnswer(gradingAnswer.id, grade, feedback);
+      toast.success(`Answer graded as ${grade} successfully!`);
+      setShowGradingModal(false);
+      setGradingAnswer(null);
       await loadAdminData(); // Refresh data
     } catch (error: unknown) {
-      let errorMessage = `Failed to ${feedbackForm.status} answer`;
+      let errorMessage = 'Failed to grade answer';
       if (
         error && 
         typeof error === 'object' && 
@@ -529,6 +514,8 @@ const AdminDashboard: React.FC = () => {
         errorMessage = response.data?.message || errorMessage;
       }
       toast.error(errorMessage);
+    } finally {
+      setGradingLoading(false);
     }
   };
 
@@ -649,20 +636,33 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleReviewAnswer(answer.id, 'approved')}
-                        className="bg-accent-600 text-white px-3 py-1 rounded text-sm hover:bg-accent-700"
+                        onClick={() => handleGradeAnswer(answer)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 flex items-center space-x-1"
                       >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReviewAnswer(answer.id, 'rejected')}
-                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                      >
-                        Reject
+                        <span>🎯</span>
+                        <span>Grade</span>
                       </button>
                     </div>
                   </div>
-                  <p className="text-gray-700 text-sm">{answer.content}</p>
+                  <div className="mb-2">
+                    <div className="text-sm">
+                      <strong>Link:</strong>
+                      <a 
+                        href={answer.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {answer.content}
+                      </a>
+                    </div>
+                    {answer.notes && (
+                      <div className="text-sm mt-1">
+                        <strong>Notes:</strong>
+                        <span className="ml-1 text-gray-700">{answer.notes}</span>
+                      </div>
+                    )}
+                  </div>
                   
                   {answer.hasAttachment && answer.attachmentInfo && (
                     <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 rounded border border-blue-200">
@@ -843,23 +843,34 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handleReviewAnswer(answer.id, 'approved')}
-                  className="bg-accent-600 text-white px-4 py-2 rounded hover:bg-accent-700 transition-colors"
+                  onClick={() => handleGradeAnswer(answer)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors flex items-center space-x-2"
                 >
-                  ✅ Approve
-                </button>
-                <button
-                  onClick={() => handleReviewAnswer(answer.id, 'rejected')}
-                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
-                >
-                  ❌ Reject
+                  <span>🎯</span>
+                  <span>Grade Assignment</span>
                 </button>
               </div>
             </div>
             
             <div className="bg-gray-50 rounded-md p-4 mb-4">
-              <h5 className="font-medium text-gray-900 mb-2">Answer:</h5>
-              <p className="text-gray-700">{answer.content}</p>
+              <h5 className="font-medium text-gray-900 mb-2">Submitted Work:</h5>
+              <div className="mb-3">
+                <strong className="text-gray-700">Link:</strong>
+                <a 
+                  href={answer.content} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                >
+                  {answer.content}
+                </a>
+              </div>
+              {answer.notes && (
+                <div>
+                  <strong className="text-gray-700">Notes:</strong>
+                  <p className="mt-1 text-gray-700">{answer.notes}</p>
+                </div>
+              )}
             </div>
 
             {answer.hasAttachment && answer.attachmentInfo && (
@@ -1541,50 +1552,18 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Feedback Modal */}
-      {showFeedbackModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">
-              {feedbackForm.status === 'approved' ? 'Approve Answer' : 'Reject Answer'}
-            </h3>
-            
-            <div className="mb-4">
-              <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-2">
-                Feedback <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="feedback"
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder={`Please provide feedback for ${feedbackForm.status === 'approved' ? 'approving' : 'rejecting'} this answer...`}
-                value={feedbackForm.feedback}
-                onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedback: e.target.value }))}
-              />
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowFeedbackModal(false);
-                  setFeedbackForm({ answerId: null, status: null, feedback: '' });
-                }}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitReview}
-                className={`px-4 py-2 text-white rounded-md transition-colors ${
-                  feedbackForm.status === 'approved' 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {feedbackForm.status === 'approved' ? 'Approve with Feedback' : 'Reject with Feedback'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Grading Modal */}
+      {showGradingModal && gradingAnswer && (
+        <GradingModal
+          isOpen={showGradingModal}
+          onClose={() => {
+            setShowGradingModal(false);
+            setGradingAnswer(null);
+          }}
+          onGrade={submitGrade}
+          answer={gradingAnswer}
+          isLoading={gradingLoading}
+        />
       )}
 
       {/* Create Topic Modal */}

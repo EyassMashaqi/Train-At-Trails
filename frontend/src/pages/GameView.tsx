@@ -25,7 +25,9 @@ interface Question {
 interface Answer {
   id: number;
   content: string;
+  notes?: string;
   status: string;
+  grade?: string; // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
   submittedAt: string;
   feedback?: string;
   question: Question;
@@ -154,7 +156,8 @@ const GameView: React.FC = () => {
   const [urlValidation, setUrlValidation] = useState<{[key: string]: {isValid: boolean, message: string}}>({});
   
   // Main question answer state
-  const [answerContent, setAnswerContent] = useState('');
+  const [answerLink, setAnswerLink] = useState('');
+  const [answerNotes, setAnswerNotes] = useState('');
   const [answerFile, setAnswerFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
@@ -184,6 +187,43 @@ const GameView: React.FC = () => {
     } catch (error) {
       return { isValid: false, message: 'Invalid URL format' };
     }
+  };
+
+  // Get medal icon for grade
+  const getMedalForGrade = (grade?: string) => {
+    switch (grade) {
+      case 'GOLD': return '🥇';
+      case 'SILVER': return '🥈';
+      case 'COPPER': return '🥉';
+      default: return null;
+    }
+  };
+
+  // Get the best grade for a completed step
+  const getBestGradeForStep = (step: number) => {
+    if (!progress?.answers) return null;
+    
+    const stepAnswers = progress.answers.filter(answer => 
+      answer.question?.questionNumber === step && 
+      answer.status === 'APPROVED'
+    );
+    
+    if (stepAnswers.length === 0) return null;
+    
+    // Find the best grade (Gold > Silver > Copper)
+    const gradeOrder = { 'GOLD': 3, 'SILVER': 2, 'COPPER': 1 };
+    let bestGrade = null;
+    let bestScore = 0;
+    
+    for (const answer of stepAnswers) {
+      const score = gradeOrder[answer.grade as keyof typeof gradeOrder] || 0;
+      if (score > bestScore) {
+        bestScore = score;
+        bestGrade = answer.grade;
+      }
+    }
+    
+    return bestGrade;
   };
 
   // Helper function to calculate total released questions
@@ -563,8 +603,20 @@ const GameView: React.FC = () => {
 
   // Main question submission handler
   const handleMainAnswerSubmit = async () => {
-    if (!answerContent.trim()) {
-      toast.error('Please provide an answer');
+    if (!answerLink.trim()) {
+      toast.error('Please provide a link');
+      return;
+    }
+
+    // Validate URL format
+    const urlValidation = validateUrl(answerLink);
+    if (!urlValidation.isValid) {
+      toast.error('Please provide a valid URL');
+      return;
+    }
+
+    if (!answerNotes.trim()) {
+      toast.error('Please provide notes about your work');
       return;
     }
 
@@ -581,16 +633,18 @@ const GameView: React.FC = () => {
         title: targetQuestion.title
       });
       
-      // Pass as questionId since the backend recognizes questionId parameter
+      // Submit using link + notes format
       await gameService.submitAnswer(
-        answerContent.trim(), 
+        answerLink.trim(),
+        answerNotes.trim(), 
         targetQuestion.id.toString(), // questionId
         answerFile
       );
       toast.success('Answer submitted successfully!');
       
       // Clear form
-      setAnswerContent('');
+      setAnswerLink('');
+      setAnswerNotes('');
       setAnswerFile(null);
       
       // Refresh data
@@ -821,7 +875,18 @@ const GameView: React.FC = () => {
               {step}
             </div>
             <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
-              {step <= progress.currentStep ? '✓' : step === progress.currentStep + 1 ? '⭐' : '○'}
+              {(() => {
+                const medal = getMedalForGrade(getBestGradeForStep(step));
+                if (medal && step <= progress.currentStep) {
+                  return medal;
+                } else if (step <= progress.currentStep) {
+                  return '✓';
+                } else if (step === progress.currentStep + 1) {
+                  return '⭐';
+                } else {
+                  return '○';
+                }
+              })()}
             </div>
           </div>
         ))}
@@ -1282,15 +1347,34 @@ const GameView: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
-                  Your Answer *
+                  Link to Your Work *
+                </label>
+                <input
+                  type="url"
+                  value={answerLink}
+                  onChange={(e) => setAnswerLink(e.target.value)}
+                  placeholder="https://github.com/yourusername/your-project"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                />
+                <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
+                  Share a link to your GitHub repository, deployed app, or other relevant work
+                </p>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
+                  Notes About Your Work *
                 </label>
                 <textarea
-                  value={answerContent}
-                  onChange={(e) => setAnswerContent(e.target.value)}
-                  placeholder="Write your detailed answer here..."
-                  rows={6}
+                  value={answerNotes}
+                  onChange={(e) => setAnswerNotes(e.target.value)}
+                  placeholder="Describe what you built, challenges you faced, what you learned..."
+                  rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-vertical"
                 />
+                <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
+                  Provide context about your work, the approach you took, and any key insights
+                </p>
               </div>
 
               <div>
@@ -1315,7 +1399,7 @@ const GameView: React.FC = () => {
 
               <button
                 onClick={handleMainAnswerSubmit}
-                disabled={submitting || !answerContent.trim()}
+                disabled={submitting || !answerLink.trim() || !answerNotes.trim()}
                 className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
               >
                 {submitting ? (
@@ -2025,7 +2109,30 @@ const GameView: React.FC = () => {
                   {new Date(answer.submittedAt).toLocaleDateString()}
                 </div>
               </div>
-              <p className="text-gray-700 italic mb-4">"{answer.content}"</p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                {answer.linkUrl && (
+                  <div className="mb-2">
+                    <strong className="text-gray-700">Link:</strong>{' '}
+                    <a 
+                      href={answer.linkUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline break-all"
+                    >
+                      {answer.linkUrl}
+                    </a>
+                  </div>
+                )}
+                {answer.notes && (
+                  <div>
+                    <strong className="text-gray-700">Notes:</strong>
+                    <p className="text-gray-700 italic mt-1">"{answer.notes}"</p>
+                  </div>
+                )}
+                {!answer.linkUrl && !answer.notes && answer.content && (
+                  <p className="text-gray-700 italic">"{answer.content}"</p>
+                )}
+              </div>
 
               {/* Show feedback if available */}
               {answer.feedback && (

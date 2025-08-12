@@ -331,23 +331,31 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
   }
 });
 
-// Review an answer (approve or reject)
+// Review an answer with grading system
 router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
   try {
     const { answerId } = req.params;
-    const { status, feedback } = req.body;
+    const { grade, feedback } = req.body;
     const adminId = req.user!.id;
 
-    if (!['APPROVED', 'REJECTED'].includes(status)) {
+    // Define grade levels and their properties
+    const gradeConfig = {
+      'GOLD': { status: 'APPROVED', points: 100, passThreshold: true },
+      'SILVER': { status: 'APPROVED', points: 85, passThreshold: true },
+      'COPPER': { status: 'APPROVED', points: 70, passThreshold: true },
+      'NEEDS_RESUBMISSION': { status: 'REJECTED', points: 0, passThreshold: false }
+    };
+
+    if (!gradeConfig[grade as keyof typeof gradeConfig]) {
       return res.status(400).json({ 
-        error: 'Status must be either APPROVED or REJECTED' 
+        error: 'Grade must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
       });
     }
 
-    // Require feedback for both approve and reject
+    // Require feedback for all grades
     if (!feedback || feedback.trim().length === 0) {
       return res.status(400).json({ 
-        error: 'Feedback is required when reviewing an answer' 
+        error: 'Feedback is required when grading an answer' 
       });
     }
 
@@ -372,22 +380,27 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
       });
     }
 
-    // Update answer status
+    const gradeDetails = gradeConfig[grade as keyof typeof gradeConfig];
+
+    // Update answer with grade and status
     const updatedAnswer = await prisma.answer.update({
       where: { id: answerId },
       data: {
-        status,
+        status: gradeDetails.status,
+        grade: grade,
+        gradePoints: gradeDetails.points,
         reviewedAt: new Date(),
         reviewedBy: adminId,
-        feedback
+        feedback,
+        pointsAwarded: gradeDetails.points
       }
     });
 
-    // If approved, update user's progress
-    if (status === 'APPROVED') {
+    // If approved (grade is not NEEDS_RESUBMISSION), update user's progress
+    if (gradeDetails.passThreshold) {
       let newStep = answer.user.currentStep;
       
-      // Update progress based on question only (since topicId doesn't exist in current schema)
+      // Update progress based on question
       if (answer.question) {
         newStep = Math.max(answer.user.currentStep, answer.question.questionNumber);
       }
@@ -401,12 +414,60 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
     }
 
     res.json({
-      message: `Answer ${status.toLowerCase()} successfully`,
-      answer: updatedAnswer
+      message: `Answer graded as ${grade} successfully`,
+      answer: updatedAnswer,
+      grade: grade,
+      points: gradeDetails.points
     });
   } catch (error) {
     console.error('Review answer error:', error);
     res.status(500).json({ error: 'Failed to review answer' });
+  }
+});
+
+// Handle resubmission requests
+router.put('/answer/:answerId/resubmission-request', async (req: AuthRequest, res) => {
+  try {
+    const { answerId } = req.params;
+    const { approve } = req.body; // true to approve, false to reject
+    const adminId = req.user!.id;
+
+    const answer = await prisma.answer.findUnique({
+      where: { id: answerId },
+      include: {
+        user: true,
+        question: true
+      }
+    });
+
+    if (!answer) {
+      return res.status(404).json({ error: 'Answer not found' });
+    }
+
+    if (!answer.resubmissionRequested) {
+      return res.status(400).json({ error: 'No resubmission request found for this answer' });
+    }
+
+    if (answer.resubmissionApproved !== null) {
+      return res.status(400).json({ error: 'Resubmission request has already been reviewed' });
+    }
+
+    const updatedAnswer = await prisma.answer.update({
+      where: { id: answerId },
+      data: {
+        resubmissionApproved: approve,
+        reviewedAt: new Date(),
+        reviewedBy: adminId
+      }
+    });
+
+    res.json({
+      message: `Resubmission request ${approve ? 'approved' : 'rejected'} successfully`,
+      answer: updatedAnswer
+    });
+  } catch (error) {
+    console.error('Handle resubmission request error:', error);
+    res.status(500).json({ error: 'Failed to handle resubmission request' });
   }
 });
 

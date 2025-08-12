@@ -77,13 +77,19 @@ model Question {
 
 model Answer {
   id                   String       @id @default(cuid())
-  content              String
+  content              String       // Now used for link URL
+  notes                String?      // Additional notes from user
   status               String       @default("PENDING")
+  grade                String?      // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
+  gradePoints          Int?         // Points based on grade (100, 85, 70, 0)
   submittedAt          DateTime     @default(now())
   reviewedAt           DateTime?
   reviewedBy           String?
   feedback             String?
   pointsAwarded        Int?
+  resubmissionRequested Boolean     @default(false) // New: for resubmission requests
+  resubmissionApproved Boolean?     // New: admin approval for resubmission
+  resubmissionRequestedAt DateTime? // New: when resubmission was requested
   attachmentFileName   String?      // Original filename of the attachment
   attachmentFilePath   String?      // Server path to the uploaded file
   attachmentFileSize   Int?         // File size in bytes

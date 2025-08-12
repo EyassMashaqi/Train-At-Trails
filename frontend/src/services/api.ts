@@ -132,8 +132,8 @@ export const gameService = {
   
   getCohortHistory: () => api.get('/game/cohort-history'),
   
-  submitAnswer: (content: string, questionId?: string, file?: File | null) => {
-    console.log('submitAnswer called with:', { content: content?.length, questionId, hasFile: !!file });
+  submitAnswer: (link: string, notes: string = '', questionId?: string, file?: File | null) => {
+    console.log('submitAnswer called with:', { link, notes: notes?.length, questionId, hasFile: !!file });
     
     // Validate that we have valid IDs
     const validQuestionId = questionId && questionId !== 'NaN' && questionId !== 'undefined' ? questionId : undefined;
@@ -142,7 +142,8 @@ export const gameService = {
     
     // Always use FormData for consistency
     const formData = new FormData();
-    formData.append('content', content);
+    formData.append('link', link);
+    formData.append('notes', notes);
     
     if (validQuestionId) {
       formData.append('questionId', validQuestionId);
@@ -160,6 +161,9 @@ export const gameService = {
       },
     });
   },
+  
+  requestResubmission: (answerId: string) => 
+    api.post(`/game/answer/${answerId}/request-resubmission`),
   
   getAnswers: () => api.get('/game/answers'),
 
@@ -189,6 +193,18 @@ export const adminService = {
     api.put(`/admin/answer/${answerId}/review`, { 
       status: status.toUpperCase(), 
       feedback 
+    }),
+
+  // New grading system methods
+  gradeAnswer: (answerId: number, grade: string, feedback: string) =>
+    api.put(`/admin/answer/${answerId}/review`, { 
+      grade, 
+      feedback 
+    }),
+
+  handleResubmissionRequest: (answerId: number, approve: boolean) =>
+    api.put(`/admin/answer/${answerId}/resubmission-request`, { 
+      approve 
     }),
   
   getGameStats: (cohortId?: string) => {

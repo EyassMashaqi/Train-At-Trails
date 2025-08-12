@@ -372,24 +372,32 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
   }
 });
 
-// Submit answer to current question - supports both questionId and topicId with file uploads
+// Submit answer to current question - supports both questionId and topicId with link and notes
 router.post('/answer', authenticateToken, upload.single('attachment'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { content, questionId, topicId } = req.body;
+    const { link, notes, questionId, topicId } = req.body;
     const attachmentFile = req.file;
 
     console.log('Submit answer request received:');
     console.log('  User ID:', userId);
-    console.log('  Content length:', content?.length || 0);
+    console.log('  Link:', link);
+    console.log('  Notes length:', notes?.length || 0);
     console.log('  Question ID:', questionId);
     console.log('  Topic ID:', topicId);
     console.log('  Has attachment:', !!attachmentFile);
-    console.log('  Request body:', req.body);
 
-    if (!content || content.trim().length === 0) {
-      console.log('ERROR: No content provided');
-      return res.status(400).json({ error: 'Answer content is required' });
+    // Validate link format
+    if (!link || link.trim().length === 0) {
+      console.log('ERROR: No link provided');
+      return res.status(400).json({ error: 'Answer link is required' });
+    }
+
+    // Basic URL validation
+    try {
+      new URL(link);
+    } catch {
+      return res.status(400).json({ error: 'Please provide a valid URL' });
     }
 
     // Get user's cohort first to ensure cohort isolation in all queries
@@ -531,7 +539,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
 
     // Create new answer (this allows for resubmissions while maintaining history)
     const answerData: any = {
-      content: content.trim(),
+      content: link.trim(),  // Store link in content field
+      notes: notes?.trim() || '', // Store notes in new notes field
       userId,
       questionId: currentQuestion.id,
       cohortId: userCohort?.cohortId
@@ -576,7 +585,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         : 'Answer submitted successfully',
       answer: {
         id: answer.id,
-        content: answer.content,
+        link: answer.content, // content field stores the link
+        notes: answer.notes,
         status: answer.status,
         submittedAt: answer.submittedAt,
         questionNumber: answer.question?.questionNumber || 'N/A',
@@ -589,6 +599,58 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
   } catch (error) {
     console.error('Submit answer error:', error);
     res.status(500).json({ error: 'Failed to submit answer' });
+  }
+});
+
+// Request resubmission for an answer
+router.post('/answer/:answerId/request-resubmission', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { answerId } = req.params;
+
+    const answer = await prisma.answer.findUnique({
+      where: { id: answerId },
+      include: {
+        user: true,
+        question: true
+      }
+    });
+
+    if (!answer) {
+      return res.status(404).json({ error: 'Answer not found' });
+    }
+
+    if (answer.userId !== userId) {
+      return res.status(403).json({ error: 'You can only request resubmission for your own answers' });
+    }
+
+    if (answer.grade !== 'COPPER' && answer.grade !== 'SILVER') {
+      return res.status(400).json({ 
+        error: 'Resubmission can only be requested for COPPER or SILVER grades' 
+      });
+    }
+
+    if (answer.resubmissionRequested) {
+      return res.status(400).json({ 
+        error: 'Resubmission has already been requested for this answer' 
+      });
+    }
+
+    const updatedAnswer = await prisma.answer.update({
+      where: { id: answerId },
+      data: {
+        resubmissionRequested: true,
+        resubmissionRequestedAt: new Date()
+      }
+    });
+
+    res.json({
+      message: 'Resubmission request submitted successfully',
+      answer: updatedAnswer
+    });
+  } catch (error) {
+    console.error('Request resubmission error:', error);
+    res.status(500).json({ error: 'Failed to request resubmission' });
   }
 });
 
