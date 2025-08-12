@@ -1393,15 +1393,36 @@ const GameView: React.FC = () => {
                 case 'trains':
                   return (
                     <>
-                      <div className="absolute inset-0 bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl"></div>
-                      <div className="absolute top-16 left-0 right-0 h-1 bg-gray-500 opacity-60"></div>
-                      <div className="absolute top-22 left-0 right-0 h-1 bg-gray-500 opacity-60"></div>
+                      {/* Railway bed - gravel/ballast background */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-stone-300 to-stone-400 rounded-xl"></div>
+                      
+                      {/* Wooden railway ties/sleepers */}
+                      {Array.from({ length: Math.floor(totalReleasedQuestions * 1.5) }, (_, i) => (
+                        <div
+                          key={`tie-${i}`}
+                          className="absolute top-14 w-1.5 h-14 bg-amber-800 opacity-80 rounded-sm"
+                          style={{ left: `${(i / (totalReleasedQuestions * 1.5)) * 100}%` }}
+                        ></div>
+                      ))}
+                      
+                      {/* Left railway track */}
+                      <div className="absolute top-16 left-0 right-0 h-1.5 bg-gradient-to-r from-gray-600 to-gray-700 shadow-sm"></div>
+                      
+                      {/* Right railway track */}
+                      <div className="absolute top-24 left-0 right-0 h-1.5 bg-gradient-to-r from-gray-600 to-gray-700 shadow-sm"></div>
+                      
+                      {/* Train station markers at each step */}
                       {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
                         <div
                           key={step}
-                          className="absolute top-12 w-1 h-16 bg-amber-600 opacity-50"
+                          className="absolute top-10 transform -translate-x-1/2"
                           style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
-                        ></div>
+                        >
+                          {/* Station platform */}
+                          <div className="w-3 h-6 bg-stone-600 rounded-t-sm"></div>
+                          {/* Station marker */}
+                          <div className="w-1 h-4 bg-red-500 mx-auto rounded-full mt-1"></div>
+                        </div>
                       ))}
                     </>
                   );
@@ -1601,10 +1622,20 @@ const GameView: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${themeClasses.buttonText} font-bold mr-4 ${index === 0 ? themeClasses.secondaryButton :
-                            index === 1 ? 'bg-gray-400' :
-                              index === 2 ? themeClasses.secondaryButton : themeClasses.primaryButton
-                          }`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mr-4 ${
+                          currentTheme.id === 'cars' 
+                            ? (index === 0 ? 'bg-red-600 text-white' :
+                               index === 1 ? 'bg-gray-400 text-white' :
+                               index === 2 ? 'bg-orange-600 text-white' : 'bg-red-500 text-white')
+                            : currentTheme.id === 'trains'
+                            ? (index === 0 ? 'bg-gradient-to-r from-amber-700 to-amber-800 text-white' :
+                               index === 1 ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-white' :
+                               index === 2 ? 'bg-gradient-to-r from-orange-700 to-orange-800 text-white' : 'bg-gradient-to-r from-amber-600 to-amber-700 text-white')
+                            : `${themeClasses.buttonText} ${index === 0 ? themeClasses.secondaryButton :
+                                index === 1 ? 'bg-gray-400' :
+                                  index === 2 ? themeClasses.secondaryButton : themeClasses.primaryButton
+                              }`
+                        }`}>
                           {index + 1}
                         </div>
                         <div>
@@ -1613,7 +1644,11 @@ const GameView: React.FC = () => {
                             {vehicleIcon} {user.trainName}
                             <span className={`ml-2 text-sm ${themeClasses.textMuted}`}>({user.fullName})</span>
                             {isCurrentUser && (
-                              <span className={`ml-2 ${themeClasses.accentBg} ${themeClasses.primaryText} px-2 py-1 rounded-full text-xs font-bold`}>
+                              <span className={`ml-2 ${
+                                currentTheme.id === 'cars' 
+                                  ? 'bg-red-600 text-white' 
+                                  : `${themeClasses.accentBg} ${themeClasses.buttonTextDark}`
+                              } px-2 py-1 rounded-full text-xs font-bold`}>
                                 YOU
                               </span>
                             )}
@@ -2078,7 +2113,17 @@ const GameView: React.FC = () => {
           </div>
           <button
             onClick={() => navigate('/dashboard')}
-            className={`${themeClasses.primaryButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.primaryButtonHover} transition-all duration-200 font-medium shadow-lg`}
+            className={`${
+              currentTheme.id === 'planes' || currentTheme.id === 'sailboat'
+                ? `${themeClasses.primaryButton} ${themeClasses.buttonText} ${themeClasses.primaryButtonHover}`
+                : currentTheme.id === 'trains' 
+                ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white' 
+                : currentTheme.id === 'cars' 
+                ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white' 
+                : currentTheme.id === 'f1' 
+                ? 'bg-gradient-to-r from-red-600 to-gray-600 hover:from-red-700 hover:to-gray-700 text-white' 
+                : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white'
+            } px-6 py-3 rounded-lg transition-all duration-200 font-medium shadow-lg`}
           >
             ← Back to Dashboard
           </button>

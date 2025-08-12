@@ -223,7 +223,19 @@ const Dashboard: React.FC = () => {
               )}
               <button
                 onClick={handleLogout}
-                className={`${themeClasses.secondaryButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.secondaryButtonHover} transition-all duration-200 flex items-center shadow-lg`}
+                className={`${
+                  currentTheme.id === 'planes' 
+                    ? 'bg-gradient-to-r from-slate-600 to-blue-700 hover:from-slate-700 hover:to-blue-800 text-white' 
+                    : currentTheme.id === 'trains' 
+                    ? 'bg-gradient-to-r from-blue-600 to-yellow-600 hover:from-blue-700 hover:to-yellow-700 text-white' 
+                    : currentTheme.id === 'sailboat' 
+                    ? 'bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white' 
+                    : currentTheme.id === 'cars' 
+                    ? 'bg-gradient-to-r from-red-600 to-yellow-600 hover:from-red-700 hover:to-yellow-700 text-white' 
+                    : currentTheme.id === 'f1' 
+                    ? 'bg-gradient-to-r from-red-600 to-black hover:from-red-700 hover:to-gray-800 text-white' 
+                    : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white'
+                } px-6 py-3 rounded-lg transition-all duration-200 flex items-center shadow-lg`}
               >
                 <span className="mr-2">🚪</span>
                 Logout
@@ -259,7 +271,7 @@ const Dashboard: React.FC = () => {
               {/* Enhanced Progress Bar */}
               <div className="mb-8">
                 <div className={`flex justify-between text-lg font-medium ${themeClasses.textSecondary} mb-4`}>
-                  <span>Trail Progress</span>
+                  <span>Progress</span>
                   <span className={`text-2xl font-bold ${themeClasses.secondaryText}`}>
                     {progressPercentage}%
                   </span>
@@ -287,7 +299,19 @@ const Dashboard: React.FC = () => {
               <div className="space-y-6">
                 <button
                   onClick={handleStartGame}
-                  className={`w-full ${themeClasses.primaryButton} ${themeClasses.buttonText} ${themeClasses.primaryButtonHover} py-6 px-8 rounded-xl transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105`}
+                  className={`w-full ${
+                    currentTheme.id === 'trains' 
+                      ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700' 
+                      : currentTheme.id === 'planes' 
+                      ? 'bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800' 
+                      : currentTheme.id === 'sailboat' 
+                      ? 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700' 
+                      : currentTheme.id === 'cars' 
+                      ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700' 
+                      : currentTheme.id === 'f1' 
+                      ? 'bg-gradient-to-r from-red-600 to-zinc-600 hover:from-red-700 hover:to-zinc-700' 
+                      : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                  } text-white py-6 px-8 rounded-xl transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105`}
                 >
                   <span className="mr-3 text-3xl">🎮</span>
                   Continue Your Journey
@@ -325,7 +349,19 @@ const Dashboard: React.FC = () => {
                 {activeQuestionsCount > 0 ? (
                   <button
                     onClick={() => navigate('/game')}
-                    className={`w-full ${themeClasses.accentButton} ${themeClasses.buttonText} ${themeClasses.accentButtonHover} py-3 px-4 rounded-lg transition-all duration-200 font-medium`}
+                    className={`w-full ${
+                      currentTheme.id === 'trains' 
+                        ? 'bg-gradient-to-r from-amber-700 to-orange-700 hover:from-amber-800 hover:to-orange-800' 
+                        : currentTheme.id === 'planes' 
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800' 
+                        : currentTheme.id === 'sailboat' 
+                        ? 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700' 
+                        : currentTheme.id === 'cars' 
+                        ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800' 
+                        : currentTheme.id === 'f1' 
+                        ? 'bg-gradient-to-r from-red-600 to-gray-700 hover:from-red-700 hover:to-gray-800' 
+                        : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                    } text-white py-3 px-4 rounded-lg transition-all duration-200 font-medium`}
                   >
                     <span className="mr-2">📝</span>
                     Start Answering
