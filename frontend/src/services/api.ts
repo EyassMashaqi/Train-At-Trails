@@ -426,7 +426,10 @@ export const adminService = {
   getMiniAnswers: (miniQuestionId: string) => api.get(`/admin/mini-questions/${miniQuestionId}/answers`),
 
   // Get all mini-answers for admin dashboard
-  getAllMiniAnswers: () => api.get('/admin/mini-answers'),
+  getAllMiniAnswers: (cohortId?: string) => {
+    const params = cohortId ? { cohortId } : {};
+    return api.get('/admin/mini-answers', { params });
+  },
 
   // Cohort management
   getAllCohorts: () => api.get('/admin/cohorts'),

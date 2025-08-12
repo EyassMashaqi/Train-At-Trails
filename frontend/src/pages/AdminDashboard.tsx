@@ -580,7 +580,7 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-primary-600">
-                  {selectedCohortId ? 'Cohort Users' : 'Total Users'}
+                  {selectedCohortId ? 'Cohort Participants' : 'Total Users'}
                 </p>
                 <p className="text-2xl font-bold text-primary-900">{displayStats.totalUsers}</p>
               </div>
@@ -705,7 +705,7 @@ const AdminDashboard: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold text-gray-800">
-              {selectedCohortId ? 'Cohort Users' : 'All Users'}
+              {selectedCohortId ? 'Cohort Participants' : 'All Users'}
             </h3>
             {/* Status Filter - only show for cohort view */}
             {selectedCohortId && availableStatuses.length > 0 && (
@@ -1495,11 +1495,11 @@ const AdminDashboard: React.FC = () => {
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {[
               { id: 'overview', name: 'Overview', icon: '📊' },
-              { id: 'users', name: 'Users', icon: '👥' },
+              { id: 'users', name: 'Participants', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
               { id: 'mini-questions', name: 'Self Learning', icon: '🎯' },
-              { id: 'cohort-config', name: 'Cohort Config', icon: '🎨' },
+              { id: 'cohort-config', name: 'Cohort Configuration', icon: '🎨' },
             ].map((tab) => (
               <button
                 key={tab.id}

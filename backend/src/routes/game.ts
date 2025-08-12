@@ -766,15 +766,29 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
     await updateMiniQuestionReleaseStatus();
 
     // Get all questions that user can potentially access (released questions + step-based questions)
+    const whereClause: any = {
+      OR: [
+        { isReleased: true }, // Include all released questions (for module/topic system)
+        { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
+      ]
+    };
+
+    // Only filter by cohort if user has cohort membership (non-admin users)
+    if (userCohort?.cohortId) {
+      whereClause.cohortId = userCohort.cohortId;
+    }
+
     const releasedQuestions = await prisma.question.findMany({
-      where: { 
-        cohortId: userCohort?.cohortId,  // FIXED: Re-enabled cohort filtering
-        OR: [
-          { isReleased: true }, // Include all released questions (for module/topic system)
-          { questionNumber: { lte: user.currentStep + 1 } } // Include step-based questions (for legacy system)
-        ]
-      },
+      where: whereClause,
       include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            isActive: true,
+            isReleased: true
+          }
+        },
         contents: {
           include: {
             miniQuestions: {

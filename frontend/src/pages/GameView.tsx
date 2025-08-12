@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { getThemeClasses, getVehicleIcon } from '../utils/themes';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 
 interface Question {
   id: string | number; // Allow both string and number for compatibility
@@ -1026,29 +1028,26 @@ const GameView: React.FC = () => {
                                   </span>
                                   <div className="flex-1">
                                     <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
-                                      #{index + 1}: 
-                                      {miniQuestion.resourceUrl ? (
-                                        <a 
-                                          href={miniQuestion.resourceUrl} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className={`ml-1 ${themeClasses.primaryText} hover:${themeClasses.accentText} hover:underline transition-colors`}
-                                        >
-                                          {miniQuestion.title}
-                                        </a>
-                                      ) : (
-                                        <span className="ml-1">{miniQuestion.title}</span>
-                                      )}
-                                    </h5>
+  #{index + 1}:
+  {miniQuestion.resourceUrl ? (
+    <a
+      href={miniQuestion.resourceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`ml-1 ${themeClasses.primaryText} hover:${themeClasses.accentText} hover:underline transition-colors`}
+    >
+      {miniQuestion.title}
+      <FontAwesomeIcon icon={faUpRightFromSquare /* or faExternalLinkAlt */} className="ml-1 align-text-bottom" />
+    </a>
+  ) : (
+    <span className="ml-1">{miniQuestion.title}</span>
+  )}
+</h5>
+
                                     {/* Show the question under the title */}
                                     {miniQuestion.question && (
                                       <p className={`text-sm ${themeClasses.textSecondary} mt-1 leading-relaxed`}>
                                         {miniQuestion.question}
-                                      </p>
-                                    )}
-                                    {miniQuestion.description && (
-                                      <p className={`text-xs ${themeClasses.textSecondary} mt-1 italic`}>
-                                        {miniQuestion.description}
                                       </p>
                                     )}
                                   </div>

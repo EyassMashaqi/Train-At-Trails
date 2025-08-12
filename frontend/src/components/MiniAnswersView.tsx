@@ -80,14 +80,16 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
         console.log(`🎯 Using cohort users for cohort: ${selectedCohortId}`);
         usersData = cohortUsers;
       } else {
-        console.log('📊 Loading all users for Self Learning');
+        console.log('📊 Loading all users for Self Learning (no cohort specified)');
         const usersResponse = await adminService.getAllUsers();
         usersData = usersResponse.data.users;
       }
 
+      console.log(`🎯 Loading Self Learning data for cohort: ${selectedCohortId || 'all cohorts'}`);
+
       const [miniAnswersResponse, questionsResponse] = await Promise.all([
-        adminService.getAllMiniAnswers(),
-        adminService.getAllQuestions()
+        adminService.getAllMiniAnswers(selectedCohortId),
+        adminService.getAllQuestions(selectedCohortId)
       ]);
 
       const miniAnswersData = miniAnswersResponse.data.miniAnswers;

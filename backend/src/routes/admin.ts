@@ -1802,6 +1802,45 @@ router.delete('/topics/:topicId', async (req: AuthRequest, res) => {
 router.get('/questions/:questionId/contents', async (req: AuthRequest, res) => {
   try {
     const questionId = req.params.questionId;
+    const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string;
+    
+    // First verify the question exists and get its cohort
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      select: { id: true, cohortId: true }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let hasAccess = false;
+
+    if (adminUser?.isAdmin) {
+      // Admin users have access to all questions
+      hasAccess = true;
+    } else {
+      // Non-admin users need to have access to the question's cohort
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED',
+          cohortId: question.cohortId
+        }
+      });
+      hasAccess = adminCohorts.length > 0;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied to this question' });
+    }
     
     const contents = await (prisma as any).content.findMany({
       where: { questionId },
@@ -1963,16 +2002,71 @@ router.delete('/contents/:contentId', async (req: AuthRequest, res) => {
 router.get('/mini-questions/:miniQuestionId/answers', async (req: AuthRequest, res) => {
   try {
     const miniQuestionId = req.params.miniQuestionId;
+    const adminUserId = req.user!.id;
     
+    // First get the mini-question and its related cohort info
+    const miniQuestion = await (prisma as any).miniQuestion.findUnique({
+      where: { id: miniQuestionId },
+      include: {
+        content: {
+          include: {
+            question: {
+              select: { cohortId: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!miniQuestion) {
+      return res.status(404).json({ error: 'Mini-question not found' });
+    }
+
+    const questionCohortId = miniQuestion.content.question.cohortId;
+
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let hasAccess = false;
+
+    if (adminUser?.isAdmin) {
+      // Admin users have access to all mini-questions
+      hasAccess = true;
+    } else {
+      // Non-admin users need to have access to the question's cohort
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED',
+          cohortId: questionCohortId
+        }
+      });
+      hasAccess = adminCohorts.length > 0;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied to this mini-question' });
+    }
+    
+    // Filter mini answers to only show users from the same cohort as the question
     const miniAnswers = await (prisma as any).miniAnswer.findMany({
-      where: { miniQuestionId },
+      where: { 
+        miniQuestionId,
+        user: {
+          currentCohortId: questionCohortId
+        }
+      },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
             trainName: true,
-            email: true
+            email: true,
+            currentCohortId: true
           }
         }
       },
@@ -1989,14 +2083,97 @@ router.get('/mini-questions/:miniQuestionId/answers', async (req: AuthRequest, r
 // Get all mini-answers for admin dashboard
 router.get('/mini-answers', async (req: AuthRequest, res) => {
   try {
+    const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string; // Get cohort filter from query params
+    
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      // If a specific cohort is requested, only use that cohort
+      if (requestedCohortId) {
+        // Verify the requested cohort exists and is active
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { 
+            id: requestedCohortId,
+            isActive: true 
+          }
+        });
+        
+        if (!requestedCohort) {
+          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+        }
+        
+        cohortIds = [requestedCohortId];
+      } else {
+        // For admin users, get all active cohorts
+        const activeCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = activeCohorts.map(c => c.id);
+      }
+    } else {
+      // For non-admin users, get their cohort access
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: {
+          cohortId: true
+        }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      // If a specific cohort is requested, ensure admin has access to it
+      if (requestedCohortId && !cohortIds.includes(requestedCohortId)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (requestedCohortId) {
+        cohortIds = [requestedCohortId];
+      }
+    }
+
+    if (cohortIds.length === 0) {
+      return res.json({ miniAnswers: [] });
+    }
+
+    // Get mini answers filtered by cohort - filter by user's cohort membership OR current cohort
     const miniAnswers = await (prisma as any).miniAnswer.findMany({
+      where: {
+        OR: [
+          // Filter by users who have active membership in the requested cohorts
+          {
+            user: {
+              cohortMembers: {
+                some: {
+                  cohortId: { in: cohortIds },
+                  status: 'ENROLLED'
+                }
+              }
+            }
+          },
+          // Also include users whose current cohort matches (for backward compatibility)
+          {
+            user: {
+              currentCohortId: { in: cohortIds }
+            }
+          }
+        ]
+      },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
             trainName: true,
-            email: true
+            email: true,
+            currentCohortId: true
           }
         },
         miniQuestion: {
