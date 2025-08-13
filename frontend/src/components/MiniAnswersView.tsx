@@ -239,7 +239,7 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
           <div className="flex-1">
             <input
               type="text"
-              placeholder="Search users by name, avatar name, or email..."
+              placeholder="Search users by name, lighthouse name, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -280,7 +280,7 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
                         {item.user.fullName}
                       </h3>
                       <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <span>🚂 {item.user.trainName || 'No avatar name'}</span>
+                        <span>🚂 {item.user.trainName || 'No lighthouse name'}</span>
                         <span>•</span>
                         <span>📧 {item.user.email}</span>
                       </div>

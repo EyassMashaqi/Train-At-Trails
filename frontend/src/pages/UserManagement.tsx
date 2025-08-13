@@ -219,7 +219,7 @@ const UserManagement: React.FC = () => {
               <span className="text-2xl">⚙️</span>
             </div>
           </div>
-          <p className="text-lg text-gray-600 mt-4 font-medium">Loading User Management...</p>
+          <p className="text-lg text-gray-600 mt-4 font-medium">Loading Participants Management...</p>
         </div>
       </div>
     );
@@ -242,7 +242,7 @@ const UserManagement: React.FC = () => {
               <span className="text-gray-300">|</span>
               <div className="flex items-center space-x-2">
                 <span className="text-2xl">👥</span>
-                <h1 className="text-xl font-bold text-gray-900">User Management</h1>
+                <h1 className="text-xl font-bold text-gray-900">Participants Management</h1>
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -290,7 +290,7 @@ const UserManagement: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                 <span className="text-xl mr-2">👥</span>
-                Cohort Members
+                Cohort Participants
                 {cohortLoading && <span className="ml-2 text-sm text-gray-500">(Loading...)</span>}
               </h2>
               <button
@@ -298,7 +298,7 @@ const UserManagement: React.FC = () => {
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
               >
                 <span>➕</span>
-                <span>Assign User</span>
+                <span>Assign Participant</span>
               </button>
             </div>
 
@@ -361,7 +361,7 @@ const UserManagement: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
             <span className="text-xl mr-2">📊</span>
-            All Users Overview ({users.length} users)
+            All Participants Overview ({users.length} users)
           </h2>
 
           {users.length === 0 ? (
@@ -451,7 +451,7 @@ const UserManagement: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <span className="text-xl mr-2">➕</span>
-                Assign User to Cohort
+                Assign Participant to Cohort
               </h3>
               <button
                 onClick={() => setShowAssignModal(false)}
@@ -463,7 +463,7 @@ const UserManagement: React.FC = () => {
 
             {selectedUser && (
               <div className="mb-4">
-                <p className="text-sm text-gray-600">User:</p>
+                <p className="text-sm text-gray-600">Participant:</p>
                 <p className="font-medium text-gray-900">{selectedUser.fullName}</p>
                 <p className="text-sm text-gray-500">{selectedUser.email}</p>
               </div>

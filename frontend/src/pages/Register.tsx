@@ -176,7 +176,7 @@ const Register: React.FC = () => {
                 />
               </div>
               <div className="mt-2">
-                <p className="text-xs text-gray-500 mb-2">Popular avatar names:</p>
+                <p className="text-xs text-gray-500 mb-2">Popular lighthouse names:</p>
                 <div className="flex flex-wrap gap-1">
                   {trainNameSuggestions.slice(0, 6).map((suggestion) => (
                     <button

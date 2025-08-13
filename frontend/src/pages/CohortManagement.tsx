@@ -248,7 +248,7 @@ const CohortManagement: React.FC = () => {
               className="bg-gradient-to-r from-secondary-600 to-secondary-700 text-white px-6 py-3 rounded-lg hover:from-secondary-700 hover:to-secondary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
             >
               <span className="text-xl">👥</span>
-              <span>Manage Users</span>
+              <span>Manage Participants</span>
             </button>
           </div>
         </div>
@@ -344,7 +344,7 @@ const CohortManagement: React.FC = () => {
                       <div className="text-lg font-bold text-primary-600">
                         {cohort._count?.cohortMembers || 0}
                       </div>
-                      <div className="text-xs text-gray-500">Members</div>
+                      <div className="text-xs text-gray-500">Participants</div>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-bold text-secondary-600">

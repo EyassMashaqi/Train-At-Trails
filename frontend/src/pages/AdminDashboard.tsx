@@ -735,10 +735,10 @@ const AdminDashboard: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  Participant
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Avatar Name
+                  Lighthouse Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Progress
@@ -1474,7 +1474,7 @@ const AdminDashboard: React.FC = () => {
                   Admin Dashboard
                 </h1>
                 <p className="text-lg text-gray-600">
-                  Manage users and review answers
+                  Manage participants and review answers
                   {selectedCohort && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohort.name}</span>}
                 </p>
               </div>
