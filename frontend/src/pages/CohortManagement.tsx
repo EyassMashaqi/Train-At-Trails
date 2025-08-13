@@ -213,7 +213,7 @@ const CohortManagement: React.FC = () => {
   const handleCopyCohort = (cohort: Cohort) => {
     setCopyingCohort(cohort);
     setCopyFormData({ 
-      newName: `${cohort.name} (Copy)`, 
+      newName: `${cohort.name}`, 
       newCohortNumber: (cohort.cohortNumber + 1).toString() 
     });
     setShowCopyModal(true);
