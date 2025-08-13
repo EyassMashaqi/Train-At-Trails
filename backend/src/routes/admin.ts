@@ -2812,9 +2812,9 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
 router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
   try {
     const { cohortId } = req.params;
-    const { name, description, defaultTheme } = req.body;
+    const { name, description, defaultTheme, cohortNumber } = req.body;
 
-    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme });
+    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme, cohortNumber });
 
     // Verify cohort exists
     const existingCohort = await prisma.cohort.findUnique({
@@ -2827,7 +2827,30 @@ router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
 
     // Prepare update data
     const updateData: any = {};
+    
+    // Validate name + cohortNumber combination uniqueness
+    const finalName = name !== undefined ? name : existingCohort.name;
+    const finalCohortNumber = cohortNumber !== undefined ? parseInt(cohortNumber) : existingCohort.cohortNumber;
+
+    // Check if the new name+number combination is unique (excluding current cohort)
+    if (name !== undefined || cohortNumber !== undefined) {
+      const existingCombination = await prisma.cohort.findFirst({
+        where: {
+          name: finalName,
+          cohortNumber: finalCohortNumber,
+          id: { not: cohortId }
+        }
+      });
+
+      if (existingCombination) {
+        return res.status(400).json({ 
+          error: `A cohort with name "${finalName}" and number ${finalCohortNumber} already exists` 
+        });
+      }
+    }
+
     if (name !== undefined) updateData.name = name;
+    if (cohortNumber !== undefined) updateData.cohortNumber = parseInt(cohortNumber);
     if (description !== undefined) updateData.description = description;
     if (defaultTheme !== undefined) {
       // Validate theme

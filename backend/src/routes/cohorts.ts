@@ -40,23 +40,43 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 // Create new cohort (admin only)
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { name, description, startDate, endDate } = req.body;
+    const { name, description, startDate, endDate, cohortNumber } = req.body;
 
     if (!name || !startDate) {
       return res.status(400).json({ message: 'Name and start date are required' });
     }
 
-    // Check if cohort name already exists
-    const existingCohort = await (prisma as any).cohort.findUnique({
-      where: { name }
-    });
+    // Handle cohort number assignment
+    let assignedCohortNumber: number;
+    if (cohortNumber !== undefined) {
+      // If cohortNumber is provided, check if name+number combination is unique
+      const existingCombination = await (prisma as any).cohort.findUnique({
+        where: { 
+          name_cohortNumber: {
+            name: name,
+            cohortNumber: parseInt(cohortNumber)
+          }
+        }
+      });
 
-    if (existingCohort) {
-      return res.status(400).json({ message: 'Cohort name already exists' });
+      if (existingCombination) {
+        return res.status(400).json({ message: `A cohort with name "${name}" and number ${cohortNumber} already exists` });
+      }
+
+      assignedCohortNumber = parseInt(cohortNumber);
+    } else {
+      // Auto-assign next available cohort number for this name
+      const lastCohortWithSameName = await (prisma as any).cohort.findFirst({
+        where: { name: name },
+        orderBy: { cohortNumber: 'desc' }
+      });
+
+      assignedCohortNumber = lastCohortWithSameName ? lastCohortWithSameName.cohortNumber + 1 : 1;
     }
 
     const cohort = await (prisma as any).cohort.create({
       data: {
+        cohortNumber: assignedCohortNumber,
         name,
         description: description || null,
         startDate: new Date(startDate),
@@ -102,26 +122,42 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 router.patch('/:cohortId', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { cohortId } = req.params;
-    const { name, description, startDate, endDate, isActive, defaultTheme } = req.body;
+    const { name, description, startDate, endDate, isActive, defaultTheme, cohortNumber } = req.body;
+
+    // Get current cohort data
+    const currentCohort = await (prisma as any).cohort.findUnique({
+      where: { id: cohortId }
+    });
+
+    if (!currentCohort) {
+      return res.status(404).json({ message: 'Cohort not found' });
+    }
 
     const updateData: any = {};
 
-    if (name !== undefined) {
-      // Check if name is unique (excluding current cohort)
-      const existingCohort = await (prisma as any).cohort.findFirst({
+    // Validate name + cohortNumber combination uniqueness
+    const finalName = name !== undefined ? name : currentCohort.name;
+    const finalCohortNumber = cohortNumber !== undefined ? parseInt(cohortNumber) : currentCohort.cohortNumber;
+
+    // Check if the new name+number combination is unique (excluding current cohort)
+    if (name !== undefined || cohortNumber !== undefined) {
+      const existingCombination = await (prisma as any).cohort.findFirst({
         where: {
-          name,
+          name: finalName,
+          cohortNumber: finalCohortNumber,
           id: { not: cohortId }
         }
       });
 
-      if (existingCohort) {
-        return res.status(400).json({ message: 'Cohort name already exists' });
+      if (existingCombination) {
+        return res.status(400).json({ 
+          message: `A cohort with name "${finalName}" and number ${finalCohortNumber} already exists` 
+        });
       }
-
-      updateData.name = name;
     }
 
+    if (name !== undefined) updateData.name = name;
+    if (cohortNumber !== undefined) updateData.cohortNumber = parseInt(cohortNumber);
     if (description !== undefined) updateData.description = description;
     if (startDate !== undefined) updateData.startDate = new Date(startDate);
     if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
@@ -365,6 +401,239 @@ router.get('/users/all', authenticateToken, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
+
+// Copy cohort (admin only)
+router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId } = req.params;
+    const { newName, newCohortNumber } = req.body;
+
+    if (!newName || newCohortNumber === undefined) {
+      return res.status(400).json({ message: 'New name and cohort number are required' });
+    }
+
+    // Get the source cohort with all its content
+    const sourceCohort = await (prisma as any).cohort.findUnique({
+      where: { id: cohortId },
+      include: {
+        modules: {
+          include: {
+            questions: {
+              include: {
+                contents: {
+                  include: {
+                    miniQuestions: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        questions: {
+          include: {
+            contents: {
+              include: {
+                miniQuestions: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!sourceCohort) {
+      return res.status(404).json({ message: 'Source cohort not found' });
+    }
+
+    // Check if the new name+number combination is unique
+    const existingCombination = await (prisma as any).cohort.findFirst({
+      where: {
+        name: newName,
+        cohortNumber: parseInt(newCohortNumber)
+      }
+    });
+
+    if (existingCombination) {
+      return res.status(400).json({ 
+        message: `A cohort with name "${newName}" and number ${newCohortNumber} already exists` 
+      });
+    }
+
+    // Start transaction to copy everything
+    const result = await (prisma as any).$transaction(async (tx: any) => {
+      // 1. Create new cohort
+      const newCohort = await tx.cohort.create({
+        data: {
+          name: newName,
+          cohortNumber: parseInt(newCohortNumber),
+          description: sourceCohort.description,
+          startDate: sourceCohort.startDate,
+          endDate: sourceCohort.endDate,
+          isActive: false, // Start inactive for safety
+          defaultTheme: sourceCohort.defaultTheme
+        }
+      });
+
+      // 2. Copy modules with their questions and mini questions
+      const moduleMapping: { [key: string]: string } = {};
+      
+      for (const sourceModule of sourceCohort.modules) {
+        const newModule = await tx.module.create({
+          data: {
+            moduleNumber: sourceModule.moduleNumber,
+            title: sourceModule.title,
+            description: sourceModule.description,
+            theme: sourceModule.theme,
+            isActive: sourceModule.isActive,
+            isReleased: sourceModule.isReleased,
+            releaseDate: sourceModule.releaseDate,
+            cohortId: newCohort.id
+          }
+        });
+        
+        moduleMapping[sourceModule.id] = newModule.id;
+
+        // Copy module questions
+        for (const sourceQuestion of sourceModule.questions) {
+          const newQuestion = await tx.question.create({
+            data: {
+              questionNumber: sourceQuestion.questionNumber,
+              title: sourceQuestion.title,
+              content: sourceQuestion.content,
+              description: sourceQuestion.description,
+              deadline: sourceQuestion.deadline,
+              points: sourceQuestion.points,
+              bonusPoints: sourceQuestion.bonusPoints,
+              isActive: sourceQuestion.isActive,
+              isReleased: sourceQuestion.isReleased,
+              releaseDate: sourceQuestion.releaseDate,
+              moduleId: newModule.id,
+              topicNumber: sourceQuestion.topicNumber,
+              category: sourceQuestion.category,
+              cohortId: newCohort.id
+            }
+          });
+
+          // Copy question contents and their mini questions
+          for (const sourceContent of sourceQuestion.contents) {
+            const newContent = await tx.content.create({
+              data: {
+                title: sourceContent.title,
+                material: sourceContent.material,
+                orderIndex: sourceContent.orderIndex,
+                isActive: sourceContent.isActive,
+                questionId: newQuestion.id
+              }
+            });
+
+            // Copy content mini questions
+            for (const sourceMiniQuestion of sourceContent.miniQuestions) {
+              await tx.miniQuestion.create({
+                data: {
+                  title: sourceMiniQuestion.title,
+                  question: sourceMiniQuestion.question,
+                  description: sourceMiniQuestion.description,
+                  resourceUrl: sourceMiniQuestion.resourceUrl,
+                  releaseDate: sourceMiniQuestion.releaseDate,
+                  isReleased: sourceMiniQuestion.isReleased,
+                  actualReleaseDate: sourceMiniQuestion.actualReleaseDate,
+                  orderIndex: sourceMiniQuestion.orderIndex,
+                  isActive: sourceMiniQuestion.isActive,
+                  contentId: newContent.id
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // 3. Copy standalone questions (not associated with modules)
+      for (const sourceQuestion of sourceCohort.questions.filter((q: any) => !q.moduleId)) {
+        const newQuestion = await tx.question.create({
+          data: {
+            questionNumber: sourceQuestion.questionNumber,
+            title: sourceQuestion.title,
+            content: sourceQuestion.content,
+            description: sourceQuestion.description,
+            deadline: sourceQuestion.deadline,
+            points: sourceQuestion.points,
+            bonusPoints: sourceQuestion.bonusPoints,
+            isActive: sourceQuestion.isActive,
+            isReleased: sourceQuestion.isReleased,
+            releaseDate: sourceQuestion.releaseDate,
+            moduleId: null,
+            topicNumber: sourceQuestion.topicNumber,
+            category: sourceQuestion.category,
+            cohortId: newCohort.id
+          }
+        });
+
+        // Copy question contents and their mini questions
+        for (const sourceContent of sourceQuestion.contents) {
+          const newContent = await tx.content.create({
+            data: {
+              title: sourceContent.title,
+              material: sourceContent.material,
+              orderIndex: sourceContent.orderIndex,
+              isActive: sourceContent.isActive,
+              questionId: newQuestion.id
+            }
+          });
+
+          // Copy content mini questions
+          for (const sourceMiniQuestion of sourceContent.miniQuestions) {
+            await tx.miniQuestion.create({
+              data: {
+                title: sourceMiniQuestion.title,
+                question: sourceMiniQuestion.question,
+                description: sourceMiniQuestion.description,
+                resourceUrl: sourceMiniQuestion.resourceUrl,
+                releaseDate: sourceMiniQuestion.releaseDate,
+                isReleased: sourceMiniQuestion.isReleased,
+                actualReleaseDate: sourceMiniQuestion.actualReleaseDate,
+                orderIndex: sourceMiniQuestion.orderIndex,
+                isActive: sourceMiniQuestion.isActive,
+                contentId: newContent.id
+              }
+            });
+          }
+        }
+      }
+
+      return newCohort;
+    });
+
+    // Return the new cohort with counts
+    const newCohortWithCounts = await (prisma as any).cohort.findUnique({
+      where: { id: result.id },
+      include: {
+        _count: {
+          select: {
+            cohortMembers: {
+              where: {
+                isActive: true,
+                user: {
+                  isAdmin: false
+                }
+              }
+            },
+            modules: true,
+            questions: true
+          }
+        }
+      }
+    });
+
+    res.json({ 
+      message: 'Cohort copied successfully',
+      cohort: newCohortWithCounts
+    });
+  } catch (error: any) {
+    console.error('Error copying cohort:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Failed to copy cohort', error: error.message });
   }
 });
 

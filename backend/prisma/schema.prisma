@@ -168,7 +168,8 @@ model GameConfig {
 
 model Cohort {
   id               String          @id @default(cuid())
-  name             String          @unique
+  cohortNumber     Int
+  name             String
   description      String?
   startDate        DateTime
   endDate          DateTime?
@@ -184,6 +185,7 @@ model Cohort {
   currentUsers     User[]          @relation("CurrentCohort") // Users who have this as current cohort
   gameConfig       CohortGameConfig?
 
+  @@unique([name, cohortNumber]) // Unique combination of name and number
   @@map("cohorts")
 }
 

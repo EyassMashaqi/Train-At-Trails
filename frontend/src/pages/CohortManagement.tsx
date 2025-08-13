@@ -10,6 +10,7 @@ import LighthouseLogo from '../assets/Lighthouse.png';
 
 interface Cohort {
   id: string;
+  cohortNumber: number;
   name: string;
   description?: string;
   startDate: string;
@@ -25,10 +26,16 @@ interface Cohort {
 }
 
 interface CreateCohortData {
+  cohortNumber: string;
   name: string;
   description: string;
   startDate: string;
   endDate: string;
+}
+
+interface CopyCohortData {
+  newName: string;
+  newCohortNumber: string;
 }
 
 // Remove unused interface
@@ -43,20 +50,29 @@ const CohortManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [copyLoading, setCopyLoading] = useState(false);
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
+  const [copyingCohort, setCopyingCohort] = useState<Cohort | null>(null);
   const [formData, setFormData] = useState<CreateCohortData>({
+    cohortNumber: '',
     name: '',
     description: '',
     startDate: '',
     endDate: ''
   });
   const [editFormData, setEditFormData] = useState<CreateCohortData>({
+    cohortNumber: '',
     name: '',
     description: '',
     startDate: '',
     endDate: ''
+  });
+  const [copyFormData, setCopyFormData] = useState<CopyCohortData>({
+    newName: '',
+    newCohortNumber: ''
   });
 
   useEffect(() => {
@@ -95,16 +111,23 @@ const CohortManagement: React.FC = () => {
 
     try {
       setCreateLoading(true);
-      await api.post('/admin/cohorts', {
+      const payload: any = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         startDate: formData.startDate,
         endDate: formData.endDate || null
-      });
+      };
+      
+      // Add cohortNumber if provided
+      if (formData.cohortNumber.trim()) {
+        payload.cohortNumber = parseInt(formData.cohortNumber.trim());
+      }
+
+      await api.post('/admin/cohorts', payload);
 
       toast.success('Cohort created successfully!');
       setShowCreateModal(false);
-      setFormData({ name: '', description: '', startDate: '', endDate: '' });
+      setFormData({ cohortNumber: '', name: '', description: '', startDate: '', endDate: '' });
       await loadCohorts();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to create cohort';
@@ -122,6 +145,7 @@ const CohortManagement: React.FC = () => {
   const handleEditCohort = (cohort: Cohort) => {
     setEditingCohort(cohort);
     setEditFormData({
+      cohortNumber: cohort.cohortNumber?.toString() || '',
       name: cohort.name,
       description: cohort.description || '',
       startDate: cohort.startDate ? new Date(cohort.startDate).toISOString().slice(0, 16) : '',
@@ -147,23 +171,71 @@ const CohortManagement: React.FC = () => {
 
     try {
       setEditLoading(true);
-      await api.patch(`/admin/cohorts/${editingCohort.id}`, {
+      const payload: any = {
         name: editFormData.name.trim(),
         description: editFormData.description.trim() || null,
         startDate: editFormData.startDate,
         endDate: editFormData.endDate || null
-      });
+      };
+      
+      // Add cohortNumber if provided
+      if (editFormData.cohortNumber.trim()) {
+        payload.cohortNumber = parseInt(editFormData.cohortNumber.trim());
+      }
+
+      await api.patch(`/admin/cohorts/${editingCohort.id}`, payload);
 
       toast.success('Cohort updated successfully!');
       setShowEditModal(false);
       setEditingCohort(null);
-      setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+      setEditFormData({ cohortNumber: '', name: '', description: '', startDate: '', endDate: '' });
       await loadCohorts();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to update cohort';
       toast.error(errorMessage);
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleCopyCohort = (cohort: Cohort) => {
+    setCopyingCohort(cohort);
+    setCopyFormData({ 
+      newName: cohort.name, 
+      newCohortNumber: (cohort.cohortNumber + 1).toString() 
+    });
+    setShowCopyModal(true);
+  };
+
+  const handleCopySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!copyingCohort) return;
+
+    if (!copyFormData.newName.trim() || !copyFormData.newCohortNumber.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setCopyLoading(true);
+      const payload = {
+        newName: copyFormData.newName.trim(),
+        newCohortNumber: parseInt(copyFormData.newCohortNumber.trim())
+      };
+
+      await api.post(`/admin/cohorts/${copyingCohort.id}/copy`, payload);
+
+      toast.success('Cohort copied successfully!');
+      setShowCopyModal(false);
+      setCopyingCohort(null);
+      setCopyFormData({ newName: '', newCohortNumber: '' });
+      await loadCohorts();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to copy cohort';
+      toast.error(errorMessage);
+    } finally {
+      setCopyLoading(false);
     }
   };
 
@@ -292,7 +364,7 @@ const CohortManagement: React.FC = () => {
                       </span>
                       <div>
                         <h3 className="text-xl font-bold text-gray-800">
-                          {cohort.name}
+                          <span className="text-sm text-gray-500 font-medium">#{cohort.cohortNumber}</span> {cohort.name}
                         </h3>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                           cohort.isActive 
@@ -313,6 +385,16 @@ const CohortManagement: React.FC = () => {
                         title="Edit Cohort"
                       >
                         ✏️
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyCohort(cohort);
+                        }}
+                        className="p-2 rounded-full text-purple-600 hover:bg-purple-100 transition-colors"
+                        title="Copy Cohort"
+                      >
+                        📋
                       </button>
                       <button
                         onClick={(e) => {
@@ -405,6 +487,23 @@ const CohortManagement: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleCreateCohort} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Cohort Number (optional)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.cohortNumber}
+                      onChange={(e) => setFormData(prev => ({ ...prev, cohortNumber: e.target.value }))}
+                      placeholder="Leave empty for auto-assignment"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      min="1"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      If not provided, the next available number will be assigned automatically
+                    </p>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Cohort Name *
@@ -500,7 +599,7 @@ const CohortManagement: React.FC = () => {
                     onClick={() => {
                       setShowEditModal(false);
                       setEditingCohort(null);
-                      setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+                      setEditFormData({ cohortNumber: '', name: '', description: '', startDate: '', endDate: '' });
                     }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
                   >
@@ -509,6 +608,21 @@ const CohortManagement: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleUpdateCohort} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Cohort Number *
+                    </label>
+                    <input
+                      type="number"
+                      value={editFormData.cohortNumber}
+                      onChange={(e) => setEditFormData({ ...editFormData, cohortNumber: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      placeholder="Enter cohort number"
+                      min="1"
+                      required
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Cohort Name *
@@ -569,7 +683,7 @@ const CohortManagement: React.FC = () => {
                       onClick={() => {
                         setShowEditModal(false);
                         setEditingCohort(null);
-                        setEditFormData({ name: '', description: '', startDate: '', endDate: '' });
+                        setEditFormData({ cohortNumber: '', name: '', description: '', startDate: '', endDate: '' });
                       }}
                       className="px-6 py-3 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                     >
@@ -587,6 +701,96 @@ const CohortManagement: React.FC = () => {
                         </div>
                       ) : (
                         'Update Cohort'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Copy Cohort Modal */}
+        {showCopyModal && copyingCohort && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">Copy Cohort</h2>
+                  <button
+                    onClick={() => {
+                      setShowCopyModal(false);
+                      setCopyingCohort(null);
+                      setCopyFormData({ newName: '', newCohortNumber: '' });
+                    }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Copying from:</p>
+                  <p className="font-medium text-gray-800">#{copyingCohort.cohortNumber} {copyingCohort.name}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    This will copy all modules, questions, and mini questions but not users or answers.
+                  </p>
+                </div>
+
+                <form onSubmit={handleCopySubmit} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Cohort Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={copyFormData.newName}
+                      onChange={(e) => setCopyFormData({...copyFormData, newName: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      placeholder="Enter new cohort name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Cohort Number *
+                    </label>
+                    <input
+                      type="number"
+                      value={copyFormData.newCohortNumber}
+                      onChange={(e) => setCopyFormData({...copyFormData, newCohortNumber: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      placeholder="Enter new cohort number"
+                      min="1"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCopyModal(false);
+                        setCopyingCohort(null);
+                        setCopyFormData({ newName: '', newCohortNumber: '' });
+                      }}
+                      className="px-6 py-3 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={copyLoading}
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 font-medium shadow-lg disabled:opacity-50"
+                    >
+                      {copyLoading ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Copying...</span>
+                        </div>
+                      ) : (
+                        'Copy Cohort'
                       )}
                     </button>
                   </div>
