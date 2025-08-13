@@ -637,4 +637,102 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
+// Delete cohort (admin only)
+router.delete('/:cohortId', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId } = req.params;
+
+    // Check if cohort exists
+    const cohort = await (prisma as any).cohort.findUnique({
+      where: { id: cohortId },
+      include: {
+        _count: {
+          select: {
+            cohortMembers: true,
+            modules: true,
+            questions: true
+          }
+        }
+      }
+    });
+
+    if (!cohort) {
+      return res.status(404).json({ message: 'Cohort not found' });
+    }
+
+    // Delete in transaction to ensure data integrity
+    await (prisma as any).$transaction(async (tx: any) => {
+      // Delete in reverse dependency order to avoid foreign key constraints
+      
+      // 1. Delete mini answers
+      await tx.miniAnswer.deleteMany({
+        where: { cohortId }
+      });
+
+      // 2. Delete answers
+      await tx.answer.deleteMany({
+        where: { cohortId }
+      });
+
+      // 3. Delete mini questions (through contents)
+      const contents = await tx.content.findMany({
+        where: {
+          question: {
+            cohortId
+          }
+        }
+      });
+
+      for (const content of contents) {
+        await tx.miniQuestion.deleteMany({
+          where: { contentId: content.id }
+        });
+      }
+
+      // 4. Delete contents
+      await tx.content.deleteMany({
+        where: {
+          question: {
+            cohortId
+          }
+        }
+      });
+
+      // 5. Delete questions
+      await tx.question.deleteMany({
+        where: { cohortId }
+      });
+
+      // 6. Delete modules
+      await tx.module.deleteMany({
+        where: { cohortId }
+      });
+
+      // 7. Delete cohort members
+      await tx.cohortMember.deleteMany({
+        where: { cohortId }
+      });
+
+      // 8. Finally delete the cohort
+      await tx.cohort.delete({
+        where: { id: cohortId }
+      });
+    });
+
+    res.json({ 
+      message: 'Cohort deleted successfully',
+      deletedCohort: {
+        id: cohort.id,
+        name: cohort.name,
+        cohortNumber: cohort.cohortNumber,
+        counts: cohort._count
+      }
+    });
+  } catch (error: any) {
+    console.error('Error deleting cohort:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Failed to delete cohort', error: error.message });
+  }
+});
+
 export default router;

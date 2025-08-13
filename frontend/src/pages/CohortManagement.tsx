@@ -75,6 +75,18 @@ const CohortManagement: React.FC = () => {
     newCohortNumber: ''
   });
 
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'number' | 'created'>('number');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+
   useEffect(() => {
     if (!user?.isAdmin) {
       navigate('/dashboard');
@@ -201,7 +213,7 @@ const CohortManagement: React.FC = () => {
   const handleCopyCohort = (cohort: Cohort) => {
     setCopyingCohort(cohort);
     setCopyFormData({ 
-      newName: cohort.name, 
+      newName: `${cohort.name} (Copy)`, 
       newCohortNumber: (cohort.cohortNumber + 1).toString() 
     });
     setShowCopyModal(true);
@@ -249,6 +261,73 @@ const CohortManagement: React.FC = () => {
       toast.error(errorMessage);
     }
   };
+
+  const handleDeleteCohort = (cohort: Cohort) => {
+    setDeletingCohort(cohort);
+    setDeleteConfirmation('');
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCohort = async () => {
+    if (!deletingCohort) return;
+
+    // Validate confirmation
+    if (deleteConfirmation !== deletingCohort.name) {
+      toast.error('Cohort name does not match');
+      return;
+    }
+
+    try {
+      setDeleteLoading(true);
+      await api.delete(`/admin/cohorts/${deletingCohort.id}`);
+      toast.success('Cohort deleted successfully');
+      setShowDeleteModal(false);
+      setDeletingCohort(null);
+      setDeleteConfirmation('');
+      await loadCohorts();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to delete cohort';
+      toast.error(errorMessage);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Filter and sort cohorts
+  const filteredCohorts = React.useMemo(() => {
+    let filtered = cohorts.filter(cohort => {
+      const matchesSearch = cohort.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           cohort.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           cohort.cohortNumber.toString().includes(searchTerm);
+      
+      const matchesStatus = statusFilter === 'all' || 
+                           (statusFilter === 'active' && cohort.isActive) ||
+                           (statusFilter === 'inactive' && !cohort.isActive);
+      
+      return matchesSearch && matchesStatus;
+    });
+
+    // Sort cohorts
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'number':
+          comparison = a.cohortNumber - b.cohortNumber;
+          break;
+        case 'created':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [cohorts, searchTerm, statusFilter, sortBy, sortOrder]);
 
   if (loading) {
     return (
@@ -325,27 +404,105 @@ const CohortManagement: React.FC = () => {
           </div>
         </div>
 
+        {/* Search and Filters */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Search */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Cohorts
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by name, description, or number..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-400">🔍</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active Only</option>
+                <option value="inactive">Inactive Only</option>
+              </select>
+            </div>
+
+            {/* Sort */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sort By
+              </label>
+              <div className="flex space-x-2">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'name' | 'number' | 'created')}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="number">Number</option>
+                  <option value="name">Name</option>
+                  <option value="created">Created Date</option>
+                </select>
+                <button
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+                >
+                  {sortOrder === 'asc' ? '↑' : '↓'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Results count */}
+          <div className="mt-4 text-sm text-gray-600">
+            Showing {filteredCohorts.length} of {cohorts.length} cohorts
+          </div>
+        </div>
+
         {/* Cohorts Grid */}
-        {cohorts.length === 0 ? (
+        {filteredCohorts.length === 0 ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-xl p-12 max-w-2xl mx-auto">
-              <span className="text-8xl mb-6 block">🏫</span>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">No Cohorts Yet</h2>
+              <span className="text-8xl mb-6 block">
+                {cohorts.length === 0 ? '🏫' : '🔍'}
+              </span>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                {cohorts.length === 0 ? 'No Cohorts Yet' : 'No Cohorts Found'}
+              </h2>
               <p className="text-gray-600 mb-8">
-                Get started by creating your first training cohort. Each cohort can have its own modules, 
-                questions, and member progress tracking.
+                {cohorts.length === 0 
+                  ? 'Get started by creating your first training cohort. Each cohort can have its own modules, questions, and member progress tracking.'
+                  : 'No cohorts match your current search criteria. Try adjusting your filters or search terms.'
+                }
               </p>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-4 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg"
-              >
-                Create Your First Cohort
-              </button>
+              {cohorts.length === 0 && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-4 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg"
+                >
+                  Create Your First Cohort
+                </button>
+              )}
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cohorts.map((cohort) => (
+            {filteredCohorts.map((cohort) => (
               <div
                 key={cohort.id}
                 className={`bg-white rounded-xl shadow-lg border-2 transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer ${
@@ -409,6 +566,16 @@ const CohortManagement: React.FC = () => {
                         title={cohort.isActive ? 'Deactivate Cohort' : 'Activate Cohort'}
                       >
                         {cohort.isActive ? '🚫' : '▶️'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCohort(cohort);
+                        }}
+                        className="p-2 rounded-full text-red-600 hover:bg-red-100 transition-colors"
+                        title="Delete Cohort"
+                      >
+                        🗑️
                       </button>
                     </div>
                   </div>
@@ -795,6 +962,91 @@ const CohortManagement: React.FC = () => {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Cohort Modal */}
+        {showDeleteModal && deletingCohort && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-red-600">Delete Cohort</h2>
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeletingCohort(null);
+                      setDeleteConfirmation('');
+                    }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mb-6">
+                  <div className="flex items-center space-x-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
+                    <span className="text-3xl">⚠️</span>
+                    <div>
+                      <p className="font-medium text-red-800">Warning: This action cannot be undone!</p>
+                      <p className="text-sm text-red-600">
+                        All data associated with this cohort will be permanently deleted.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <p className="font-medium text-gray-800 mb-2">
+                      #{deletingCohort.cohortNumber} {deletingCohort.name}
+                    </p>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p>• {deletingCohort._count?.cohortMembers || 0} participants will lose access</p>
+                      <p>• {deletingCohort._count?.modules || 0} modules will be deleted</p>
+                      <p>• {deletingCohort._count?.questions || 0} questions will be deleted</p>
+                      <p>• All answers and progress will be permanently lost</p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-gray-600">
+                    To confirm deletion, please type the cohort name: <strong>{deletingCohort.name}</strong>
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteConfirmation}
+                    placeholder={`Type "${deletingCohort.name}" to confirm`}
+                    className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-4">
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeletingCohort(null);
+                      setDeleteConfirmation('');
+                    }}
+                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteCohort}
+                    disabled={deleteLoading || deleteConfirmation !== deletingCohort.name}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleteLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Deleting...</span>
+                      </div>
+                    ) : (
+                      'Delete Cohort'
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

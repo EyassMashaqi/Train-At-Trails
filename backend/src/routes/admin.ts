@@ -95,18 +95,17 @@ router.get('/stats', async (req: AuthRequest, res) => {
     if (adminUser?.isAdmin) {
       // If a specific cohort is requested, only use that cohort
       if (requestedCohortId) {
-        // Verify the requested cohort exists and is active
+        // Verify the requested cohort exists (removed isActive requirement for admin)
         const requestedCohort = await prisma.cohort.findFirst({
           where: { 
-            id: requestedCohortId,
-            isActive: true 
+            id: requestedCohortId
           }
         });
         
         if (requestedCohort) {
           cohortIds = [requestedCohortId];
         } else {
-          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+          return res.status(400).json({ error: 'Invalid cohort specified' });
         }
       } else {
         // If no specific cohort requested, get all active cohorts (legacy behavior)
@@ -233,18 +232,17 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
     if (adminUser?.isAdmin) {
       // If a specific cohort is requested, only use that cohort
       if (requestedCohortId) {
-        // Verify the requested cohort exists and is active
+        // Verify the requested cohort exists (removed isActive requirement for admin)
         const requestedCohort = await prisma.cohort.findFirst({
           where: { 
-            id: requestedCohortId,
-            isActive: true 
+            id: requestedCohortId
           }
         });
         
         if (requestedCohort) {
           cohortIds = [requestedCohortId];
         } else {
-          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+          return res.status(400).json({ error: 'Invalid cohort specified' });
         }
       } else {
         // If no specific cohort requested, get all active cohorts (legacy behavior)
@@ -2158,26 +2156,24 @@ router.get('/mini-answers', async (req: AuthRequest, res) => {
     if (adminUser?.isAdmin) {
       // If a specific cohort is requested, only use that cohort
       if (requestedCohortId) {
-        // Verify the requested cohort exists and is active
+        // Verify the requested cohort exists (removed isActive requirement for admin)
         const requestedCohort = await prisma.cohort.findFirst({
           where: { 
-            id: requestedCohortId,
-            isActive: true 
+            id: requestedCohortId
           }
         });
         
         if (!requestedCohort) {
-          return res.status(400).json({ error: 'Invalid or inactive cohort specified' });
+          return res.status(400).json({ error: 'Invalid cohort specified' });
         }
         
         cohortIds = [requestedCohortId];
       } else {
-        // For admin users, get all active cohorts
-        const activeCohorts = await prisma.cohort.findMany({
-          where: { isActive: true },
+        // For admin users, get all cohorts (removed isActive requirement)
+        const allCohorts = await prisma.cohort.findMany({
           select: { id: true }
         });
-        cohortIds = activeCohorts.map(c => c.id);
+        cohortIds = allCohorts.map(c => c.id);
       }
     } else {
       // For non-admin users, get their cohort access
@@ -2812,9 +2808,9 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
 router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
   try {
     const { cohortId } = req.params;
-    const { name, description, defaultTheme, cohortNumber } = req.body;
+    const { name, description, defaultTheme, cohortNumber, isActive } = req.body;
 
-    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme, cohortNumber });
+    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme, cohortNumber, isActive });
 
     // Verify cohort exists
     const existingCohort = await prisma.cohort.findUnique({
@@ -2852,6 +2848,7 @@ router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
     if (name !== undefined) updateData.name = name;
     if (cohortNumber !== undefined) updateData.cohortNumber = parseInt(cohortNumber);
     if (description !== undefined) updateData.description = description;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
     if (defaultTheme !== undefined) {
       // Validate theme
       const validThemes = ['trains', 'planes', 'sailboat', 'cars', 'f1'];

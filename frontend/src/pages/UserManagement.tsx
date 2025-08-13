@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 
+
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
 import LighthouseLogo from '../assets/Lighthouse.png';
@@ -37,6 +38,7 @@ interface CohortMembership {
 interface Cohort {
   id: string;
   name: string;
+  cohortNumber: number;
   isActive: boolean;
   startDate: string;
   endDate?: string;
@@ -92,15 +94,15 @@ const UserManagement: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       const [usersResponse, cohortsResponse] = await Promise.all([
         api.get('/admin/users-with-cohorts'),
         api.get('/admin/cohorts')
       ]);
-      
+
       setUsers(usersResponse.data.users || []);
       setCohorts(cohortsResponse.data.cohorts || []);
-      
+
     } catch (error) {
       console.error('❌ Failed to load data:', error);
       toast.error('Failed to load users and cohorts');
@@ -111,7 +113,7 @@ const UserManagement: React.FC = () => {
 
   const loadCohortUsers = async () => {
     if (!selectedCohortId) return;
-    
+
     try {
       setCohortLoading(true);
       const response = await api.get(`/admin/cohort/${selectedCohortId}/users`);
@@ -267,11 +269,18 @@ const UserManagement: React.FC = () => {
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">Select a cohort...</option>
-              {cohorts.map((cohort) => (
-                <option key={cohort.id} value={cohort.id}>
-                  {cohort.name} {!cohort.isActive ? '(Inactive)' : ''}
-                </option>
-              ))}
+              {cohorts
+                .slice() // make a copy so you don’t mutate the original array
+                .sort((a, b) => {
+                  // Example: order by cohortNumber ascending
+                  return a.cohortNumber - b.cohortNumber;
+                })
+                .map((cohort) => (
+                  <option key={cohort.id} value={cohort.id}>
+                    {cohort.name + ' - '} {cohort.cohortNumber} {!cohort.isActive ? '(Inactive)' : ''}
+                  </option>
+                ))}
+
             </select>
             {selectedCohortId && (
               <button
