@@ -463,14 +463,14 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
 
     // Start transaction to copy everything
     const result = await (prisma as any).$transaction(async (tx: any) => {
-      // 1. Create new cohort
+      // 1. Create new cohort (with default dates that should be updated later)
       const newCohort = await tx.cohort.create({
         data: {
           name: newName,
           cohortNumber: parseInt(newCohortNumber),
           description: sourceCohort.description,
-          startDate: sourceCohort.startDate,
-          endDate: sourceCohort.endDate,
+          startDate: new Date(), // Default to current date - should be updated manually
+          endDate: null, // End date set to null - should be set manually
           isActive: false, // Start inactive for safety
           defaultTheme: sourceCohort.defaultTheme
         }
@@ -487,8 +487,8 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
             description: sourceModule.description,
             theme: sourceModule.theme,
             isActive: sourceModule.isActive,
-            isReleased: sourceModule.isReleased,
-            releaseDate: sourceModule.releaseDate,
+            isReleased: false, // Reset release status for copied module
+            // releaseDate excluded - will be set manually later
             cohortId: newCohort.id
           }
         });
@@ -503,12 +503,12 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
               title: sourceQuestion.title,
               content: sourceQuestion.content,
               description: sourceQuestion.description,
-              deadline: sourceQuestion.deadline,
+              deadline: new Date('2099-12-31'), // Far future default - should be updated manually
               points: sourceQuestion.points,
               bonusPoints: sourceQuestion.bonusPoints,
               isActive: sourceQuestion.isActive,
-              isReleased: sourceQuestion.isReleased,
-              releaseDate: sourceQuestion.releaseDate,
+              isReleased: false, // Reset release status for copied question
+              // releaseDate excluded - will be set manually later
               moduleId: newModule.id,
               topicNumber: sourceQuestion.topicNumber,
               category: sourceQuestion.category,
@@ -528,7 +528,7 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
               }
             });
 
-            // Copy content mini questions
+            // Copy content mini questions (without dates and release status)
             for (const sourceMiniQuestion of sourceContent.miniQuestions) {
               await tx.miniQuestion.create({
                 data: {
@@ -536,9 +536,9 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
                   question: sourceMiniQuestion.question,
                   description: sourceMiniQuestion.description,
                   resourceUrl: sourceMiniQuestion.resourceUrl,
-                  releaseDate: sourceMiniQuestion.releaseDate,
-                  isReleased: sourceMiniQuestion.isReleased,
-                  actualReleaseDate: sourceMiniQuestion.actualReleaseDate,
+                  // releaseDate excluded - will be set manually later
+                  isReleased: false, // Reset release status for copied mini question
+                  // actualReleaseDate excluded - will be set when released
                   orderIndex: sourceMiniQuestion.orderIndex,
                   isActive: sourceMiniQuestion.isActive,
                   contentId: newContent.id
@@ -557,12 +557,12 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
             title: sourceQuestion.title,
             content: sourceQuestion.content,
             description: sourceQuestion.description,
-            deadline: sourceQuestion.deadline,
+            deadline: new Date('2099-12-31'), // Far future default - should be updated manually
             points: sourceQuestion.points,
             bonusPoints: sourceQuestion.bonusPoints,
             isActive: sourceQuestion.isActive,
-            isReleased: sourceQuestion.isReleased,
-            releaseDate: sourceQuestion.releaseDate,
+            isReleased: false, // Reset release status for copied question
+            // releaseDate excluded - will be set manually later
             moduleId: null,
             topicNumber: sourceQuestion.topicNumber,
             category: sourceQuestion.category,
@@ -582,7 +582,7 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
             }
           });
 
-          // Copy content mini questions
+          // Copy content mini questions (without dates and release status)
           for (const sourceMiniQuestion of sourceContent.miniQuestions) {
             await tx.miniQuestion.create({
               data: {
@@ -590,9 +590,9 @@ router.post('/:cohortId/copy', authenticateToken, requireAdmin, async (req, res)
                 question: sourceMiniQuestion.question,
                 description: sourceMiniQuestion.description,
                 resourceUrl: sourceMiniQuestion.resourceUrl,
-                releaseDate: sourceMiniQuestion.releaseDate,
-                isReleased: sourceMiniQuestion.isReleased,
-                actualReleaseDate: sourceMiniQuestion.actualReleaseDate,
+                // releaseDate excluded - will be set manually later
+                isReleased: false, // Reset release status for copied mini question
+                // actualReleaseDate excluded - will be set when released
                 orderIndex: sourceMiniQuestion.orderIndex,
                 isActive: sourceMiniQuestion.isActive,
                 contentId: newContent.id
