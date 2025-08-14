@@ -280,6 +280,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         cohort: {
           select: {
             id: true,
+            cohortNumber: true,
             name: true,
             description: true,
             startDate: true,
@@ -321,6 +322,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       activeCohorts: activeCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
+        cohortNumber: membership.cohort.cohortNumber,
         description: membership.cohort.description,
         startDate: membership.cohort.startDate,
         endDate: membership.cohort.endDate,
@@ -334,6 +336,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       graduatedCohorts: graduatedCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
+        cohortNumber: membership.cohort.cohortNumber,
         description: membership.cohort.description,
         startDate: membership.cohort.startDate,
         endDate: membership.cohort.endDate,
@@ -347,6 +350,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       historyCohorts: historyCohorts.map((membership: any) => ({
         id: membership.cohort.id,
         name: membership.cohort.name,
+        cohortNumber: membership.cohort.cohortNumber,
         description: membership.cohort.description,
         startDate: membership.cohort.startDate,
         endDate: membership.cohort.endDate,

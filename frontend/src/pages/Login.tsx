@@ -82,7 +82,7 @@ const Login: React.FC = () => {
         console.log('✅ Login successful, clearing errors and navigating');
         setErrors({ email: '', password: '', general: '' });
         // Navigate to dashboard after successful login
-        navigate('/dashboard');
+        navigate('/cohort-history');
       } else {
         // Set a general error that will persist - this happens when login() returns false
         console.log('🔴 Login failed - setting error state');

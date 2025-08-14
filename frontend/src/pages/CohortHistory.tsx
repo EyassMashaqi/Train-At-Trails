@@ -171,7 +171,7 @@ const CohortHistory: React.FC = () => {
               <span className="text-8xl">⏳</span>
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Welcome to BVisionRY Lighthouse! 
+              Welcome to BVisionRY Lighthouse!
             </h1>
             <p className="text-xl text-gray-600 mb-8">
               You haven't been assigned to any training cohort yet.
@@ -179,7 +179,7 @@ const CohortHistory: React.FC = () => {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-blue-800 text-sm">
                 <strong>What happens next?</strong><br />
-                An admin will assign you to a training cohort where you'll participate in modules, 
+                An admin will assign you to a training cohort where you'll participate in modules,
                 answer questions, and track your progress through the training program.
               </p>
             </div>
@@ -275,12 +275,13 @@ const CohortHistory: React.FC = () => {
                     className="border border-green-200 bg-green-50 rounded-lg p-6 hover:border-green-300 transition-colors cursor-pointer"
                     onClick={() => navigate('/dashboard')}
                   >
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
                       <h3 className="text-xl font-semibold text-gray-900">{cohort.name}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeClass(cohort.status)}`}>
-                        {getStatusIcon(cohort.status)} {cohort.status}
+                      <span className="text-lg font-medium text-gray-600">
+                        #{cohort.cohortNumber}
                       </span>
                     </div>
+
                     {cohort.description && (
                       <p className="text-gray-600 mb-4">{cohort.description}</p>
                     )}
@@ -331,11 +332,11 @@ const CohortHistory: React.FC = () => {
                         {getStatusIcon(cohort.status)} {cohort.status}
                       </span>
                     </div>
-                    
+
                     {cohort.description && (
                       <p className="text-gray-600 mb-4">{cohort.description}</p>
                     )}
-                    
+
                     <div className="bg-gray-50 rounded-lg p-4 mb-4">
                       <p className="text-sm text-gray-700 mb-2">
                         <strong>{getStatusMessage(cohort.status)}</strong>
