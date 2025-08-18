@@ -161,6 +161,7 @@ const GameView: React.FC = () => {
   const [answerNotes, setAnswerNotes] = useState('');
   const [answerFile, setAnswerFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [answerLinkValidation, setAnswerLinkValidation] = useState<{isValid: boolean, message: string}>({ isValid: false, message: '' });
   
   // Target question state for main assignment
   const [targetQuestion, setTargetQuestion] = useState<Question | null>(null);
@@ -581,6 +582,13 @@ const GameView: React.FC = () => {
     } finally {
       setSubmittingMini(null);
     }
+  };
+
+  // Handler for main answer link changes with validation
+  const handleAnswerLinkChange = (value: string) => {
+    setAnswerLink(value);
+    const validation = validateUrl(value);
+    setAnswerLinkValidation(validation);
   };
 
   // Main question submission handler
@@ -1345,10 +1353,23 @@ const GameView: React.FC = () => {
                 <input
                   type="url"
                   value={answerLink}
-                  onChange={(e) => setAnswerLink(e.target.value)}
-                  placeholder="https://github.com/yourusername/your-project"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  onChange={(e) => handleAnswerLinkChange(e.target.value)}
+                  placeholder="https://example.com/article"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+                    answerLink.trim() && !answerLinkValidation.isValid
+                      ? 'border-red-300 focus:ring-red-500'
+                      : answerLink.trim() && answerLinkValidation.isValid
+                      ? 'border-green-300 focus:ring-green-500'
+                      : 'border-gray-300 focus:ring-accent-500'
+                  }`}
                 />
+                {answerLink.trim() && answerLinkValidation.message && (
+                  <p className={`text-xs mt-1 ${
+                    answerLinkValidation.isValid ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {answerLinkValidation.message}
+                  </p>
+                )}
                 <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
                   Share a link to your GitHub repository, deployed app, or other relevant work
                 </p>
@@ -1392,7 +1413,7 @@ const GameView: React.FC = () => {
 
               <button
                 onClick={handleMainAnswerSubmit}
-                disabled={submitting || !answerLink.trim() || !answerNotes.trim()}
+                disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
                 className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
               >
                 {submitting ? (
