@@ -293,6 +293,11 @@ const GameView: React.FC = () => {
     // 2. Either no mini-questions exist OR all mini-questions are completed
     // 3. The user hasn't already answered this question
     
+    console.log('Calculate Target Question Debug:', {
+      modulesCount: modules.length,
+      totalTopics: modules.flatMap(m => m.topics).length
+    });
+    
     for (const module of modules) {
       if (module.isReleased) {
         for (const topic of module.topics) {
@@ -302,13 +307,35 @@ const GameView: React.FC = () => {
             // Check if backend says this topic is available (it handles all future mini-questions logic)
             const isTopicAvailable = topic.status === 'available';
             
+            // Also check if all mini-questions are completed for this topic (fallback logic)
+            const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
+            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
+              topicMiniQuestions.every(mq => mq.hasAnswer);
+            
+            // Topic is available if either:
+            // 1. Backend says it's available, OR
+            // 2. All mini-questions for this topic are completed
+            const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
+            
             // Check if user has already answered this question
             const hasAnswered = progress?.answers?.some(answer => 
               answer.question.questionNumber === topicNumber
             );
             
+            console.log(`Topic ${topicNumber} (${topic.title}):`, {
+              isReleased: topic.isReleased,
+              status: topic.status,
+              isTopicAvailable,
+              allMiniQuestionsCompleted,
+              isActuallyAvailable,
+              hasAnswered,
+              miniQuestionProgress: topic.miniQuestionProgress,
+              miniQuestionsCount: topicMiniQuestions.length,
+              completedMiniQuestions: topicMiniQuestions.filter(mq => mq.hasAnswer).length
+            });
+            
             // Use backend status to determine if this topic is available
-            if (isTopicAvailable && !hasAnswered) {
+            if (isActuallyAvailable && !hasAnswered) {
               foundTargetQuestion = {
                 id: topic.id, // Keep as string, don't convert to int
                 questionNumber: topicNumber,
@@ -318,6 +345,7 @@ const GameView: React.FC = () => {
                 releaseDate: topic.deadline,
                 hasAnswered: false
               };
+              console.log('Found target question:', foundTargetQuestion);
               break;
             }
           }
@@ -1186,6 +1214,21 @@ const GameView: React.FC = () => {
 
     // Main assignment is locked if there are any incomplete mini-questions (current or future)
     const isMainAssignmentLocked = totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions;
+
+    // Debug logging
+    console.log('Main Assignment Debug:', {
+      targetQuestionNumber: targetQuestion.questionNumber,
+      totalAllMiniQuestions,
+      completedAllMiniQuestions,
+      isMainAssignmentLocked,
+      hasFutureMiniQuestions,
+      relatedTopic: relatedTopic ? {
+        id: relatedTopic.id,
+        title: relatedTopic.title,
+        status: relatedTopic.status,
+        miniQuestionProgress: relatedTopic.miniQuestionProgress
+      } : null
+    });
 
     // Only show main question form if:
     // 1. All mini-questions (including future ones) are completed
