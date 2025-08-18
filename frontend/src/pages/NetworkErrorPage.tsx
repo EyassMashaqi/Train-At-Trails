@@ -37,7 +37,6 @@ const NetworkErrorPage: React.FC<NetworkErrorPageProps> = ({
         window.location.reload();
       }
     } catch (error) {
-      console.error('Retry failed:', error);
     } finally {
       setIsRetrying(false);
     }

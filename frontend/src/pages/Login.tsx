@@ -28,7 +28,6 @@ const Login: React.FC = () => {
         // Note: AuthContext already shows a toast with the specific error message
       }
     } catch (error) {
-      console.error('Admin login error:', error);
       setErrors(prev => ({ ...prev, general: 'Failed to login as admin. Please try again.' }));
     } finally {
       setLoading(false);
@@ -41,7 +40,6 @@ const Login: React.FC = () => {
       e.stopPropagation();
     }
     
-    console.log('🔵 Form submitted, preventing default behavior');
     
     // Clear previous general errors but keep field-specific errors if they exist
     setErrors(prev => ({ ...prev, general: '' }));
@@ -73,24 +71,19 @@ const Login: React.FC = () => {
     setLoading(true);
     
     try {
-      console.log('🔵 About to call login function');
       const success = await login(email.trim(), password);
-      console.log('🔵 Login function returned:', success);
       
       if (success) {
         // Clear errors on successful login
-        console.log('✅ Login successful, clearing errors and navigating');
         setErrors({ email: '', password: '', general: '' });
         // Navigate to dashboard after successful login
         navigate('/cohort-history');
       } else {
         // Set a general error that will persist - this happens when login() returns false
-        console.log('🔴 Login failed - setting error state');
         setErrors(prev => ({ ...prev, general: 'Login failed. Please check your credentials and try again.' }));
         // Note: AuthContext already shows a toast with the specific error message
       }
     } catch (error: unknown) {
-      console.error('Unexpected login error:', error);
       setErrors(prev => ({ ...prev, general: 'An unexpected error occurred. Please try again.' }));
     } finally {
       setLoading(false);

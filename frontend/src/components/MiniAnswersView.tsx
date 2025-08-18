@@ -77,15 +77,12 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       // Use provided cohort users or load all users if no cohort is selected
       let usersData: User[] = [];
       if (selectedCohortId && cohortUsers) {
-        console.log(`🎯 Using cohort users for cohort: ${selectedCohortId}`);
         usersData = cohortUsers;
       } else {
-        console.log('📊 Loading all users for Self Learning (no cohort specified)');
         const usersResponse = await adminService.getAllUsers();
         usersData = usersResponse.data.users;
       }
 
-      console.log(`🎯 Loading Self Learning data for cohort: ${selectedCohortId || 'all cohorts'}`);
 
       const [miniAnswersResponse, questionsResponse] = await Promise.all([
         adminService.getAllMiniAnswers(selectedCohortId),
@@ -98,7 +95,6 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       // Extract all released self learning activities from released questions only
       const releasedMiniQuestions: MiniQuestion[] = [];
       questionsData.forEach((question: any) => {
-        console.log(`📋 Processing Question ${question.questionNumber}: "${question.title}" - Released: ${question.isReleased}`);
         
         // Only process self learning activities if the parent main question is also released
         if (question.isReleased && question.contents) {
@@ -106,7 +102,6 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
             if (content.miniQuestions) {
               content.miniQuestions.forEach((miniQ: any) => {
                 if (miniQ.isReleased) {
-                  console.log(`  ✅ Adding self learning activity: "${miniQ.title}" from Q${question.questionNumber}`);
                   releasedMiniQuestions.push({
                     id: miniQ.id,
                     title: miniQ.title,
@@ -122,18 +117,13 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
                       }
                     }
                   });
-                } else {
-                  console.log(`  ❌ Skipping unreleased self learning activity: "${miniQ.title}" from Q${question.questionNumber}`);
                 }
               });
             }
           });
-        } else if (!question.isReleased) {
-          console.log(`  🔒 Skipping unreleased main question Q${question.questionNumber}`);
         }
       });
 
-      console.log(`📊 Total released self learning activities from released main questions: ${releasedMiniQuestions.length}`);
 
       // Create user-self-learning mapping
       const userMiniQuestionsMap: UserWithMiniQuestions[] = usersData.map((user: User) => {
@@ -171,7 +161,6 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       setAllReleasedMiniQuestions(releasedMiniQuestions);
       setUserMiniQuestions(userMiniQuestionsMap);
     } catch (error) {
-      console.error('Failed to load data:', error);
       toast.error('Failed to load self learning data');
     } finally {
       setLoading(false);

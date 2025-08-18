@@ -79,7 +79,6 @@ const Dashboard: React.FC = () => {
           navigate('/cohort-history');
         }
       } catch (error) {
-        console.error('Failed to check cohort access:', error);
         // If API fails, assume no access and redirect
         navigate('/cohort-history');
       }
@@ -133,7 +132,6 @@ const Dashboard: React.FC = () => {
 
         setActiveQuestionsCount(count);
       } catch (error) {
-        console.error('Failed to fetch active questions:', error);
       }
     };
 

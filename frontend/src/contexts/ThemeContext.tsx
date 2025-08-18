@@ -66,7 +66,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         setCurrentTheme(availableThemes[0]);
       }
     } catch (error) {
-      console.error('Failed to fetch cohort theme:', error);
       // Use default theme on error
       setCurrentTheme(availableThemes[0]);
       setCurrentCohort(null);

@@ -104,7 +104,6 @@ const UserManagement: React.FC = () => {
       setCohorts(cohortsResponse.data.cohorts || []);
 
     } catch (error) {
-      console.error('❌ Failed to load data:', error);
       toast.error('Failed to load users and cohorts');
     } finally {
       setLoading(false);
@@ -119,7 +118,6 @@ const UserManagement: React.FC = () => {
       const response = await api.get(`/admin/cohort/${selectedCohortId}/users`);
       setCohortUsers(response.data.members || []);
     } catch (error) {
-      console.error('❌ Failed to load cohort users:', error);
       toast.error('Failed to load cohort users');
     } finally {
       setCohortLoading(false);

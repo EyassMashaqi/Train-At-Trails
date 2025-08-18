@@ -101,7 +101,6 @@ const CohortManagement: React.FC = () => {
       const response = await api.get('/admin/cohorts');
       setCohorts(response.data.cohorts || []);
     } catch (error) {
-      console.error('Failed to load cohorts:', error);
       toast.error('Failed to load cohorts');
     } finally {
       setLoading(false);

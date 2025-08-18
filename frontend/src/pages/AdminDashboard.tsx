@@ -31,6 +31,7 @@ interface User {
 interface PendingAnswer {
   id: number;
   content: string;
+  notes?: string;
   submittedAt: string;
   hasAttachment: boolean;
   attachmentInfo?: {
@@ -186,7 +187,7 @@ const AdminDashboard: React.FC = () => {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
+        await response.text();
         let errorMessage = 'Failed to download attachment';
         
         if (response.status === 403) {
@@ -197,7 +198,6 @@ const AdminDashboard: React.FC = () => {
           errorMessage = 'Authentication required. Please login again.';
         }
         
-        console.error('Download error:', { status: response.status, error: errorText });
         throw new Error(errorMessage);
       }
       
@@ -213,7 +213,6 @@ const AdminDashboard: React.FC = () => {
       
       toast.success(`Downloaded ${fileName} successfully!`);
     } catch (error) {
-      console.error('Download error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to download attachment');
     }
   };
@@ -297,12 +296,9 @@ const AdminDashboard: React.FC = () => {
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin, selectedCohortId });
       
       // First load cohorts to get cohort details
-      console.log('🔄 Loading cohorts...');
       const cohortsResponse = await adminService.getAllCohorts();
-      console.log('✅ Cohorts loaded:', cohortsResponse.data);
       setAllCohorts(cohortsResponse.data.cohorts || []);
       
       // Find selected cohort details
@@ -310,60 +306,42 @@ const AdminDashboard: React.FC = () => {
       if (selectedCohortId) {
         currentCohort = cohortsResponse.data.cohorts?.find((c: any) => c.id === selectedCohortId);
         setSelectedCohort(currentCohort);
-        console.log('🎯 Selected cohort:', currentCohort);
       }
 
       // Load data based on whether a cohort is selected
       let usersResponse, pendingResponse, statsResponse;
       if (selectedCohortId) {
-        console.log('🔄 Loading cohort-specific data...');
         // Load cohort-specific data
         [usersResponse, pendingResponse, statsResponse] = await Promise.all([
           adminService.getCohortUsers(selectedCohortId).catch(err => {
-            console.error('❌ Failed to load cohort users:', err);
             throw err;
           }),
           adminService.getPendingAnswers(selectedCohortId).catch(err => {
-            console.error('❌ Failed to load pending answers:', err);
             throw err;
           }),
           adminService.getGameStats(selectedCohortId).catch(err => {
-            console.error('❌ Failed to load game stats:', err);
             throw err;
           }),
         ]);
-        console.log('✅ Cohort data loaded:', { 
-          users: usersResponse.data.members || usersResponse.data.users || [], 
-          pending: pendingResponse.data.pendingAnswers?.length || 0,
-          stats: statsResponse.data 
-        });
       } else {
-        console.log('🔄 Loading all data...');
         // Load all data
         [usersResponse, pendingResponse, statsResponse] = await Promise.all([
           adminService.getAllUsers(),
           adminService.getPendingAnswers(),
           adminService.getGameStats(),
         ]);
-        console.log('✅ All data loaded');
       }
 
-      console.log('🔄 Loading modules and progress...');
       const [modulesResponse, progressResponse] = await Promise.all([
         adminService.getAllModules(selectedCohortId || undefined).catch(err => {
-          console.error('❌ Failed to load modules:', err);
           throw err;
         }),
         gameService.getProgress().catch(err => {
-          console.error('❌ Failed to load progress:', err);
           throw err;
         }) // Get totalSteps
       ]);
 
-      console.log('✅ Modules and progress loaded:', { 
-        modules: modulesResponse.data.modules?.length || 0,
-        totalSteps: progressResponse.data.totalSteps 
-      });
+
 
       const allUsersData = usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || [];
       setAllUsers(allUsersData);
@@ -534,7 +512,6 @@ const AdminDashboard: React.FC = () => {
       const filteredUsers = response.data.members || [];
       setUsers(filteredUsers);
     } catch (error) {
-      console.error('Failed to filter users:', error);
       toast.error('Failed to filter users');
       // Fallback to client-side filtering
       if (status === 'all') {
@@ -1231,7 +1208,6 @@ const AdminDashboard: React.FC = () => {
         );
       }
     } catch (error) {
-      console.error('Failed to update cohort default theme:', error);
       toast.error('Failed to update cohort default theme');
     }
   }, [selectedCohortId, modules]);
@@ -1274,7 +1250,6 @@ const AdminDashboard: React.FC = () => {
         )
       );
     } catch (error) {
-      console.error('Failed to update module theme:', error);
       toast.error('Failed to update module theme');
     }
   }, [modules, currentCohort, selectedCohortId]);
@@ -1962,11 +1937,6 @@ const AdminDashboard: React.FC = () => {
                       }))
                     };
 
-                    console.log('📤 Sending assignment data:', {
-                      moduleId: selectedModuleForTopic,
-                      topicData: topicData
-                    });
-
                     const response = await adminService.createTopic(selectedModuleForTopic, topicData);
                     const newTopic = response.data;
                     
@@ -1993,7 +1963,6 @@ const AdminDashboard: React.FC = () => {
                     });
                     setSelectedModuleForTopic('');
                   } catch (error) {
-                    console.error('Error creating topic:', error);
                     toast.error('Failed to create assignment');
                   }
                 }}
@@ -2141,7 +2110,6 @@ const AdminDashboard: React.FC = () => {
                     // Refresh data to ensure consistency
                     await loadAdminData();
                   } catch (error) {
-                    console.error('Error updating module:', error);
                     toast.error('Failed to update module');
                   }
                 }}
@@ -2164,7 +2132,6 @@ const AdminDashboard: React.FC = () => {
                       setShowEditModuleModal(false);
                       setSelectedModule(null);
                     } catch (error) {
-                      console.error('Error deleting module:', error);
                       toast.error('Failed to delete module');
                     }
                   }
@@ -2547,7 +2514,6 @@ const AdminDashboard: React.FC = () => {
                     // Refresh data to ensure consistency
                     await loadAdminData();
                   } catch (error) {
-                    console.error('Error updating assignment:', error);
                     toast.error('Failed to update assignment');
                   }
                 }}
@@ -2578,7 +2544,6 @@ const AdminDashboard: React.FC = () => {
                       setShowEditTopicModal(false);
                       setSelectedTopic(null);
                     } catch (error) {
-                      console.error('Error deleting assignment:', error);
                       toast.error('Failed to delete assignment');
                     }
                   }
@@ -2681,7 +2646,6 @@ const AdminDashboard: React.FC = () => {
                       description: ''
                     });
                   } catch (error) {
-                    console.error('Error creating module:', error);
                     toast.error('Failed to create module');
                   }
                 }}

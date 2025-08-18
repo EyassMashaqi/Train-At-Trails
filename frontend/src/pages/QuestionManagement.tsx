@@ -80,7 +80,6 @@ const QuestionManagement: React.FC = () => {
       const response = await adminService.getAllQuestions();
       setQuestions(response.data.questions || []);
     } catch (error) {
-      console.error('Failed to load questions:', error);
       toast.error('Failed to load questions');
     } finally {
       setLoading(false);
@@ -96,7 +95,6 @@ const QuestionManagement: React.FC = () => {
           : q
       ));
     } catch (error) {
-      console.error('Failed to load question answers:', error);
       toast.error('Failed to load answers for this question');
     }
   }, []);
@@ -141,7 +139,6 @@ const QuestionManagement: React.FC = () => {
       });
       await loadQuestions();
     } catch (error) {
-      console.error('Failed to create question:', error);
       toast.error('Failed to create question');
     }
   };
@@ -152,7 +149,6 @@ const QuestionManagement: React.FC = () => {
       toast.success('Question released successfully!');
       await loadQuestions();
     } catch (error) {
-      console.error('Failed to release question:', error);
       toast.error('Failed to release question');
     }
   };
@@ -167,7 +163,6 @@ const QuestionManagement: React.FC = () => {
       toast.success('Question deleted successfully!');
       await loadQuestions();
     } catch (error) {
-      console.error('Failed to delete question:', error);
       toast.error('Failed to delete question');
     }
   };

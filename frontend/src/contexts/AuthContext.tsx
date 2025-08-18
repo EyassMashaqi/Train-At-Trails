@@ -82,7 +82,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuth(userData, accessToken, newRefreshToken);
       return true;
     } catch (error) {
-      console.error('Failed to refresh token:', error);
       clearAuth();
       return false;
     }
@@ -97,7 +96,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(accessToken);
       return true;
     } catch (error) {
-      console.error('Failed to verify token:', error);
       // Try to refresh token if verification fails
       return await refreshAuth();
     }
@@ -119,10 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [verifyToken]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      console.log('🔐 Attempting login for:', email);
-      console.log('🌐 API Base URL:', api.defaults.baseURL);
-      
+    try {     
       // Basic client-side validation
       if (!email || !password) {
         toast.error('Please enter both email and password');
@@ -135,12 +130,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const { user: userData, token: userToken, refreshToken } = response.data;
 
-      console.log('✅ Login successful:', userData.fullName);
       setAuth(userData, userToken, refreshToken);
       toast.success(`Welcome back, ${userData.fullName}!`);
       return true;
     } catch (error: unknown) {
-      console.error('❌ Login failed:', error);
       
       // Extract error details
       const axiosError = error as {
@@ -168,12 +161,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         errorMessage = 'Unable to connect to server. Please check your internet connection.';
       }
 
-      console.error('Login error details:', {
-        status: axiosError.response?.status,
-        error: axiosError.response?.data?.error,
-        code: axiosError.response?.data?.code,
-        message: axiosError.message
-      });
 
       toast.error(errorMessage);
       return false;

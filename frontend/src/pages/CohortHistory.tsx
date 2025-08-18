@@ -11,6 +11,7 @@ import LighthouseLogo from '../assets/Lighthouse.png';
 interface CohortInfo {
   id: string;
   name: string;
+  cohortNumber?: number;
   description?: string;
   startDate: string;
   endDate?: string;
@@ -56,7 +57,6 @@ const CohortHistory: React.FC = () => {
       const response = await api.get('/game/cohort-history');
       setCohortHistory(response.data);
     } catch (error) {
-      console.error('Failed to load cohort history:', error);
       toast.error('Failed to load cohort history');
     } finally {
       setLoading(false);

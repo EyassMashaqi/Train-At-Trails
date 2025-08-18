@@ -25,6 +25,7 @@ interface Question {
 interface Answer {
   id: number;
   content: string;
+  linkUrl?: string;
   notes?: string;
   status: string;
   grade?: string; // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
@@ -190,7 +191,7 @@ const GameView: React.FC = () => {
   };
 
   // Get medal icon for grade
-  const getMedalForGrade = (grade?: string) => {
+  const getMedalForGrade = (grade?: string | null) => {
     switch (grade) {
       case 'GOLD': return '🥇';
       case 'SILVER': return '🥈';
@@ -200,7 +201,7 @@ const GameView: React.FC = () => {
   };
 
   // Get the best grade for a completed step
-  const getBestGradeForStep = (step: number) => {
+  const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
     
     const stepAnswers = progress.answers.filter(answer => 
@@ -212,14 +213,14 @@ const GameView: React.FC = () => {
     
     // Find the best grade (Gold > Silver > Copper)
     const gradeOrder = { 'GOLD': 3, 'SILVER': 2, 'COPPER': 1 };
-    let bestGrade = null;
+    let bestGrade: string | null = null;
     let bestScore = 0;
     
     for (const answer of stepAnswers) {
       const score = gradeOrder[answer.grade as keyof typeof gradeOrder] || 0;
       if (score > bestScore) {
         bestScore = score;
-        bestGrade = answer.grade;
+        bestGrade = answer.grade || null;
       }
     }
     
@@ -267,7 +268,6 @@ const GameView: React.FC = () => {
       const { isEnrolled } = response.data;
       
       if (!isEnrolled) {
-        console.log('🎯 User not enrolled in any cohort, redirecting to cohort selection...');
         navigate('/cohort-history');
         return;
       }
@@ -275,7 +275,6 @@ const GameView: React.FC = () => {
       // If enrolled, proceed to load game data
       loadGameData();
     } catch (error) {
-      console.error('Failed to check cohort status:', error);
       // If we can't check cohort status, still try to load game data
       // The error will be handled in loadGameData
       loadGameData();
@@ -285,8 +284,6 @@ const GameView: React.FC = () => {
   // Calculate target question based on current progress and modules
   const calculateTargetQuestion = useMemo(() => {
     if (!progress || !modules || modules.length === 0) return null;
-
-    const userCurrentStep = progress.currentStep;
     
     let foundTargetQuestion = null;
     
@@ -305,35 +302,10 @@ const GameView: React.FC = () => {
             // Check if backend says this topic is available (it handles all future mini-questions logic)
             const isTopicAvailable = topic.status === 'available';
             
-            // Get mini-questions for this topic (for display purposes)
-            const topicMiniQuestions = miniQuestions.filter(mq => 
-              mq.questionNumber === topicNumber
-            );
-            
-            const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
-            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || completedMiniQuestions === topicMiniQuestions.length;
-            
             // Check if user has already answered this question
             const hasAnswered = progress?.answers?.some(answer => 
               answer.question.questionNumber === topicNumber
             );
-            
-            // Check if there are future mini-questions by comparing backend progress data
-            const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
-            
-            console.log(`🔍 Checking topic ${topicNumber}:`, {
-              topicTitle: topic.title,
-              topicNumber,
-              userCurrentStep,
-              totalMiniQuestions: topicMiniQuestions.length,
-              completedMiniQuestions,
-              allMiniQuestionsCompleted,
-              hasAnswered,
-              isTopicAvailable,
-              hasFutureMiniQuestions,
-              backendStatus: topic.status,
-              isAvailable: isTopicAvailable && !hasAnswered
-            });
             
             // Use backend status to determine if this topic is available
             if (isTopicAvailable && !hasAnswered) {
@@ -346,7 +318,6 @@ const GameView: React.FC = () => {
                 releaseDate: topic.deadline,
                 hasAnswered: false
               };
-              console.log('🎯 Found target question:', foundTargetQuestion);
               break;
             }
           }
@@ -358,40 +329,25 @@ const GameView: React.FC = () => {
     // Fallback to currentQuestion if no topic found (legacy mode)
     if (!foundTargetQuestion && currentQuestion) {
       foundTargetQuestion = currentQuestion;
-      console.log('🔄 Using fallback currentQuestion:', foundTargetQuestion);
     }
     
-    console.log('📝 Final target question result:', foundTargetQuestion);
     return foundTargetQuestion;
   }, [progress, modules, currentQuestion, miniQuestions]);
 
   // Update target question state when calculated value changes
   useEffect(() => {
-    console.log('🎯 Target question calculation:', {
-      calculateTargetQuestion,
-      userCurrentStep: progress?.currentStep,
-      modulesCount: modules?.length,
-      miniQuestionsCount: miniQuestions?.length
-    });
     setTargetQuestion(calculateTargetQuestion);
   }, [calculateTargetQuestion]);
 
   const loadGameData = async () => {
     try {
       setLoading(true);
-      console.log('🎮 GameView: Loading game data...');
       
       const [progressResponse, leaderboardResponse, modulesResponse] = await Promise.all([
         gameService.getProgress(),
         gameService.getLeaderboard(),
         gameService.getModules()
       ]);
-
-      console.log('🎮 GameView: Raw API responses:', {
-        progress: progressResponse.data,
-        leaderboard: leaderboardResponse.data,
-        modules: modulesResponse.data
-      });
 
       const data = progressResponse.data;
 
@@ -525,14 +481,12 @@ const GameView: React.FC = () => {
       setLeaderboard(possibleData);
       setLeaderboardLoading(false);
     } catch (error) {
-      console.error('Failed to load game data:', error);
-      
+     
       // Check if the error is due to user not being enrolled in any cohort
       const axiosError = error as any;
       if (axiosError?.response?.status === 400 && 
           (axiosError?.response?.data?.error?.includes('not enrolled in any active cohort') ||
            axiosError?.response?.data?.error?.includes('not enrolled in any cohort'))) {
-        console.log('🎯 User not enrolled in any cohort, redirecting to cohort selection...');
         navigate('/cohort-history');
         return;
       }
@@ -627,11 +581,7 @@ const GameView: React.FC = () => {
 
     try {
       setSubmitting(true);
-      console.log('Submitting answer with target question:', {
-        id: targetQuestion.id,
-        questionNumber: targetQuestion.questionNumber,
-        title: targetQuestion.title
-      });
+
       
       // Submit using link + notes format
       await gameService.submitAnswer(
@@ -1916,19 +1866,6 @@ const GameView: React.FC = () => {
                             const isCompleted = topicStatus === 'completed';
                             const isSubmitted = topicStatus === 'submitted';
                             
-                            // Debug logging for topic status
-                            console.log(`🔍 Topic ${topic.topicNumber} Status Debug:`, {
-                              topicTitle: topic.title,
-                              originalBackendStatus: topic.status,
-                              finalStatus: topicStatus,
-                              totalAllMiniQuestions,
-                              completedAllMiniQuestions,
-                              hasAnswered,
-                              isAvailable,
-                              isLocked,
-                              isCompleted,
-                              isSubmitted
-                            });
                             
                             // Assignment display logic: Show released topics
                             if (!topicIsReleased) {
@@ -1985,7 +1922,7 @@ const GameView: React.FC = () => {
                                     <span className="text-xl mr-3">{statusIcon}</span>
                                     <div>
                                       <h5 className={`font-medium ${textColor}`}>
-                                        Topic {topic.topicNumber}: {topic.title}
+                                        Assignment {topic.topicNumber}: {topic.title}
                                       </h5>
                                       <p className={`text-sm ${textColor.replace('800', '600')}`}>
                                         {isLocked && topicStatus === 'mini_questions_required'

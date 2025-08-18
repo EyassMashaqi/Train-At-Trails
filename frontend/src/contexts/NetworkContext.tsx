@@ -80,7 +80,6 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({
       }
       return isConnected;
     } catch (error) {
-      console.error('Network retry failed:', error);
       return false;
     }
   };

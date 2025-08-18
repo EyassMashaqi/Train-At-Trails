@@ -6,7 +6,7 @@ interface GradingModalProps {
   onClose: () => void;
   onGrade: (grade: string, feedback: string) => void;
   answer: {
-    id: string;
+    id: string | number;
     content: string;
     notes?: string;
     user: {
