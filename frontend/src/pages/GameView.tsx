@@ -228,6 +228,21 @@ const GameView: React.FC = () => {
     return bestGrade;
   };
 
+  // Get medal for user at their current step (for leaderboard display)
+  const getUserMedal = (user: LeaderboardUser): string | null => {
+    // If user hasn't completed any step, no medal
+    if (user.currentStep === 0) return null;
+    
+    // If this is the current user, use their progress data
+    if (currentUser && user.id === currentUser.id) {
+      return getMedalForGrade(getBestGradeForStep(user.currentStep));
+    }
+    
+    // For other users, we don't have their answer data, so we can't show medals
+    // In a real implementation, you'd need to fetch user-specific medal data from the backend
+    return null;
+  };
+
   // Helper function to calculate total released questions
   const getTotalReleasedQuestions = (): number => {
     // Use progress.totalSteps if available (from backend calculation)
@@ -874,6 +889,31 @@ const GameView: React.FC = () => {
                 }
               })()}
             </div>
+
+            {/* User medals at each step (for all users who have completed this step) */}
+            {leaderboard && leaderboard.map((user, userIndex) => {
+              // Only show medal if user has completed this step and it's their current step
+              if (user.currentStep === step && user.currentStep > 0) {
+                const userMedal = getUserMedal(user);
+                const isCurrentUser = currentUser && user.id === currentUser.id;
+                
+                return userMedal ? (
+                  <div
+                    key={`${step}-${user.id}-medal`}
+                    className={`absolute top-6 transform -translate-x-1/2 bg-gradient-to-r from-accent-200 to-accent-300 text-gray-900 rounded-full w-4 h-4 flex items-center justify-center shadow-lg ${
+                      isCurrentUser ? 'ring-2 ring-yellow-400' : ''
+                    }`}
+                    style={{ 
+                      left: `${(userIndex - Math.floor(leaderboard.length / 2)) * 8}px`,
+                      zIndex: isCurrentUser ? 15 : 10
+                    }}
+                  >
+                    <span className="text-xs">{userMedal}</span>
+                  </div>
+                ) : null;
+              }
+              return null;
+            })}
           </div>
         ))}
 
@@ -1662,8 +1702,10 @@ const GameView: React.FC = () => {
 
             {/* All User Trains */}
             {leaderboard.map((user, index) => {
-              const position = Math.max(1, user.currentStep) / totalReleasedQuestions * 100;
+              // Position users based on their current step, including step 0
+              const position = user.currentStep === 0 ? 2 : (user.currentStep / totalReleasedQuestions) * 100;
               const isCurrentUser = currentUser && user.id === currentUser.id;
+              const userMedal = getUserMedal(user);
 
               return (
                 <div
@@ -1692,6 +1734,13 @@ const GameView: React.FC = () => {
                     <div className={`absolute -top-1 -right-1 ${themeClasses.accentButton} ${themeClasses.buttonText} rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
                       {index + 1}
                     </div>
+
+                    {/* Medal Badge (beside the rank badge, only if user has completed a step and has a medal) */}
+                    {userMedal && user.currentStep > 0 && (
+                      <div className="absolute -top-1 -left-1 bg-gradient-to-r from-accent-200 to-accent-300 text-gray-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg">
+                        {userMedal}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1709,6 +1758,8 @@ const GameView: React.FC = () => {
             <div className="divide-y divide-gray-200">
               {leaderboard.map((user, index) => {
                 const isCurrentUser = currentUser && user.id === currentUser.id;
+                const userMedal = getUserMedal(user);
+                
                 return (
                   <div
                     key={user.id}
@@ -1735,6 +1786,14 @@ const GameView: React.FC = () => {
                         }`}>
                           {index + 1}
                         </div>
+                        
+                        {/* Medal Badge beside rank number (only if user has completed a step and has a medal) */}
+                        {userMedal && user.currentStep > 0 && (
+                          <div className="bg-gradient-to-r from-accent-200 to-accent-300 text-gray-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg mr-2">
+                            {userMedal}
+                          </div>
+                        )}
+                        
                         <div>
                           <div className={`font-semibold flex items-center ${isCurrentUser ? themeClasses.primaryTextDark : themeClasses.textPrimary
                             }`}>

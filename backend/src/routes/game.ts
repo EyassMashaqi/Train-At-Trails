@@ -698,11 +698,10 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
 
-    // Filter and format users with progress > 0 (excluding admins)
+    // Filter and format users (excluding admins) - include all users regardless of progress
     const users = cohortMembers
       .filter(member => 
-        !member.user.isAdmin && 
-        member.user.currentStep > 0
+        !member.user.isAdmin
       )
       .map(member => member.user)
       .sort((a, b) => {

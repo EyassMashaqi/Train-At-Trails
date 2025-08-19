@@ -488,7 +488,7 @@ const UserManagement: React.FC = () => {
                 <option value="">Choose a cohort...</option>
                 {cohorts.filter(c => c.isActive).map((cohort) => (
                   <option key={cohort.id} value={cohort.id}>
-                    {cohort.name}
+                    {cohort.name} - {cohort.cohortNumber}
                   </option>
                 ))}
               </select>
