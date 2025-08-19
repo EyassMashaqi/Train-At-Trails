@@ -201,6 +201,18 @@ const GameView: React.FC = () => {
     }
   };
 
+  // Get rank medal based on leaderboard position
+  const getRankMedal = (rank: number) => {
+    switch (rank) {
+      case 1: return '🥇';
+      case 2: return '🥈';
+      case 3: return '🥉';
+      case 4: return '🏅';
+      case 5: return '🏅';
+      default: return '🎖️';
+    }
+  };
+
   // Get the best grade for a completed step
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
@@ -1731,8 +1743,12 @@ const GameView: React.FC = () => {
                     </div>
 
                     {/* Rank Badge */}
-                    <div className={`absolute -top-1 -right-1 ${themeClasses.accentButton} ${themeClasses.buttonText} rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
-                      {index + 1}
+                    <div className={`absolute -top-1 -right-1 ${
+                      currentTheme.id === 'trains' 
+                        ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white' 
+                        : `${themeClasses.accentButton} ${themeClasses.buttonText}`
+                    } rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
+                      {getRankMedal(index + 1)}
                     </div>
 
                     {/* Medal Badge (beside the rank badge, only if user has completed a step and has a medal) */}
@@ -1784,7 +1800,7 @@ const GameView: React.FC = () => {
                                   index === 2 ? themeClasses.secondaryButton : themeClasses.primaryButton
                               }`
                         }`}>
-                          {index + 1}
+                          {getRankMedal(index + 1)}
                         </div>
                         
                         {/* Medal Badge beside rank number (only if user has completed a step and has a medal) */}
@@ -1910,7 +1926,7 @@ const GameView: React.FC = () => {
                       {isReleased && (
                         <>
                           <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full mr-3">
-                            {module.topics.length} Topic{module.topics.length !== 1 ? 's' : ''}
+                            {module.topics.length} Assignment{module.topics.length !== 1 ? 's' : ''}
                           </span>
                           <div className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
                             }`}>

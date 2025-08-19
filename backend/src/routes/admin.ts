@@ -2579,7 +2579,7 @@ router.post('/assign-user-cohort', async (req: AuthRequest, res) => {
     if (user.cohortMembers.length > 0) {
       const currentCohort = user.cohortMembers[0];
       return res.status(400).json({ 
-        error: `User is already enrolled in cohort: ${currentCohort.cohort.name}. Please change their status first.` 
+        error: `User is already enrolled in cohort: ${currentCohort.cohort.name} - ${currentCohort.cohort.cohortNumber}. Please change their status first.` 
       });
     }
 
