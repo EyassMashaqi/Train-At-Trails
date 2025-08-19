@@ -213,6 +213,28 @@ const GameView: React.FC = () => {
     }
   };
 
+  // Check if user has answered any questions up to their current step
+  const userHasAnswered = (user: LeaderboardUser): boolean => {
+    // If user hasn't progressed at all, no answers
+    if (user.currentStep === 0) return false;
+    
+    // If this is the current user, check their progress data
+    if (currentUser && user.id === currentUser.id && progress?.answers) {
+      // Check if user has any approved answers for steps 1 through their current step
+      return progress.answers.some(answer => 
+        answer.question?.questionNumber <= user.currentStep && 
+        answer.status === 'APPROVED'
+      );
+    }
+    // For other users, we don't have their answer data, so assume they have answered if they progressed
+    return user.currentStep > 0;
+  };
+
+  // Get rank display (medal or empty circle) based on whether user has answered
+  const getRankDisplay = (rank: number, user: LeaderboardUser) => {
+    return userHasAnswered(user) ? getRankMedal(rank) : '○';
+  };
+
   // Get the best grade for a completed step
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
@@ -247,7 +269,10 @@ const GameView: React.FC = () => {
     
     // If this is the current user, use their progress data
     if (currentUser && user.id === currentUser.id) {
-      return getMedalForGrade(getBestGradeForStep(user.currentStep));
+      // Check if user has actually answered the question for their current step
+      const grade = getBestGradeForStep(user.currentStep);
+      // Only show medal if user has answered and got a grade
+      return grade ? getMedalForGrade(grade) : null;
     }
     
     // For other users, we don't have their answer data, so we can't show medals
@@ -1748,7 +1773,7 @@ const GameView: React.FC = () => {
                         ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white' 
                         : `${themeClasses.accentButton} ${themeClasses.buttonText}`
                     } rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
-                      {getRankMedal(index + 1)}
+                      {getRankDisplay(index + 1, user)}
                     </div>
 
                     {/* Medal Badge (beside the rank badge, only if user has completed a step and has a medal) */}
@@ -1800,7 +1825,7 @@ const GameView: React.FC = () => {
                                   index === 2 ? themeClasses.secondaryButton : themeClasses.primaryButton
                               }`
                         }`}>
-                          {getRankMedal(index + 1)}
+                          {getRankDisplay(index + 1, user)}
                         </div>
                         
                         {/* Medal Badge beside rank number (only if user has completed a step and has a medal) */}
