@@ -2265,6 +2265,58 @@ router.get('/mini-answers', async (req: AuthRequest, res) => {
   }
 });
 
+// Request resubmission for a mini-answer (admin requests user to update their answer)
+router.post('/mini-answer/:miniAnswerId/request-resubmission', async (req: AuthRequest, res) => {
+  try {
+    const { miniAnswerId } = req.params;
+    const { userId } = req.body;
+    const adminId = req.user!.id;
+
+    // Verify mini-answer exists and belongs to the specified user
+    const miniAnswer = await (prisma as any).miniAnswer.findUnique({
+      where: { id: miniAnswerId },
+      include: {
+        user: true,
+        miniQuestion: {
+          include: {
+            content: {
+              include: {
+                question: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!miniAnswer) {
+      return res.status(404).json({ error: 'Mini-answer not found' });
+    }
+
+    if (miniAnswer.userId !== userId) {
+      return res.status(400).json({ error: 'Mini-answer does not belong to the specified user' });
+    }
+
+    // Update mini-answer to mark as requiring resubmission
+    const updatedMiniAnswer = await (prisma as any).miniAnswer.update({
+      where: { id: miniAnswerId },
+      data: {
+        resubmissionRequested: true,
+        resubmissionRequestedAt: new Date(),
+        resubmissionRequestedBy: adminId
+      }
+    });
+
+    res.json({ 
+      message: `Resubmission requested for ${miniAnswer.user.fullName}'s answer to "${miniAnswer.miniQuestion.title}"`,
+      miniAnswer: updatedMiniAnswer 
+    });
+  } catch (error) {
+    console.error('Request mini-answer resubmission error:', error);
+    res.status(500).json({ error: 'Failed to request resubmission' });
+  }
+});
+
 // Create mini-question for content
 router.post('/contents/:contentId/mini-questions', async (req: AuthRequest, res) => {
   try {

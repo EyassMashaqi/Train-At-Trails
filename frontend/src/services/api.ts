@@ -206,6 +206,10 @@ export const adminService = {
     api.put(`/admin/answer/${answerId}/resubmission-request`, { 
       approve 
     }),
+
+  // Mini-answer resubmission requests
+  requestMiniAnswerResubmission: (miniAnswerId: string, userId: number) =>
+    api.post(`/admin/mini-answer/${miniAnswerId}/request-resubmission`, { userId }),
   
   getGameStats: (cohortId?: string) => {
     const params = cohortId ? `?cohortId=${cohortId}` : '';

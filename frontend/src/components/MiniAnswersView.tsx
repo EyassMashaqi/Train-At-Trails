@@ -3,7 +3,29 @@ import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface User {
-  id: number;
+  const toggleUserExpansion = (userId: number) => {
+    const newExpanded = new Set(expandedUsers);
+    if (newExpanded.has(userId)) {
+      newExpanded.delete(userId);
+    } else {
+      newExpanded.add(userId);
+    }
+    setExpandedUsers(newExpanded);
+  };
+
+  const handleRequestResubmission = async (miniAnswerId: string, userId: number, userName: string, questionTitle: string) => {
+    try {
+      if (confirm(`Request ${userName} to resubmit their answer for "${questionTitle}"?`)) {
+        await adminService.requestMiniAnswerResubmission(miniAnswerId, userId);
+        toast.success(`Resubmission request sent to ${userName}`);
+        // Reload data to update the display
+        await loadData();
+      }
+    } catch (error: any) {
+      console.error('Error requesting resubmission:', error);
+      toast.error(error.response?.data?.error || 'Failed to request resubmission');
+    }
+  };ber;
   fullName: string;
   trainName: string;
   email: string;
@@ -349,7 +371,7 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
                                 </div>
                               )}
                             </div>
-                            <div className="ml-4">
+                            <div className="ml-4 flex space-x-2">
                               <button
                                 disabled={!miniQ.hasAnswer}
                                 onClick={() => {
@@ -387,6 +409,17 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
                               >
                                 {miniQ.hasAnswer ? 'Show Answer' : 'No Answer'}
                               </button>
+                              
+                              {/* Request Resubmission Button */}
+                              {miniQ.hasAnswer && (
+                                <button
+                                  onClick={() => handleRequestResubmission(miniQ.answer!.id, item.user.id, item.user.fullName, miniQ.title)}
+                                  className="px-3 py-1 rounded text-sm font-medium transition-colors bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200"
+                                  title="Request user to resubmit this answer"
+                                >
+                                  Request Resubmission
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

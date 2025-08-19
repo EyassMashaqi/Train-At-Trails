@@ -191,6 +191,20 @@ const GameView: React.FC = () => {
     }
   };
 
+  // Handle resubmission request
+  const handleResubmissionRequest = async (answerId: number) => {
+    try {
+      await gameService.requestResubmission(answerId.toString());
+      toast.success('Resubmission request sent! Waiting for admin approval.');
+      
+      // Refresh progress to update answer status
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error requesting resubmission:', error);
+      toast.error(error.response?.data?.error || 'Failed to request resubmission');
+    }
+  };
+
   // Get medal icon for grade
   const getMedalForGrade = (grade?: string | null) => {
     switch (grade) {
@@ -904,20 +918,31 @@ const GameView: React.FC = () => {
             className="absolute top-16 transform -translate-x-1/2"
             style={{ left: `${(step / progress.totalSteps) * 100}%` }}
           >
-            <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
-                ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText} shadow-lg`
-                : step === progress.currentStep + 1
-                  ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText} animate-pulse shadow-lg`
-                  : 'bg-gray-300 border-gray-400 text-gray-700'
-              }`}>
-              {step}
-            </div>
-            <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
+            <div className="relative">
+              <div className={`w-6 h-6 rounded-full border-4 flex items-center justify-center text-xs font-bold transition-all duration-300 ${step <= progress.currentStep
+                  ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText} shadow-lg`
+                  : step === progress.currentStep + 1
+                    ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText} animate-pulse shadow-lg`
+                    : 'bg-gray-300 border-gray-400 text-gray-700'
+                }`}>
+                {step}
+              </div>
+              {/* Medal beside question number */}
               {(() => {
                 const medal = getMedalForGrade(getBestGradeForStep(step));
                 if (medal && step <= progress.currentStep) {
-                  return medal;
-                } else if (step <= progress.currentStep) {
+                  return (
+                    <div className="absolute -top-1 -right-6 bg-gradient-to-r from-amber-200 to-amber-300 text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold shadow-lg">
+                      {medal}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+            <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
+              {(() => {
+                if (step <= progress.currentStep) {
                   return '✓';
                 } else if (step === progress.currentStep + 1) {
                   return '⭐';
@@ -2201,13 +2226,35 @@ const GameView: React.FC = () => {
                     <h4 className="font-semibold text-gray-800">
                       Question {answer.question.questionNumber}
                     </h4>
-                    <p className="text-sm text-gray-600 capitalize">
-                      Status: {answer.status}
-                    </p>
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm text-gray-600 capitalize">
+                        Status: {answer.status}
+                      </p>
+                      {/* Show grade medal */}
+                      {answer.grade && (
+                        <div className="flex items-center space-x-1">
+                          <span className="text-sm text-gray-600">Grade:</span>
+                          <span className="text-lg">{getMedalForGrade(answer.grade)}</span>
+                          <span className="text-xs text-gray-500">({answer.grade})</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {new Date(answer.submittedAt).toLocaleDateString()}
+                <div className="flex items-center space-x-2">
+                  <div className="text-xs text-gray-500">
+                    {new Date(answer.submittedAt).toLocaleDateString()}
+                  </div>
+                  {/* Resubmission request button */}
+                  {(answer.status === 'APPROVED' || answer.status === 'REJECTED') && (
+                    <button
+                      onClick={() => handleResubmissionRequest(answer.id)}
+                      className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 border border-blue-200"
+                      title="Request to resubmit this answer"
+                    >
+                      Request Resubmission
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg mb-4">

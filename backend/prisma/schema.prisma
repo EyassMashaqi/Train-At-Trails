@@ -141,16 +141,22 @@ model MiniQuestion {
 }
 
 model MiniAnswer {
-  id             String       @id @default(cuid())
-  linkUrl        String       // The submitted link
-  notes          String?      // Optional notes from user
-  submittedAt    DateTime     @default(now())
-  userId         String
-  miniQuestionId String
-  cohortId       String       // Mini answer belongs to a specific cohort
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  miniQuestion   MiniQuestion @relation(fields: [miniQuestionId], references: [id], onDelete: Cascade)
-  cohort         Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  id                        String       @id @default(cuid())
+  linkUrl                   String       // The submitted link
+  notes                     String?      // Optional notes from user
+  submittedAt               DateTime     @default(now())
+  userId                    String
+  miniQuestionId            String
+  cohortId                  String       // Mini answer belongs to a specific cohort
+  
+  // Resubmission request fields
+  resubmissionRequested     Boolean      @default(false)
+  resubmissionRequestedAt   DateTime?
+  resubmissionRequestedBy   String?      // Admin who requested resubmission
+  
+  user                      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  miniQuestion              MiniQuestion @relation(fields: [miniQuestionId], references: [id], onDelete: Cascade)
+  cohort                    Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
   @@unique([userId, miniQuestionId, cohortId]) // One answer per user per mini-question per cohort
   @@map("mini_answers")
