@@ -3,29 +3,7 @@ import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface User {
-  const toggleUserExpansion = (userId: number) => {
-    const newExpanded = new Set(expandedUsers);
-    if (newExpanded.has(userId)) {
-      newExpanded.delete(userId);
-    } else {
-      newExpanded.add(userId);
-    }
-    setExpandedUsers(newExpanded);
-  };
-
-  const handleRequestResubmission = async (miniAnswerId: string, userId: number, userName: string, questionTitle: string) => {
-    try {
-      if (confirm(`Request ${userName} to resubmit their answer for "${questionTitle}"?`)) {
-        await adminService.requestMiniAnswerResubmission(miniAnswerId, userId);
-        toast.success(`Resubmission request sent to ${userName}`);
-        // Reload data to update the display
-        await loadData();
-      }
-    } catch (error: any) {
-      console.error('Error requesting resubmission:', error);
-      toast.error(error.response?.data?.error || 'Failed to request resubmission');
-    }
-  };ber;
+  id: number;
   fullName: string;
   trainName: string;
   email: string;
@@ -201,6 +179,20 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       newExpanded.add(userId);
     }
     setExpandedUsers(newExpanded);
+  };
+
+  const handleRequestResubmission = async (miniAnswerId: string, userId: number, userName: string, questionTitle: string) => {
+    try {
+      if (confirm(`Request ${userName} to resubmit their answer for "${questionTitle}"?`)) {
+        await adminService.requestMiniAnswerResubmission(miniAnswerId, userId);
+        toast.success(`Resubmission request sent to ${userName}`);
+        // Reload data to update the display
+        await loadData();
+      }
+    } catch (error: any) {
+      console.error('Error requesting resubmission:', error);
+      toast.error(error.response?.data?.error || 'Failed to request resubmission');
+    }
   };
 
   const filteredUserMiniQuestions = userMiniQuestions.filter(item =>

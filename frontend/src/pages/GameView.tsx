@@ -198,7 +198,7 @@ const GameView: React.FC = () => {
       toast.success('Resubmission request sent! Waiting for admin approval.');
       
       // Refresh progress to update answer status
-      await fetchData();
+      await loadGameData();
     } catch (error: any) {
       console.error('Error requesting resubmission:', error);
       toast.error(error.response?.data?.error || 'Failed to request resubmission');
