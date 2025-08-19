@@ -89,6 +89,8 @@ interface MiniQuestion {
     linkUrl: string;
     notes: string;
     submittedAt: string;
+    resubmissionRequested?: boolean;
+    resubmissionRequestedAt?: string;
   };
   contentId: string;
   contentTitle: string;
@@ -927,16 +929,43 @@ const GameView: React.FC = () => {
                 }`}>
                 {step}
               </div>
-              {/* Medal beside question number */}
+              
+              {/* Enhanced Badge beside question number */}
               {(() => {
                 const medal = getMedalForGrade(getBestGradeForStep(step));
-                if (medal && step <= progress.currentStep) {
+                const hasAnswer = step <= progress.currentStep;
+                
+                if (hasAnswer) {
                   return (
-                    <div className="absolute -top-1 -right-6 bg-gradient-to-r from-amber-200 to-amber-300 text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold shadow-lg">
-                      {medal}
+                    <div className="absolute -top-2 -right-8 flex items-center">
+                      {/* Grade Medal Badge */}
+                      {medal && (
+                        <div className="bg-gradient-to-r from-amber-100 to-amber-200 border-2 border-amber-300 text-gray-900 rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-lg animate-bounce">
+                          {medal}
+                        </div>
+                      )}
+                      
+                      {/* Completion Badge (if no grade medal) */}
+                      {!medal && (
+                        <div className="bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-300 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
+                          ✓
+                        </div>
+                      )}
                     </div>
                   );
                 }
+                
+                // Future steps - show preview badge
+                if (step === progress.currentStep + 1) {
+                  return (
+                    <div className="absolute -top-2 -right-8">
+                      <div className="bg-gradient-to-r from-blue-100 to-blue-200 border-2 border-blue-300 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+                        ⭐
+                      </div>
+                    </div>
+                  );
+                }
+                
                 return null;
               })()}
             </div>
@@ -1209,14 +1238,102 @@ const GameView: React.FC = () => {
                             </div>
 
                             {miniQuestion.hasAnswer ? (
-                              <div className={`${themeClasses.accentBg} rounded-lg p-3`}>
-                                <p className={`${themeClasses.accentTextSafe} font-medium mb-2`}>✅ Completed</p>
-                                <div className={`text-sm ${themeClasses.accentTextSafeLight}`}>
-                                  <p><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className={`${themeClasses.primaryText} hover:underline`}>{miniQuestion.answer?.linkUrl}</a></p>
+                              <div className={`rounded-lg p-3 ${
+                                miniQuestion.answer?.resubmissionRequested 
+                                  ? 'bg-orange-50 border border-orange-200' 
+                                  : `${themeClasses.accentBg}`
+                              }`}>
+                                {miniQuestion.answer?.resubmissionRequested ? (
+                                  <div className="mb-3">
+                                    <p className="text-orange-700 font-medium mb-1">🔄 Resubmission Requested</p>
+                                    <p className="text-orange-600 text-sm">
+                                      Admin has requested you to update this answer. Please provide a new submission below.
+                                    </p>
+                                    {miniQuestion.answer?.resubmissionRequestedAt && (
+                                      <p className="text-orange-500 text-xs mt-1">
+                                        Requested on {new Date(miniQuestion.answer.resubmissionRequestedAt).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className={`${themeClasses.accentTextSafe} font-medium mb-2`}>✅ Completed</p>
+                                )}
+                                
+                                <div className={`text-sm mb-3 ${
+                                  miniQuestion.answer?.resubmissionRequested 
+                                    ? 'text-gray-600' 
+                                    : `${themeClasses.accentTextSafeLight}`
+                                }`}>
+                                  <p><strong>Current Answer:</strong></p>
+                                  <p className="ml-2"><strong>Link:</strong> <a href={miniQuestion.answer?.linkUrl} target="_blank" rel="noopener noreferrer" className={`${themeClasses.primaryText} hover:underline`}>{miniQuestion.answer?.linkUrl}</a></p>
                                   {miniQuestion.answer?.notes && (
-                                    <p className="mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
+                                    <p className="ml-2 mt-1"><strong>Notes:</strong> {miniQuestion.answer.notes}</p>
                                   )}
+                                  <p className="ml-2 text-xs mt-1 opacity-75">
+                                    Submitted on {miniQuestion.answer?.submittedAt ? new Date(miniQuestion.answer.submittedAt).toLocaleDateString() : 'Unknown'}
+                                  </p>
                                 </div>
+                                
+                                {miniQuestion.answer?.resubmissionRequested && (
+                                  <div className="border-t border-orange-200 pt-3">
+                                    <p className="text-orange-700 font-medium mb-2">Provide New Answer:</p>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          New Link URL *
+                                        </label>
+                                        <input
+                                          type="url"
+                                          value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
+                                          onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
+                                          placeholder="https://example.com/article"
+                                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                                            urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
+                                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                              : urlValidation[miniQuestion.id]?.isValid === true
+                                                ? 'border-accent-300 focus:ring-accent-500 focus:border-accent-500'
+                                                : 'border-gray-300 focus:ring-orange-500 focus:border-transparent'
+                                          }`}
+                                        />
+                                        {urlValidation[miniQuestion.id]?.message && (
+                                          <p className={`text-xs mt-1 ${
+                                            urlValidation[miniQuestion.id]?.isValid 
+                                              ? 'text-green-600' 
+                                              : 'text-red-500'
+                                          }`}>
+                                            {urlValidation[miniQuestion.id]?.message}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Updated Notes (optional)
+                                        </label>
+                                        <textarea
+                                          value={miniAnswers[miniQuestion.id]?.notes || ''}
+                                          onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'notes', e.target.value)}
+                                          placeholder="Add any additional notes or thoughts..."
+                                          rows={3}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleMiniAnswerSubmit(miniQuestion.id)}
+                                        disabled={submittingMini === miniQuestion.id || !miniAnswers[miniQuestion.id]?.linkUrl?.trim()}
+                                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                      >
+                                        {submittingMini === miniQuestion.id ? (
+                                          <div className="flex items-center">
+                                            <span className="animate-spin mr-2">⏳</span>
+                                            Resubmitting...
+                                          </div>
+                                        ) : (
+                                          'Submit Updated Answer'
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="space-y-3">

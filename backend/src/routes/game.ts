@@ -870,7 +870,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
                     id: true,
                     linkUrl: true,
                     notes: true,
-                    submittedAt: true
+                    submittedAt: true,
+                    resubmissionRequested: true,
+                    resubmissionRequestedAt: true
                   }
                 }
               },
