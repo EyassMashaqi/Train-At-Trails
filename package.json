@@ -14,8 +14,11 @@
     "check": "npm run validate"
   },
   "devDependencies": {
+    "@types/node": "^24.3.0",
     "@types/react": "^19.1.10",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.0.0",

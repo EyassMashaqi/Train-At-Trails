@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import gameRoutes from './routes/game';
 import adminRoutes from './routes/admin';
 import cohortRoutes from './routes/cohorts';
+import emailRoutes from './routes/email';
 
 // Import services
 import { startQuestionScheduler } from './services/questionScheduler';
@@ -109,6 +110,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/cohorts', cohortRoutes);
+app.use('/api/admin/email', emailRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

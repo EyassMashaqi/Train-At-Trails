@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import emailService from '../services/emailService';
 
 // Note: TypeScript may show errors for Prisma client methods like prisma.module and prisma.topic
 // This is a temporary issue with TypeScript language server not recognizing updated Prisma types
@@ -566,6 +567,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
             questionNumber: true,
             title: true
           }
+        },
+        user: {
+          select: {
+            email: true,
+            fullName: true
+          }
         }
       }
     });
@@ -582,6 +589,21 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         }
       })
     } : null;
+
+    // Send email notification to user
+    try {
+      const questionTitle = answer.question?.title || `Question ${answer.question?.questionNumber || 'N/A'}`;
+      await emailService.sendAnswerSubmissionEmail(
+        answer.user.email,
+        answer.user.fullName,
+        questionTitle,
+        answer.question?.questionNumber || 0
+      );
+      console.log(`✅ Submission confirmation email sent to ${answer.user.email} for ${questionTitle}`);
+    } catch (emailError) {
+      console.error('❌ Failed to send submission confirmation email:', emailError);
+      // Don't fail the request if email sending fails
+    }
 
     res.status(201).json({
       message: isResubmission 

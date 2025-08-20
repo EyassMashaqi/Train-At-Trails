@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
+import emailService from '../services/emailService';
 import fs from 'fs';
 import path from 'path';
 
@@ -409,6 +410,23 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
           currentStep: newStep
         }
       });
+    }
+
+    // Send email notification to user
+    try {
+      const questionTitle = `Question ${answer.question?.questionNumber || 'N/A'}`;
+      await emailService.sendAnswerFeedbackEmail(
+        answer.user.email,
+        answer.user.fullName,
+        questionTitle,
+        answer.question?.questionNumber || 0,
+        grade,
+        feedback
+      );
+      console.log(`✅ Feedback email sent to ${answer.user.email} for ${questionTitle}`);
+    } catch (emailError) {
+      console.error('❌ Failed to send feedback email:', emailError);
+      // Don't fail the request if email sending fails
     }
 
     res.json({
