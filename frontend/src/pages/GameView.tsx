@@ -213,6 +213,7 @@ const GameView: React.FC = () => {
       case 'GOLD': return '🥇';
       case 'SILVER': return '🥈';
       case 'COPPER': return '🥉';
+      case 'NEEDS_RESUBMISSION': return '❌';
       default: return null;
     }
   };
@@ -932,7 +933,8 @@ const GameView: React.FC = () => {
               
               {/* Enhanced Badge beside question number */}
               {(() => {
-                const medal = getMedalForGrade(getBestGradeForStep(step));
+                const grade = getBestGradeForStep(step);
+                const medal = getMedalForGrade(grade);
                 const hasAnswer = step <= progress.currentStep;
                 
                 if (hasAnswer) {
@@ -940,15 +942,25 @@ const GameView: React.FC = () => {
                     <div className="absolute -top-2 -right-8 flex items-center">
                       {/* Grade Medal Badge */}
                       {medal && (
-                        <div className="bg-gradient-to-r from-amber-100 to-amber-200 border-2 border-amber-300 text-gray-900 rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-lg animate-bounce">
+                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-lg animate-bounce border-2 ${
+                          grade === 'NEEDS_RESUBMISSION' 
+                            ? 'bg-gradient-to-r from-red-100 to-red-200 border-red-300 text-red-900'
+                            : grade === 'GOLD'
+                            ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
+                            : grade === 'SILVER'
+                            ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText}`
+                            : grade === 'COPPER'
+                            ? `${themeClasses.primaryButton} ${themeClasses.primaryBorder} ${themeClasses.buttonText}`
+                            : `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
+                        }`}>
                           {medal}
                         </div>
                       )}
                       
-                      {/* Completion Badge (if no grade medal) */}
+                      {/* Completion Badge (if no grade available yet) */}
                       {!medal && (
-                        <div className="bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-300 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
-                          ✓
+                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`}>
+                          
                         </div>
                       )}
                     </div>
