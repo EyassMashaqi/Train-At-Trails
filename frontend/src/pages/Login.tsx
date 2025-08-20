@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
+// Import images
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,13 +22,12 @@ const Login: React.FC = () => {
       const success = await login('admin@traintrails.com', 'admin123');
       if (success) {
         setErrors({ email: '', password: '', general: '' }); // Clear all errors
-        navigate('/admin');
+        navigate('/cohorts');
       } else {
         setErrors(prev => ({ ...prev, general: 'Admin login failed. Please try again.' }));
         // Note: AuthContext already shows a toast with the specific error message
       }
     } catch (error) {
-      console.error('Admin login error:', error);
       setErrors(prev => ({ ...prev, general: 'Failed to login as admin. Please try again.' }));
     } finally {
       setLoading(false);
@@ -38,7 +40,6 @@ const Login: React.FC = () => {
       e.stopPropagation();
     }
     
-    console.log('🔵 Form submitted, preventing default behavior');
     
     // Clear previous general errors but keep field-specific errors if they exist
     setErrors(prev => ({ ...prev, general: '' }));
@@ -70,24 +71,19 @@ const Login: React.FC = () => {
     setLoading(true);
     
     try {
-      console.log('🔵 About to call login function');
       const success = await login(email.trim(), password);
-      console.log('🔵 Login function returned:', success);
       
       if (success) {
         // Clear errors on successful login
-        console.log('✅ Login successful, clearing errors and navigating');
         setErrors({ email: '', password: '', general: '' });
         // Navigate to dashboard after successful login
-        navigate('/dashboard');
+        navigate('/cohort-history');
       } else {
         // Set a general error that will persist - this happens when login() returns false
-        console.log('🔴 Login failed - setting error state');
         setErrors(prev => ({ ...prev, general: 'Login failed. Please check your credentials and try again.' }));
         // Note: AuthContext already shows a toast with the specific error message
       }
     } catch (error: unknown) {
-      console.error('Unexpected login error:', error);
       setErrors(prev => ({ ...prev, general: 'An unexpected error occurred. Please try again.' }));
     } finally {
       setLoading(false);
@@ -95,15 +91,15 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex flex-col items-center mb-6 space-y-6">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
               BVisionRY Lighthouse
             </h1>
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-32 h-32 lighthouse-logo"
             />
@@ -147,7 +143,7 @@ const Login: React.FC = () => {
                   className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
                     errors.email 
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                   }`}
                   placeholder="Enter your email"
                 />
@@ -184,7 +180,7 @@ const Login: React.FC = () => {
                   className={`appearance-none relative block w-full pl-10 pr-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:z-10 ${
                     errors.password 
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                   }`}
                   placeholder="Enter your password"
                 />
@@ -209,7 +205,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center">
@@ -230,7 +226,7 @@ const Login: React.FC = () => {
               Don't have an account?{' '}
               <Link
                 to="/register"
-                className="font-medium text-blue-600 hover:text-blue-500"
+                className="font-medium text-primary-600 hover:text-primary-500"
               >
                 Sign up here
               </Link>
@@ -250,7 +246,7 @@ const Login: React.FC = () => {
                 <button
                   onClick={handleAdminLogin}
                   disabled={loading}
-                  className="w-full py-2 px-4 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="w-full py-2 px-4 border border-primary-300 text-sm font-medium rounded-md text-primary-700 bg-primary-50 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
                 >
                   Quick Admin Login
                 </button>

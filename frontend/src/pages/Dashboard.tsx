@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { gameService } from '../services/api';
+import { getThemeClasses, getVehicleIcon } from '../utils/themes';
 
 interface Topic {
   id: string;
@@ -20,15 +22,70 @@ interface Answer {
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { currentTheme } = useTheme();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTrainAnimation, setShowTrainAnimation] = useState(false);
   const [activeQuestionsCount, setActiveQuestionsCount] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(12); // Default fallback, will be updated from API
+
+  // Get theme-specific classes
+  const themeClasses = useMemo(() => getThemeClasses(currentTheme), [currentTheme]);
+  const vehicleIcon = useMemo(() => getVehicleIcon(currentTheme), [currentTheme]);
+
+  // Memoized time formatter to reduce re-renders
+  const formattedTime = useMemo(() => currentTime.toLocaleTimeString(), [currentTime]);
+  const formattedDate = useMemo(() => 
+    currentTime.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }), [currentTime]);
+
+  // Memoized progress percentage
+  const progressPercentage = useMemo(() => 
+    Math.round((user?.currentStep || 0) / totalSteps * 100), 
+    [user?.currentStep, totalSteps]);
+
+  const handleStartGame = useCallback(() => {
+    navigate('/game');
+  }, [navigate]);
+
+  const handleAdminDashboard = useCallback(() => {
+    navigate('/cohorts');
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+  }, [logout]);
 
   useEffect(() => {
-    // Redirect admin users to admin dashboard
+    // Redirect admin users to cohort management
     if (user && user.isAdmin) {
-      navigate('/admin');
+      navigate('/cohorts');
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    // Check if user has active cohort assignment
+    const checkCohortAccess = async () => {
+      try {
+        const response = await gameService.getCohortHistory();
+        const hasActive = response.data.hasActiveCohort;
+        
+        // Redirect to cohort history if no active cohort or not enrolled
+        if (!hasActive) {
+          navigate('/cohort-history');
+        }
+      } catch (error) {
+        // If API fails, assume no access and redirect
+        navigate('/cohort-history');
+      }
+    };
+
+    if (user && !user.isAdmin) {
+      checkCohortAccess();
     }
   }, [user, navigate]);
 
@@ -40,11 +97,16 @@ const Dashboard: React.FC = () => {
           gameService.getProgress(),
           gameService.getModules()
         ]);
-        
+
         let count = 0;
-        
+
         const data = progressResponse.data;
-        
+
+        // Set total steps from API response
+        if (data.totalSteps) {
+          setTotalSteps(data.totalSteps);
+        }
+
         // Count ALL released topics that haven't been answered (don't double count)
         const modules = modulesResponse.data.modules || [];
         modules.forEach((module: Module) => {
@@ -52,7 +114,7 @@ const Dashboard: React.FC = () => {
             module.topics.forEach((topic: Topic) => {
               if (topic.isReleased) {
                 const hasAnswered = data.answers?.some((answer: Answer) =>
-                  answer.topic?.id === topic.id && 
+                  answer.topic?.id === topic.id &&
                   (answer.status === 'APPROVED' || answer.status === 'PENDING')
                 );
                 if (!hasAnswered) {
@@ -62,15 +124,14 @@ const Dashboard: React.FC = () => {
             });
           }
         });
-        
+
         // If no module topics available, check for legacy current question
         if (count === 0 && data.currentQuestion && (!modules || modules.length === 0)) {
           count = 1;
         }
-        
+
         setActiveQuestionsCount(count);
       } catch (error) {
-        console.error('Failed to fetch active questions:', error);
       }
     };
 
@@ -79,13 +140,14 @@ const Dashboard: React.FC = () => {
     }
   }, [user]);
 
+  // Optimized clock update with reduced frequency for performance
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  // Welcome animation - memoized to prevent recreation
   useEffect(() => {
-    // Welcome animation
     const animationTimer = setTimeout(() => setShowTrainAnimation(true), 500);
     const resetTimer = setTimeout(() => setShowTrainAnimation(false), 3500);
     return () => {
@@ -94,27 +156,19 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const handleStartGame = () => {
-    navigate('/game');
-  };
-
-  const handleAdminDashboard = () => {
-    navigate('/admin');
-  };
-
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50 to-secondary-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin text-6xl mb-4">🔄</div>
-          <p className="text-gray-600">Loading...</p>
+          <p className={themeClasses.textSecondary}>Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className={`min-h-screen bg-gradient-to-br ${themeClasses.cardBg}`}>
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 animate-float">
@@ -136,21 +190,21 @@ const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-6">
-              <img 
-                src="./src/assets/BVisionRY.png" 
-                alt="BVisionRY Company Logo" 
+              <img
+                src="./src/assets/BVisionRY.png"
+                alt="BVisionRY Company Logo"
                 className="w-40 h-14 px-4 py-2 bvisionary-logo"
               />
               <div className="flex-1">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold text-gray-900">
                   BVisionRY Lighthouse
                 </h1>
-                <p className="text-lg text-gray-600">Welcome back, {user.fullName}!</p>
+                <p className={`text-lg ${themeClasses.textSecondary}`}>Welcome back, {user.fullName}!</p>
               </div>
               <div className={`transition-all duration-1000 ${showTrainAnimation ? 'transform scale-110' : ''}`}>
-                <img 
-                  src="./src/assets/Lighthouse.png" 
-                  alt="Lighthouse Logo" 
+                <img
+                  src="./src/assets/Lighthouse.png"
+                  alt="Lighthouse Logo"
                   className="w-24 h-24 lighthouse-logo drop-shadow-lg"
                 />
               </div>
@@ -159,15 +213,27 @@ const Dashboard: React.FC = () => {
               {user.isAdmin && (
                 <button
                   onClick={handleAdminDashboard}
-                  className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex items-center shadow-lg transform hover:scale-105"
+                  className={`${themeClasses.primaryButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.primaryButtonHover} transition-all duration-200 flex items-center shadow-lg transform hover:scale-105`}
                 >
                   <span className="mr-2">⚙️</span>
                   Admin Panel
                 </button>
               )}
               <button
-                onClick={logout}
-                className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 flex items-center shadow-lg"
+                onClick={handleLogout}
+                className={`${
+                  currentTheme.id === 'planes' 
+                    ? 'bg-gradient-to-r from-slate-600 to-blue-700 hover:from-slate-700 hover:to-blue-800 text-white' 
+                    : currentTheme.id === 'trains' 
+                    ? 'bg-gradient-to-r from-blue-600 to-yellow-600 hover:from-blue-700 hover:to-yellow-700 text-white' 
+                    : currentTheme.id === 'sailboat' 
+                    ? 'bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white' 
+                    : currentTheme.id === 'cars' 
+                    ? 'bg-gradient-to-r from-red-600 to-yellow-600 hover:from-red-700 hover:to-yellow-700 text-white' 
+                    : currentTheme.id === 'f1' 
+                    ? 'bg-gradient-to-r from-red-600 to-black hover:from-red-700 hover:to-gray-800 text-white' 
+                    : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white'
+                } px-6 py-3 rounded-lg transition-all duration-200 flex items-center shadow-lg`}
               >
                 <span className="mr-2">🚪</span>
                 Logout
@@ -185,7 +251,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20">
               <div className="flex items-center mb-8">
                 <div className="relative">
-                  <span className="text-8xl mr-6 drop-shadow-lg">🚂</span>
+                  <span className="text-8xl mr-6 drop-shadow-lg">{vehicleIcon}</span>
                   {showTrainAnimation && (
                     <div className="absolute -top-4 -right-4 animate-ping">
                       <span className="text-4xl">💨</span>
@@ -193,34 +259,34 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                    {user.trainName || 'Your Train'}
+                  <h2 className="text-4xl font-bold text-gray-900 mb-2">
+                    {user.trainName || `Your ${currentTheme.name.slice(0, -1)}`}
                   </h2>
-                  <p className="text-xl text-gray-600">Station {user.currentStep} of 12</p>
+                  <p className={`text-xl ${themeClasses.textSecondary}`}>Station {user.currentStep} of {totalSteps}</p>
                 </div>
               </div>
 
               {/* Enhanced Progress Bar */}
               <div className="mb-8">
-                <div className="flex justify-between text-lg font-medium text-gray-600 mb-4">
-                  <span>Trail Progress</span>
-                  <span className="text-2xl font-bold text-blue-600">
-                    {Math.round((user.currentStep / 12) * 100)}%
+                <div className={`flex justify-between text-lg font-medium ${themeClasses.textSecondary} mb-4`}>
+                  <span>Progress</span>
+                  <span className={`text-2xl font-bold ${themeClasses.secondaryText}`}>
+                    {progressPercentage}%
                   </span>
                 </div>
                 <div className="relative">
-                  <div className="w-full bg-gray-200 rounded-full h-6 shadow-inner">
+                  <div className="w-full bg-gray-300 rounded-full h-6 shadow-inner border border-gray-400">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden"
-                      style={{ width: `${(user.currentStep / 12) * 100}%` }}
+                      className={`${themeClasses.progressBg} h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden border border-gray-500`}
+                      style={{ width: `${progressPercentage}%` }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
                     </div>
                   </div>
                   {/* Progress sparkles */}
-                  <div 
+                  <div
                     className="absolute top-0 h-6 flex items-center"
-                    style={{ left: `${(user.currentStep / 12) * 100}%` }}
+                    style={{ left: `${progressPercentage}%` }}
                   >
                     <span className="text-2xl animate-pulse">⭐</span>
                   </div>
@@ -231,21 +297,76 @@ const Dashboard: React.FC = () => {
               <div className="space-y-6">
                 <button
                   onClick={handleStartGame}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-6 px-8 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105"
+                  className={`w-full ${
+                    currentTheme.id === 'trains' 
+                      ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700' 
+                      : currentTheme.id === 'planes' 
+                      ? 'bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800' 
+                      : currentTheme.id === 'sailboat' 
+                      ? 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700' 
+                      : currentTheme.id === 'cars' 
+                      ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700' 
+                      : currentTheme.id === 'f1' 
+                      ? 'bg-gradient-to-r from-red-600 to-zinc-600 hover:from-red-700 hover:to-zinc-700' 
+                      : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                  } text-white py-6 px-8 rounded-xl transition-all duration-200 flex items-center justify-center text-xl font-bold shadow-2xl transform hover:scale-105`}
                 >
                   <span className="mr-3 text-3xl">🎮</span>
                   Continue Your Journey
                 </button>
 
-                {user.currentStep === 12 && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-8 text-center shadow-lg">
+                {user.currentStep === totalSteps && (
+                  <div className={`bg-gradient-to-br ${themeClasses.accentBg}/10 border-2 ${themeClasses.accentBorder} rounded-xl p-8 text-center shadow-lg`}>
                     <span className="text-8xl mb-4 block animate-bounce">🏆</span>
-                    <h3 className="text-3xl font-bold text-green-800 mb-2">
+                    <h3 className={`text-3xl font-bold ${themeClasses.accentText} mb-2`}>
                       Congratulations!
                     </h3>
-                    <p className="text-xl text-green-600">
+                    <p className={`text-xl ${themeClasses.accentText}/80`}>
                       You've completed the entire Trail at Trails journey!
                     </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Active Questions Card - Moved from right column */}
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 mt-8">
+              <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
+                <span className="mr-3">🎯</span>
+                Active Questions
+              </h3>
+              <div className="text-center">
+                <div className={`text-5xl font-bold ${themeClasses.accentText} bg-gradient-to-r ${themeClasses.accentBg}/10 p-6 rounded-lg mb-4`}>
+                  {activeQuestionsCount}
+                </div>
+                <div className={`text-lg ${themeClasses.textSecondary} mb-4`}>
+                  {activeQuestionsCount === 1
+                    ? 'Question Available'
+                    : 'Questions Available'}
+                </div>
+                {activeQuestionsCount > 0 ? (
+                  <button
+                    onClick={() => navigate('/game')}
+                    className={`w-full ${
+                      currentTheme.id === 'trains' 
+                        ? 'bg-gradient-to-r from-amber-700 to-orange-700 hover:from-amber-800 hover:to-orange-800' 
+                        : currentTheme.id === 'planes' 
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800' 
+                        : currentTheme.id === 'sailboat' 
+                        ? 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700' 
+                        : currentTheme.id === 'cars' 
+                        ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800' 
+                        : currentTheme.id === 'f1' 
+                        ? 'bg-gradient-to-r from-red-600 to-gray-700 hover:from-red-700 hover:to-gray-800' 
+                        : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                    } text-white py-3 px-4 rounded-lg transition-all duration-200 font-medium`}
+                  >
+                    <span className="mr-2">📝</span>
+                    Start Answering
+                  </button>
+                ) : (
+                  <div className={`text-sm ${themeClasses.textMuted}`}>
+                    Check back later for new questions!
                   </div>
                 )}
               </div>
@@ -256,22 +377,22 @@ const Dashboard: React.FC = () => {
           <div className="space-y-6">
             {/* Quick Stats */}
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+              <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">📊</span>
                 Your Stats
               </h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
-                  <span className="text-gray-700 font-medium">Current Station</span>
-                  <span className="text-2xl font-bold text-blue-600">{user.currentStep}/12</span>
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg">
+                  <span className={`${themeClasses.textSecondary} font-medium`}>Current Station</span>
+                  <span className="text-2xl font-bold text-primary-600">{user.currentStep}/{totalSteps}</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-                  <span className="text-gray-700 font-medium">Train Name</span>
-                  <span className="font-bold text-purple-600">🚂 {user.trainName}</span>
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-secondary-50 to-secondary-100 rounded-lg">
+                  <span className={`${themeClasses.textSecondary} font-medium`}>Lighthouse Name</span>
+                  <span className="font-bold text-secondary-600">🚂 {user.trainName}</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
-                  <span className="text-gray-700 font-medium">Member Since</span>
-                  <span className="font-bold text-green-600">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-accent-50 to-accent-100 rounded-lg">
+                  <span className={`${themeClasses.textSecondary} font-medium`}>Member Since</span>
+                  <span className="font-bold text-accent-600">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -280,64 +401,28 @@ const Dashboard: React.FC = () => {
 
             {/* Live Clock */}
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+              <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">🕒</span>
                 Current Time
               </h3>
               <div className="text-center">
-                <div className="text-3xl font-mono font-bold text-blue-600 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
-                  {currentTime.toLocaleTimeString()}
+                <div className={`text-3xl font-mono font-bold ${themeClasses.primaryText} bg-gradient-to-r ${themeClasses.primaryBg}/10 p-4 rounded-lg`}>
+                  {formattedTime}
                 </div>
-                <div className="text-lg text-gray-500 mt-2">
-                  {currentTime.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                <div className={`text-lg ${themeClasses.textMuted} mt-2`}>
+                  {formattedDate}
                 </div>
-              </div>
-            </div>
-
-            {/* Active Questions */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <span className="mr-3">🎯</span>
-                Active Questions
-              </h3>
-              <div className="text-center">
-                <div className="text-5xl font-bold text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg mb-4">
-                  {activeQuestionsCount}
-                </div>
-                <div className="text-lg text-gray-600 mb-4">
-                  {activeQuestionsCount === 1 
-                    ? 'Question Available' 
-                    : 'Questions Available'}
-                </div>
-                {activeQuestionsCount > 0 ? (
-                  <button
-                    onClick={() => navigate('/game')}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium"
-                  >
-                    <span className="mr-2">📝</span>
-                    Start Answering
-                  </button>
-                ) : (
-                  <div className="text-sm text-gray-500">
-                    Check back later for new questions!
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Journey Guide */}
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+              <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">🗺️</span>
                 Journey Guide
               </h3>
-              {user.currentStep < 12 ? (
-                <div className="space-y-3 text-sm text-gray-600">
+              {user.currentStep < totalSteps ? (
+                <div className={`space-y-3 text-sm ${themeClasses.textSecondary}`}>
                   <div className="flex items-start">
                     <span className="mr-2">🎯</span>
                     <p>Answer thoughtful questions to advance your train</p>
@@ -352,11 +437,11 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex items-start">
                     <span className="mr-2">🎉</span>
-                    <p>Complete all 12 stations to finish your journey!</p>
+                    <p>Complete all {totalSteps} stations to finish your journey!</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 text-sm text-gray-600">
+                <div className={`space-y-3 text-sm ${themeClasses.textSecondary}`}>
                   <div className="flex items-start">
                     <span className="mr-2">🎉</span>
                     <p>Congratulations on completing your journey!</p>

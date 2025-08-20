@@ -67,7 +67,7 @@ const Register: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex flex-col items-center mb-6 space-y-6">
@@ -107,7 +107,7 @@ const Register: React.FC = () => {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter your full name"
                 />
               </div>
@@ -129,7 +129,7 @@ const Register: React.FC = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter your email"
                 />
               </div>
@@ -151,7 +151,7 @@ const Register: React.FC = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Create a password (min 6 characters)"
                 />
               </div>
@@ -171,19 +171,19 @@ const Register: React.FC = () => {
                   type="text"
                   value={formData.trainName}
                   onChange={handleChange}
-                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Name your train (or leave blank for random)"
                 />
               </div>
               <div className="mt-2">
-                <p className="text-xs text-gray-500 mb-2">Popular train names:</p>
+                <p className="text-xs text-gray-500 mb-2">Popular lighthouse names:</p>
                 <div className="flex flex-wrap gap-1">
                   {trainNameSuggestions.slice(0, 6).map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
                       onClick={() => setFormData({ ...formData, trainName: suggestion })}
-                      className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
+                      className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded hover:bg-primary-200 transition-colors"
                     >
                       {suggestion}
                     </button>
@@ -197,7 +197,7 @@ const Register: React.FC = () => {
             <button
               type="submit"
               disabled={loading || !formData.email || !formData.password || !formData.name}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center">
@@ -218,7 +218,7 @@ const Register: React.FC = () => {
               Already have an account?{' '}
               <Link
                 to="/login"
-                className="font-medium text-blue-600 hover:text-blue-500"
+                className="font-medium text-primary-600 hover:text-primary-500"
               >
                 Sign in here
               </Link>
@@ -226,13 +226,13 @@ const Register: React.FC = () => {
           </div>
 
           <div className="mt-6 border-t border-gray-200 pt-6">
-            <div className="bg-blue-50 rounded-md p-4">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">🎮 How it Works:</h3>
+            <div className="bg-primary-50 rounded-md p-4">
+              <h3 className="text-sm font-medium text-primary-800 mb-2">🎮 How it Works:</h3>
               <ul className="text-xs text-blue-700 space-y-1">
-                <li>• Answer 12 questions to complete your trail</li>
-                <li>• Each approved answer moves your train forward</li>
+                <li>• Answer certain number of questions to complete your trail</li>
+                <li>• Each approved answer moves you step forward</li>
                 <li>• Admin reviews and approves your answers</li>
-                <li>• Track your progress on the interactive trail map</li>
+                <li>• Track your progress on the interactive map</li>
               </ul>
             </div>
           </div>

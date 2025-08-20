@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { NetworkProvider } from './contexts/NetworkContext';
 import { useAuth } from './hooks/useAuth';
 import { Toaster } from 'react-hot-toast';
 
@@ -11,14 +12,19 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import QuestionManagement from './pages/QuestionManagement';
 import GameView from './pages/GameView';
+import NotFound from './pages/NotFound';
+import CohortManagement from './pages/CohortManagement';
+import UserManagement from './pages/UserManagement';
+import CohortHistory from './pages/CohortHistory';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-          <Toaster position="top-right" />
-          <Routes>
+    <NetworkProvider serverUrl="http://localhost:3000/api/health">
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">
+            <Toaster position="top-right" />
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route 
@@ -26,6 +32,16 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cohort-history-old" 
+              element={
+                <ProtectedRoute>
+                  <NonAdminRoute>
+                    <CohortHistory />
+                  </NonAdminRoute>
                 </ProtectedRoute>
               } 
             />
@@ -45,6 +61,32 @@ function App() {
                 <AdminRoute>
                   <AdminDashboard />
                 </AdminRoute>
+              }
+            />
+            <Route 
+              path="/cohorts" 
+              element={
+                <AdminRoute>
+                  <CohortManagement />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <AdminRoute>
+                  <UserManagement />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/cohort-history" 
+              element={
+                <ProtectedRoute>
+                  <NonAdminRoute>
+                    <CohortHistory />
+                  </NonAdminRoute>
+                </ProtectedRoute>
               } 
             />
             <Route 
@@ -56,10 +98,13 @@ function App() {
               } 
             />
             <Route path="/" element={<SmartRedirect />} />
+            {/* Catch-all route for 404 pages */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </Router>
     </AuthProvider>
+    </NetworkProvider>
   );
 }
 
@@ -131,7 +176,7 @@ function NonAdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user.isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/cohorts" replace />;
   }
 
   return <>{children}</>;
@@ -157,7 +202,7 @@ function SmartRedirect() {
   }
 
   if (user.isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/cohorts" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;

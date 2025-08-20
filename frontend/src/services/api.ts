@@ -123,53 +123,110 @@ export const authService = {
 
 // Game service
 export const gameService = {
-  getProgress: () => api.get('/game/status'),
+  // User cohort status
+  checkCohortStatus: () => api.get('/auth/cohort-status'),
+
+  getCohortInfo: () => api.get('/game/cohort-info'), // New endpoint for theme info
+
+  getProgress: () => api.get(`/game/progress?_t=${Date.now()}`), // Add cache busting
   
-  submitAnswer: (content: string, file?: File | null) => {
-    if (file) {
-      const formData = new FormData();
-      formData.append('content', content);
-      formData.append('attachment', file);
-      return api.post('/game/answer', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-    } else {
-      return api.post('/game/answer', { content });
+  getCohortHistory: () => api.get('/game/cohort-history'),
+  
+  submitAnswer: (link: string, notes: string = '', questionId?: string, file?: File | null) => {
+    console.log('submitAnswer called with:', { link, notes: notes?.length, questionId, hasFile: !!file });
+    
+    // Validate that we have valid IDs
+    const validQuestionId = questionId && questionId !== 'NaN' && questionId !== 'undefined' ? questionId : undefined;
+    
+    console.log('Valid IDs:', { validQuestionId });
+    
+    // Always use FormData for consistency
+    const formData = new FormData();
+    formData.append('link', link);
+    formData.append('notes', notes);
+    
+    if (validQuestionId) {
+      formData.append('questionId', validQuestionId);
+      console.log('Added questionId to FormData:', validQuestionId);
     }
+    
+    if (file) {
+      formData.append('attachment', file);
+      console.log('Added file to FormData:', file.name);
+    }
+    
+    return api.post('/game/answer', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
+  
+  requestResubmission: (answerId: string) => 
+    api.post(`/game/answer/${answerId}/request-resubmission`),
   
   getAnswers: () => api.get('/game/answers'),
 
   getLeaderboard: () => api.get('/game/leaderboard'),
 
-  getModules: () => api.get('/game/modules'),
+  getModules: () => api.get(`/game/modules?_t=${Date.now()}`), // Add cache busting
 
   getModuleDetails: (moduleNumber: number) => api.get(`/game/modules/${moduleNumber}`),
+
+  // Mini questions
+  getContentProgress: (questionId: string) => api.get(`/game/questions/${questionId}/content-progress`),
+  
+  submitMiniAnswer: (data: { miniQuestionId: string; linkUrl: string; notes?: string }) =>
+    api.post('/game/mini-answer', data),
 };
 
 // Admin service
 export const adminService = {
   getAllUsers: () => api.get('/admin/users'),
   
-  getPendingAnswers: () => api.get('/admin/pending-answers'),
+  getPendingAnswers: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/pending-answers${params}`);
+  },
   
   reviewAnswer: (answerId: number, status: 'approved' | 'rejected', feedback?: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 
       status: status.toUpperCase(), 
       feedback 
     }),
+
+  // New grading system methods
+  gradeAnswer: (answerId: number, grade: string, feedback: string) =>
+    api.put(`/admin/answer/${answerId}/review`, { 
+      grade, 
+      feedback 
+    }),
+
+  handleResubmissionRequest: (answerId: number, approve: boolean) =>
+    api.put(`/admin/answer/${answerId}/resubmission-request`, { 
+      approve 
+    }),
+
+  // Mini-answer resubmission requests
+  requestMiniAnswerResubmission: (miniAnswerId: string, userId: number) =>
+    api.post(`/admin/mini-answer/${miniAnswerId}/request-resubmission`, { userId }),
   
-  getGameStats: () => api.get('/admin/stats'),
+  getGameStats: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/stats${params}`);
+  },
 
   // Module management (mapped to questions for compatibility)
-  getAllModules: () => api.get('/admin/modules'), // This still works as it returns virtual modules
+  getAllModules: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/modules${params}`);
+  },
   
   createModule: (moduleData: {
     moduleNumber: number;
     title: string;
     description: string;
+    cohortId: string;
   }) => {
     // Use the real module creation endpoint
     return api.post('/admin/modules', moduleData);
@@ -244,6 +301,17 @@ export const adminService = {
     deadline: string;
     points: number;
     bonusPoints: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+        resourceUrl?: string;
+        releaseDate?: string;
+      }>;
+    }>;
   }) => {
     // Use the real topic creation endpoint
     return api.post(`/admin/modules/${moduleId}/topics`, topicData);
@@ -258,6 +326,12 @@ export const adminService = {
     points?: number;
     bonusPoints?: number;
     isReleased?: boolean;
+    contents?: Array<{
+      material: string;
+      question: string;
+      resourceUrl?: string;
+      releaseDate?: string;
+    }>;
   }) => {
     // Map topic update to question update using the new endpoint
     return api.put(`/admin/questions/${topicId}`, {
@@ -268,7 +342,8 @@ export const adminService = {
       deadline: topicData.deadline,
       points: topicData.points,
       bonusPoints: topicData.bonusPoints,
-      isReleased: topicData.isReleased
+      isReleased: topicData.isReleased,
+      contents: topicData.contents
     });
   },
   
@@ -279,7 +354,10 @@ export const adminService = {
   deleteTopic: (topicId: string) => api.delete(`/admin/questions/${topicId}`),
 
   // Question management (legacy)
-  getAllQuestions: () => api.get('/admin/questions'),
+  getAllQuestions: (cohortId?: string) => {
+    const params = cohortId ? { cohortId } : {};
+    return api.get('/admin/questions', { params });
+  },
   
   getQuestionAnswers: (questionId: number) => api.get(`/admin/questions/${questionId}/answers`),
   
@@ -290,6 +368,15 @@ export const adminService = {
     deadline: string;
     points: number;
     bonusPoints: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+      }>;
+    }>;
   }) => api.post('/admin/questions', questionData),
 
   updateQuestion: (questionId: string, questionData: {
@@ -304,9 +391,100 @@ export const adminService = {
     isActive?: boolean;
     moduleNumber?: number;
     topicNumber?: number;
+    contents?: Array<{
+      title: string;
+      material: string;
+      miniQuestions: Array<{
+        title: string;
+        question: string;
+        description?: string;
+      }>;
+    }>;
   }) => api.put(`/admin/questions/${questionId}`, questionData),
   
   releaseQuestion: (questionId: number) => api.post(`/admin/questions/${questionId}/release`),
   
   deleteQuestion: (questionId: number) => api.delete(`/admin/questions/${questionId}`),
+
+  // Content Management APIs
+  getQuestionContents: (questionId: string) => api.get(`/admin/questions/${questionId}/contents`),
+  
+  createContent: (questionId: string, contentData: {
+    title: string;
+    material: string;
+    miniQuestions?: Array<{
+      title: string;
+      question: string;
+      description?: string;
+    }>;
+  }) => api.post(`/admin/questions/${questionId}/contents`, contentData),
+  
+  updateContent: (contentId: string, contentData: {
+    title?: string;
+    material?: string;
+    isActive?: boolean;
+  }) => api.put(`/admin/contents/${contentId}`, contentData),
+  
+  deleteContent: (contentId: string) => api.delete(`/admin/contents/${contentId}`),
+  
+  // Mini-Question Management APIs
+  createMiniQuestion: (contentId: string, miniQuestionData: {
+    title: string;
+    question: string;
+    description?: string;
+  }) => api.post(`/admin/contents/${contentId}/mini-questions`, miniQuestionData),
+  
+  updateMiniQuestion: (miniQuestionId: string, miniQuestionData: {
+    title?: string;
+    question?: string;
+    description?: string;
+    isActive?: boolean;
+  }) => api.put(`/admin/mini-questions/${miniQuestionId}`, miniQuestionData),
+  
+  deleteMiniQuestion: (miniQuestionId: string) => api.delete(`/admin/mini-questions/${miniQuestionId}`),
+  
+  getMiniAnswers: (miniQuestionId: string) => api.get(`/admin/mini-questions/${miniQuestionId}/answers`),
+
+  // Get all mini-answers for admin dashboard
+  getAllMiniAnswers: (cohortId?: string) => {
+    const params = cohortId ? { cohortId } : {};
+    return api.get('/admin/mini-answers', { params });
+  },
+
+  // Cohort management
+  getAllCohorts: () => api.get('/admin/cohorts'),
+  
+  getCohortUsers: (cohortId: string, status?: string) => {
+    const params = status ? { status } : {};
+    return api.get(`/admin/cohort/${cohortId}/users`, { params });
+  },
+  
+  getUsersWithCohorts: () => api.get('/admin/users-with-cohorts'),
+
+  // Graduate user from cohort
+  graduateUser: (userId: string, cohortId: string) => 
+    api.post('/admin/graduate-user', { userId, cohortId }),
+
+  // Theme management
+  updateCohort: (cohortId: string, cohortData: {
+    name?: string;
+    description?: string;
+    defaultTheme?: string;
+  }) => api.patch(`/admin/cohorts/${cohortId}`, cohortData),
+
+  updateModuleTheme: (moduleId: string, theme: string) => 
+    api.patch(`/admin/modules/${moduleId}/theme`, { theme }),
+};
+
+// Game API for content and mini-questions
+export const contentService = {
+  submitMiniAnswer: (miniQuestionData: {
+    miniQuestionId: string;
+    linkUrl: string;
+    notes?: string;
+  }) => api.post('/game/mini-answer', miniQuestionData),
+  
+  getMiniAnswers: (questionId: string) => api.get(`/game/questions/${questionId}/mini-answers`),
+  
+  getContentProgress: (questionId: string) => api.get(`/game/questions/${questionId}/content-progress`),
 };

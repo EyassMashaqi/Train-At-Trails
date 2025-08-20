@@ -59,6 +59,30 @@ router.post('/register', async (req, res) => {
       }
     });
 
+    // Assign user to Default Cohort
+    try {
+      const defaultCohort = await prisma.cohort.findFirst({
+        where: { name: 'Default Cohort', isActive: true }
+      });
+
+      if (defaultCohort) {
+        await prisma.cohortMember.create({
+          data: {
+            userId: user.id,
+            cohortId: defaultCohort.id,
+            currentStep: 0,
+            isActive: true
+          }
+        });
+        console.log(`✅ User ${user.email} assigned to Default Cohort`);
+      } else {
+        console.log('⚠️ Default Cohort not found - user not assigned to any cohort');
+      }
+    } catch (cohortError) {
+      console.error('❌ Failed to assign user to Default Cohort:', cohortError);
+      // Don't fail registration if cohort assignment fails
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
@@ -153,6 +177,48 @@ router.post('/login', async (req, res) => {
 });
 
 // Get current user endpoint
+// Get user's cohort status
+router.get('/cohort-status', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    // Get user's active cohort membership
+    const cohortMember = await prisma.cohortMember.findFirst({
+      where: {
+        userId: req.user!.id,
+        isActive: true
+      },
+      include: {
+        cohort: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            isActive: true
+          }
+        }
+      }
+    });
+
+    if (cohortMember) {
+      res.json({
+        isEnrolled: true,
+        cohort: cohortMember.cohort,
+        currentStep: cohortMember.currentStep,
+        status: cohortMember.status || 'ENROLLED'
+      });
+    } else {
+      res.json({
+        isEnrolled: false,
+        cohort: null,
+        currentStep: 0,
+        status: 'NOT_ENROLLED'
+      });
+    }
+  } catch (error) {
+    console.error('Get cohort status error:', error);
+    res.status(500).json({ error: 'Failed to get cohort status' });
+  }
+});
+
 router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const user = await prisma.user.findUnique({

@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { adminService } from '../services/api';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
+import MiniAnswersView from '../components/MiniAnswersView';
+import GradingModal from '../components/GradingModal';
+
+// Import the dashboard icon
+import DashboardIcon from '../assets/dashboard-icon.png';
 
 interface User {
   id: number;
@@ -10,12 +16,29 @@ interface User {
   trainName: string;
   currentStep: number;
   createdAt: string;
+  // Cohort-specific fields
+  cohortStatus?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED';
+  status?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED'; // Add status property
+  joinedAt?: string;
+  statusChangedAt?: string;
+  statusChangedBy?: string;
+  graduatedAt?: string;
+  graduatedBy?: string;
+  isCurrentCohort?: boolean;
+  isActive?: boolean;
 }
 
 interface PendingAnswer {
   id: number;
   content: string;
+  notes?: string;
   submittedAt: string;
+  hasAttachment: boolean;
+  attachmentInfo?: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  };
   user: {
     id: number;
     fullName: string;
@@ -45,11 +68,25 @@ interface GameStats {
   averageProgress: number;
 }
 
+// Remove unused Cohort interface - using any[] for cohorts state instead
+// interface Cohort {
+//   id: string;
+//   name: string;
+//   description?: string;
+//   startDate: string;
+//   endDate?: string;
+//   defaultTheme: string;
+//   isActive: boolean;
+//   createdAt: string;
+//   updatedAt: string;
+// }
+
 interface Module {
   id: string;
   moduleNumber: number;
   title: string;
   description: string;
+  theme: string;
   isActive: boolean;
   isReleased: boolean;
   releaseDate?: string;
@@ -69,6 +106,7 @@ interface Topic {
   isReleased: boolean;
   releaseDate?: string;
   answers?: TopicAnswer[];
+  contents?: ContentSection[];
 }
 
 interface TopicAnswer {
@@ -87,6 +125,26 @@ interface TopicAnswer {
   };
 }
 
+interface MiniQuestion {
+  id?: string;
+  title: string;
+  description: string;
+  resourceUrl?: string; // NEW: URL for learning resource
+  orderIndex: number;
+  releaseDate?: string;
+}
+
+interface ContentSection {
+  id?: string;
+  title: string;
+  content: string;
+  description: string;
+  resourceUrl?: string;
+  orderIndex: number;
+  miniQuestions: MiniQuestion[];
+  releaseDate?: string;
+}
+
 interface TopicFormData {
   topicNumber: number;
   title: string;
@@ -95,7 +153,17 @@ interface TopicFormData {
   deadline: string;
   points: number;
   bonusPoints: number;
+  contents: ContentSection[];
 }
+
+// Helper function to format file sizes
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 interface ModuleFormData {
   moduleNumber: number;
@@ -104,24 +172,67 @@ interface ModuleFormData {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const selectedCohortId = searchParams.get('cohort');
+  
+  // Helper function to download attachment
+  const downloadAttachment = async (answerId: string, fileName: string) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/admin/answer/${answerId}/attachment`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        await response.text();
+        let errorMessage = 'Failed to download attachment';
+        
+        if (response.status === 403) {
+          errorMessage = 'Access denied. Admin privileges required to download attachments.';
+        } else if (response.status === 404) {
+          errorMessage = 'Attachment not found or has been deleted.';
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication required. Please login again.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(`Downloaded ${fileName} successfully!`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to download attachment');
+    }
+  };
+  
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules'>('overview');
+  const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions' | 'cohort-config'>('overview');
   
-  // Feedback modal state
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackForm, setFeedbackForm] = useState<{
-    answerId: number | null;
-    status: 'approved' | 'rejected' | null;
-    feedback: string;
-  }>({
-    answerId: null,
-    status: null,
-    feedback: ''
-  });
+  // User status filtering
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]); // Store unfiltered users
+  
+  // Grading modal state
+  const [showGradingModal, setShowGradingModal] = useState(false);
+  const [gradingAnswer, setGradingAnswer] = useState<PendingAnswer | null>(null);
+  const [gradingLoading, setGradingLoading] = useState(false);
 
   // Module and topic management state
   const [modules, setModules] = useState<Module[]>([]);
@@ -150,26 +261,109 @@ const AdminDashboard: React.FC = () => {
     description: '',
     deadline: '',
     points: 100,
-    bonusPoints: 50
+    bonusPoints: 50,
+    contents: []
   });
+
+  // Validation states
+  const [createFormValidation, setCreateFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
+  const [editFormValidation, setEditFormValidation] = useState<{ isValid: boolean; errorMessage?: string }>({ isValid: true });
+
+  // Cohort state
+  const [allCohorts, setAllCohorts] = useState<any[]>([]);
+  const [selectedCohort, setSelectedCohort] = useState<any>(null);
+
+  // Memoized values for performance optimization
+  const availableThemes = useMemo(() => [
+    { id: 'trains', name: 'Trains', icon: '🚂', description: 'Classic train theme with stations and tracks' },
+    { id: 'planes', name: 'Planes', icon: '✈️', description: 'Aviation theme with airports and flight paths' },
+    { id: 'sailboat', name: 'Sailboat', icon: '⛵', description: 'Maritime theme with harbors and sailing routes' },
+    { id: 'cars', name: 'Cars', icon: '🚗', description: 'Automotive theme with roads and destinations' },
+    { id: 'f1', name: 'Formula 1', icon: '🏎️', description: 'High-speed racing theme with circuits and pit stops' }
+  ], []);
+
+  const currentCohort = useMemo(() => 
+    allCohorts.find(c => c.id === selectedCohortId), 
+    [allCohorts, selectedCohortId]
+  );
+
+  // Remove unused filteredUsers memoization since it's handled differently
+  // const filteredUsers = useMemo(() => {
+  //   if (statusFilter === 'all') return users;
+  //   return users.filter(user => user.status === statusFilter);
+  // }, [users, statusFilter]);
 
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Loading admin data...', { userEmail: user?.email, isAdmin: user?.isAdmin });
-      const [usersResponse, pendingResponse, statsResponse, modulesResponse] = await Promise.all([
-        adminService.getAllUsers(),
-        adminService.getPendingAnswers(),
-        adminService.getGameStats(),
-        adminService.getAllModules()
+      
+      // First load cohorts to get cohort details
+      const cohortsResponse = await adminService.getAllCohorts();
+      setAllCohorts(cohortsResponse.data.cohorts || []);
+      
+      // Find selected cohort details
+      let currentCohort = null;
+      if (selectedCohortId) {
+        currentCohort = cohortsResponse.data.cohorts?.find((c: any) => c.id === selectedCohortId);
+        setSelectedCohort(currentCohort);
+      }
+
+      // Load data based on whether a cohort is selected
+      let usersResponse, pendingResponse, statsResponse;
+      if (selectedCohortId) {
+        // Load cohort-specific data
+        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+          adminService.getCohortUsers(selectedCohortId).catch(err => {
+            throw err;
+          }),
+          adminService.getPendingAnswers(selectedCohortId).catch(err => {
+            throw err;
+          }),
+          adminService.getGameStats(selectedCohortId).catch(err => {
+            throw err;
+          }),
+        ]);
+      } else {
+        // Load all data
+        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+          adminService.getAllUsers(),
+          adminService.getPendingAnswers(),
+          adminService.getGameStats(),
+        ]);
+      }
+
+      const [modulesResponse, progressResponse] = await Promise.all([
+        adminService.getAllModules(selectedCohortId || undefined).catch(err => {
+          throw err;
+        }),
+        gameService.getProgress().catch(err => {
+          throw err;
+        }) // Get totalSteps
       ]);
 
-      setUsers(usersResponse.data.users);
+
+
+      const allUsersData = usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || [];
+      setAllUsers(allUsersData);
+      setUsers(allUsersData); // Initially show all users
+      
+      // Extract available statuses for filtering (only for cohort-specific data)
+      if (selectedCohortId && usersResponse.data.filters?.availableStatuses) {
+        setAvailableStatuses(usersResponse.data.filters.availableStatuses);
+      } else {
+        setAvailableStatuses([]);
+      }
+      
       setPendingAnswers(pendingResponse.data.pendingAnswers);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
+      
+      // Set dynamic total steps from progress response
+      if (progressResponse.data.totalSteps) {
+        setTotalSteps(progressResponse.data.totalSteps);
+      }
+
     } catch (error: unknown) {
-      console.error('Admin data loading error:', error);
       let errorMessage = 'Failed to load admin data';
       if (
         typeof error === 'object' &&
@@ -191,38 +385,102 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, user?.isAdmin]);
+  }, [user?.email, user?.isAdmin, selectedCohortId]);
 
   useEffect(() => {
     loadAdminData();
   }, [loadAdminData]);
 
-  const handleReviewAnswer = async (answerId: number, status: 'approved' | 'rejected') => {
-    // Open feedback modal
-    setFeedbackForm({
-      answerId,
-      status,
-      feedback: ''
-    });
-    setShowFeedbackModal(true);
-  };
-
-  const submitReview = async () => {
-    if (!feedbackForm.answerId || !feedbackForm.status) return;
-    
-    if (!feedbackForm.feedback.trim()) {
-      toast.error('Feedback is required');
-      return;
+  // Validation function to check if assignment deadline is before any mini question release date
+  const validateAssignmentDeadline = (deadline: string, contents: any[]): { isValid: boolean; errorMessage?: string; conflictingIndices?: number[] } => {
+    if (!deadline || !contents || contents.length === 0) {
+      return { isValid: true };
     }
 
+    const assignmentDeadline = new Date(deadline);
+    const conflictingIndices: number[] = [];
+    let firstConflictMessage = '';
+    
+    // Check all self learning activities for release dates that are after the assignment deadline
+    for (let i = 0; i < contents.length; i++) {
+      const content = contents[i];
+      // Handle both nested structure (from API) and flat structure (from forms)
+      const miniQuestions = content.miniQuestions || [content];
+      
+      for (const miniQuestion of miniQuestions) {
+        if (miniQuestion.releaseDate) {
+          const releaseDate = new Date(miniQuestion.releaseDate);
+          if (releaseDate > assignmentDeadline) {
+            conflictingIndices.push(i);
+            if (!firstConflictMessage) {
+              const formattedReleaseDate = releaseDate.toLocaleDateString();
+              const formattedDeadline = assignmentDeadline.toLocaleDateString();
+              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`;
+            }
+          }
+        }
+      }
+    }
+    
+    if (conflictingIndices.length > 0) {
+      return {
+        isValid: false,
+        errorMessage: firstConflictMessage,
+        conflictingIndices
+      };
+    }
+    
+    return { isValid: true };
+  };
+
+  // Function to check if a specific mini question has a date conflict
+  const validateMiniQuestionDate = (deadline: string, releaseDate: string): boolean => {
+    if (!deadline || !releaseDate) return true;
+    const assignmentDeadline = new Date(deadline);
+    const miniReleaseDate = new Date(releaseDate);
+    return miniReleaseDate <= assignmentDeadline;
+  };
+
+  // Real-time validation for create form
+  const validateCreateForm = useCallback(() => {
+    const validation = validateAssignmentDeadline(topicForm.deadline, topicForm.contents);
+    setCreateFormValidation(validation);
+  }, [topicForm.deadline, topicForm.contents]);
+
+  // Real-time validation for edit form
+  const validateEditForm = useCallback(() => {
+    if (selectedTopic) {
+      const validation = validateAssignmentDeadline(selectedTopic.deadline, selectedTopic.contents || []);
+      setEditFormValidation(validation);
+    }
+  }, [selectedTopic?.deadline, selectedTopic?.contents]);
+
+  // Trigger validation when forms change
+  useEffect(() => {
+    validateCreateForm();
+  }, [validateCreateForm]);
+
+  useEffect(() => {
+    validateEditForm();
+  }, [validateEditForm]);
+
+  const handleGradeAnswer = (answer: PendingAnswer) => {
+    setGradingAnswer(answer);
+    setShowGradingModal(true);
+  };
+
+  const submitGrade = async (grade: string, feedback: string) => {
+    if (!gradingAnswer) return;
+    
+    setGradingLoading(true);
     try {
-      await adminService.reviewAnswer(feedbackForm.answerId, feedbackForm.status, feedbackForm.feedback);
-      toast.success(`Answer ${feedbackForm.status} successfully!`);
-      setShowFeedbackModal(false);
-      setFeedbackForm({ answerId: null, status: null, feedback: '' });
+      await adminService.gradeAnswer(gradingAnswer.id, grade, feedback);
+      toast.success(`Answer graded as ${grade} successfully!`);
+      setShowGradingModal(false);
+      setGradingAnswer(null);
       await loadAdminData(); // Refresh data
     } catch (error: unknown) {
-      let errorMessage = `Failed to ${feedbackForm.status} answer`;
+      let errorMessage = 'Failed to grade answer';
       if (
         error && 
         typeof error === 'object' && 
@@ -234,47 +492,85 @@ const AdminDashboard: React.FC = () => {
         errorMessage = response.data?.message || errorMessage;
       }
       toast.error(errorMessage);
+    } finally {
+      setGradingLoading(false);
     }
   };
+
+  const handleStatusFilter = useCallback(async (status: string) => {
+    setStatusFilter(status);
+    
+    if (!selectedCohortId) {
+      // For all users (non-cohort view), no filtering needed
+      setUsers(allUsers);
+      return;
+    }
+
+    try {
+      // Fetch users with the selected status filter
+      const response = await adminService.getCohortUsers(selectedCohortId, status === 'all' ? undefined : status);
+      const filteredUsers = response.data.members || [];
+      setUsers(filteredUsers);
+    } catch (error) {
+      toast.error('Failed to filter users');
+      // Fallback to client-side filtering
+      if (status === 'all') {
+        setUsers(allUsers);
+      } else {
+        const filtered = allUsers.filter(user => user.cohortStatus === status);
+        setUsers(filtered);
+      }
+    }
+  }, [selectedCohortId, allUsers]);
 
   const renderOverview = () => {
     if (!stats) return null;
 
+    // Use cohort-specific counts if a cohort is selected
+    const displayStats = selectedCohortId ? {
+      totalUsers: users.length,
+      totalAnswers: stats.totalAnswers, // TODO: filter by cohort when backend supports it
+      pendingAnswers: pendingAnswers.length,
+      averageProgress: stats.averageProgress
+    } : stats;
+
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="bg-primary-50 border border-primary-200 rounded-lg p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <span className="text-blue-600 text-2xl">👥</span>
+                <span className="text-primary-600 text-2xl">👥</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-blue-600">Total Users</p>
-                <p className="text-2xl font-bold text-blue-900">{stats.totalUsers}</p>
+                <p className="text-sm font-medium text-primary-600">
+                  {selectedCohortId ? 'Cohort Participants' : 'Total Users'}
+                </p>
+                <p className="text-2xl font-bold text-primary-900">{displayStats.totalUsers}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="bg-accent-50 border border-accent-200 rounded-lg p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <span className="text-green-600 text-2xl">📝</span>
+                <span className="text-accent-600 text-2xl">📝</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-green-600">Total Answers</p>
-                <p className="text-2xl font-bold text-green-900">{stats.totalAnswers}</p>
+                <p className="text-sm font-medium text-accent-600">Total Answers</p>
+                <p className="text-2xl font-bold text-accent-900">{displayStats.totalAnswers}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="bg-secondary-50 border border-secondary-200 rounded-lg p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <span className="text-yellow-600 text-2xl">⏳</span>
+                <span className="text-secondary-600 text-2xl">⏳</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-yellow-600">Pending Reviews</p>
-                <p className="text-2xl font-bold text-yellow-900">{stats.pendingAnswers}</p>
+                <p className="text-sm font-medium text-secondary-600">Pending Reviews</p>
+                <p className="text-2xl font-bold text-secondary-900">{displayStats.pendingAnswers}</p>
               </div>
             </div>
           </div>
@@ -287,7 +583,7 @@ const AdminDashboard: React.FC = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-purple-600">Avg Progress</p>
                 <p className="text-2xl font-bold text-purple-900">
-                  {stats.averageProgress ? stats.averageProgress.toFixed(1) : '0.0'}%
+                  {displayStats.averageProgress ? displayStats.averageProgress.toFixed(1) : '0.0'}%
                 </p>
               </div>
             </div>
@@ -317,20 +613,47 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleReviewAnswer(answer.id, 'approved')}
-                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                        onClick={() => handleGradeAnswer(answer)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 flex items-center space-x-1"
                       >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReviewAnswer(answer.id, 'rejected')}
-                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                      >
-                        Reject
+                        <span>🎯</span>
+                        <span>Grade</span>
                       </button>
                     </div>
                   </div>
-                  <p className="text-gray-700 text-sm">{answer.content}</p>
+                  <div className="mb-2">
+                    <div className="text-sm">
+                      <strong>Link:</strong>
+                      <a 
+                        href={answer.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {answer.content}
+                      </a>
+                    </div>
+                    {answer.notes && (
+                      <div className="text-sm mt-1">
+                        <strong>Notes:</strong>
+                        <span className="ml-1 text-gray-700">{answer.notes}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {answer.hasAttachment && answer.attachmentInfo && (
+                    <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                      <span className="text-sm">📎</span>
+                      <span className="text-sm text-blue-700">{answer.attachmentInfo.fileName}</span>
+                      <button
+                        onClick={() => downloadAttachment(answer.id.toString(), answer.attachmentInfo!.fileName)}
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
+                  
                   <p className="text-xs text-gray-400 mt-2">
                     Submitted: {new Date(answer.submittedAt).toLocaleString()}
                   </p>
@@ -341,7 +664,7 @@ const AdminDashboard: React.FC = () => {
               <div className="mt-4 text-center">
                 <button
                   onClick={() => setActiveTab('answers')}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-primary-600 hover:text-primary-800 font-medium"
                 >
                   View all {pendingAnswers.length} pending answers →
                 </button>
@@ -357,21 +680,52 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-800">All Users</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-800">
+              {selectedCohortId ? 'Cohort Participants' : 'All Users'}
+            </h3>
+            {/* Status Filter - only show for cohort view */}
+            {selectedCohortId && availableStatuses.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
+                  Filter by Status:
+                </label>
+                <select
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(e) => handleStatusFilter(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="all">All Statuses</option>
+                  {availableStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status.charAt(0) + status.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  Participant
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Train Name
+                  Lighthouse Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Progress
                 </th>
+                {/* Status column - only show for cohort view */}
+                {selectedCohortId && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
                 </th>
@@ -391,15 +745,37 @@ const AdminDashboard: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="text-sm text-gray-900">Step {user.currentStep}/12</div>
+                      <div className="text-sm text-gray-900">Step {user.currentStep}/{totalSteps}</div>
                       <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${(user.currentStep / 12) * 100}%` }}
+                          className="bg-primary-600 h-2 rounded-full"
+                          style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
                         ></div>
                       </div>
                     </div>
                   </td>
+                  {/* Status column - only show for cohort view */}
+                  {selectedCohortId && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.cohortStatus === 'ENROLLED' 
+                          ? 'bg-green-100 text-green-800'
+                          : user.cohortStatus === 'GRADUATED'
+                          ? 'bg-blue-100 text-blue-800'
+                          : user.cohortStatus === 'SUSPENDED'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : user.cohortStatus === 'REMOVED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {user.cohortStatus === 'ENROLLED' && '✅ Active'}
+                        {user.cohortStatus === 'GRADUATED' && '🎓 Graduated'}
+                        {user.cohortStatus === 'SUSPENDED' && '⏸️ Suspended'}
+                        {user.cohortStatus === 'REMOVED' && '❌ Removed'}
+                        {!user.cohortStatus && '❓ Unknown'}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
@@ -444,24 +820,58 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handleReviewAnswer(answer.id, 'approved')}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
+                  onClick={() => handleGradeAnswer(answer)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors flex items-center space-x-2"
                 >
-                  ✅ Approve
-                </button>
-                <button
-                  onClick={() => handleReviewAnswer(answer.id, 'rejected')}
-                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
-                >
-                  ❌ Reject
+                  <span>🎯</span>
+                  <span>Grade Assignment</span>
                 </button>
               </div>
             </div>
             
             <div className="bg-gray-50 rounded-md p-4 mb-4">
-              <h5 className="font-medium text-gray-900 mb-2">Answer:</h5>
-              <p className="text-gray-700">{answer.content}</p>
+              <h5 className="font-medium text-gray-900 mb-2">Submitted Work:</h5>
+              <div className="mb-3">
+                <strong className="text-gray-700">Link:</strong>
+                <a 
+                  href={answer.content} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                >
+                  {answer.content}
+                </a>
+              </div>
+              {answer.notes && (
+                <div>
+                  <strong className="text-gray-700">Notes:</strong>
+                  <p className="mt-1 text-gray-700">{answer.notes}</p>
+                </div>
+              )}
             </div>
+
+            {answer.hasAttachment && answer.attachmentInfo && (
+              <div className="bg-blue-50 rounded-md p-4 mb-4 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">📎</span>
+                    <div>
+                      <h5 className="font-medium text-blue-900">Attachment:</h5>
+                      <p className="text-sm text-blue-700">{answer.attachmentInfo.fileName}</p>
+                      <p className="text-xs text-blue-600">
+                        {formatFileSize(answer.attachmentInfo.fileSize)} • {answer.attachmentInfo.mimeType}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => downloadAttachment(answer.id.toString(), answer.attachmentInfo!.fileName)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors text-sm font-medium"
+                  >
+                    📥 Download
+                  </button>
+                </div>
+              </div>
+            )}
             
             <p className="text-xs text-gray-400">
               Submitted: {new Date(answer.submittedAt).toLocaleString()}
@@ -530,7 +940,7 @@ const AdminDashboard: React.FC = () => {
                             <h4 className="font-semibold text-gray-900">{module.title}</h4>
                             <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
                               module.isReleased 
-                                ? 'bg-green-100 text-green-800' 
+                                ? 'bg-accent-100 text-accent-800' 
                                 : 'bg-gray-100 text-gray-800'
                             }`}>
                               {module.isReleased ? '✅ Released' : '⏳ Draft'}
@@ -552,7 +962,7 @@ const AdminDashboard: React.FC = () => {
                           setSelectedModule(module);
                           setShowEditModuleModal(true);
                         }}
-                        className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors"
+                        className="bg-secondary-500 text-white px-3 py-1 rounded text-sm hover:bg-secondary-600 transition-colors"
                       >
                         ✏️ Manage
                       </button>
@@ -565,11 +975,11 @@ const AdminDashboard: React.FC = () => {
 
                 {/* Module Assignments - Expandable */}
                 {expandedModule === module.id && (
-                  <div className="border-t-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <div className="p-6 border-l-4 border-blue-400">
+                  <div className="border-t-2 border-primary-200 bg-gradient-to-r from-primary-50 to-primary-100">
+                    <div className="p-6 border-l-4 border-primary-400">
                       <h5 className="font-medium text-gray-900 mb-4 flex items-center bg-white/70 rounded-lg p-3 shadow-sm">
                         <span className="mr-2 text-lg">📋</span>
-                        <span className="text-blue-800 font-semibold">Assignments ({module.topics?.length || 0})</span>
+                        <span className="text-primary-800 font-semibold">Assignments ({module.topics?.length || 0})</span>
                       </h5>
                       
                       {!module.topics || module.topics.length === 0 ? (
@@ -597,11 +1007,12 @@ const AdminDashboard: React.FC = () => {
                                   description: '',
                                   deadline: '',
                                   points: 100,
-                                  bonusPoints: 50
+                                  bonusPoints: 50,
+                                  contents: []
                                 });
                                 setShowCreateTopicModal(true);
                               }}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                              className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors shadow-md"
                             >
                               ➕ Create First Assignment
                             </button>
@@ -642,7 +1053,10 @@ const AdminDashboard: React.FC = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedTopic(topic);
+                                        setSelectedTopic({
+                                          ...topic,
+                                          contents: topic.contents || []
+                                        });
                                         setShowEditTopicModal(true);
                                       }}
                                       className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 transition-colors"
@@ -733,11 +1147,12 @@ const AdminDashboard: React.FC = () => {
                                     description: '',
                                     deadline: '',
                                     points: 100,
-                                    bonusPoints: 50
+                                    bonusPoints: 50,
+                                    contents: []
                                   });
                                   setShowCreateTopicModal(true);
                                 }}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors shadow-md"
+                                className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors shadow-md"
                               >
                                 ➕ Add Another Assignment
                               </button>
@@ -756,9 +1171,257 @@ const AdminDashboard: React.FC = () => {
     );
   };
 
+  // Theme management handlers
+  const handleDefaultThemeFromModule = useCallback(async (moduleId: string) => {
+    try {
+      if (!moduleId) {
+        // Reset to fixed theme if no module selected
+        if (selectedCohortId) {
+          await adminService.updateCohort(selectedCohortId, {
+            defaultTheme: 'trains'
+          });
+          toast.success('Cohort default theme reset to Trains');
+        }
+      } else {
+        const selectedModule = modules.find(m => m.id === moduleId);
+        if (!selectedModule) {
+          toast.error('Module not found');
+          return;
+        }
+
+        if (selectedCohortId) {
+          await adminService.updateCohort(selectedCohortId, {
+            defaultTheme: selectedModule.theme || 'trains'
+          });
+          toast.success(`Cohort default theme set to match Module ${selectedModule.moduleNumber}`);
+        }
+      }
+      
+      // Update cohorts state to reflect the change
+      if (selectedCohortId) {
+        setAllCohorts(prevCohorts => 
+          prevCohorts.map(cohort => 
+            cohort.id === selectedCohortId 
+              ? { ...cohort, defaultTheme: moduleId ? modules.find(m => m.id === moduleId)?.theme || 'trains' : 'trains' }
+              : cohort
+          )
+        );
+      }
+    } catch (error) {
+      toast.error('Failed to update cohort default theme');
+    }
+  }, [selectedCohortId, modules]);
+
+  const handleModuleThemeUpdate = useCallback(async (moduleId: string, newTheme: string) => {
+    try {
+      const oldModule = modules.find(m => m.id === moduleId);
+      const wasLinkedToDefault = oldModule && currentCohort?.defaultTheme === oldModule.theme;
+      
+      await adminService.updateModuleTheme(moduleId, newTheme);
+      
+      // If this module's theme was being used as the cohort default, update the cohort too
+      if (wasLinkedToDefault && selectedCohortId) {
+        await adminService.updateCohort(selectedCohortId, {
+          defaultTheme: newTheme
+        });
+        
+        // Update cohorts state
+        if (selectedCohortId) {
+          setAllCohorts(prevCohorts => 
+            prevCohorts.map(cohort => 
+              cohort.id === selectedCohortId 
+                ? { ...cohort, defaultTheme: newTheme }
+                : cohort
+            )
+          );
+        }
+        
+        toast.success('Module theme and cohort default theme updated successfully');
+      } else {
+        toast.success('Module theme updated successfully');
+      }
+      
+      // Update the modules state directly
+      setModules(prevModules => 
+        prevModules.map(module => 
+          module.id === moduleId 
+            ? { ...module, theme: newTheme }
+            : module
+        )
+      );
+    } catch (error) {
+      toast.error('Failed to update module theme');
+    }
+  }, [modules, currentCohort, selectedCohortId]);
+
+  const renderCohortConfig = useCallback(() => {
+    if (!selectedCohortId) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">🎨</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Cohort Selected</h3>
+            <p className="text-gray-600">Please select a cohort from the dropdown above to configure themes.</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!currentCohort) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">❌</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Cohort Not Found</h3>
+            <p className="text-gray-600">The selected cohort could not be found.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Default Theme Source Selection */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">�</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Cohort Default Theme</h3>
+              <p className="text-sm text-gray-600">
+                Select which module's theme should be used as the default for this cohort.
+              </p>
+            </div>
+          </div>
+
+          <div className="max-w-md">
+            <select
+              value={modules.find(m => m.theme === currentCohort.defaultTheme)?.id || ''}
+              onChange={(e) => handleDefaultThemeFromModule(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">🚂 Use Fixed Theme (Trains)</option>
+              {modules.map((module) => (
+                <option key={module.id} value={module.id}>
+                  {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'} Module {module.moduleNumber}: {module.title} ({availableThemes.find(t => t.id === module.theme)?.name || 'Trains'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Current Default Theme Display */}
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <div className="text-3xl">
+                {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.icon || '🚂'}
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">
+                  Current Default: {availableThemes.find(t => t.id === currentCohort.defaultTheme)?.name || 'Trains'}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {modules.find(m => m.theme === currentCohort.defaultTheme) 
+                    ? `Linked to Module ${modules.find(m => m.theme === currentCohort.defaultTheme)?.moduleNumber}`
+                    : 'Fixed theme (not linked to any module)'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Module Theme Configuration */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">📚</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Module Themes</h3>
+              <p className="text-sm text-gray-600">
+                Configure the theme for each module. If a module is selected as the cohort default above, 
+                changing its theme will also update the cohort default.
+              </p>
+            </div>
+          </div>
+
+          {modules.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-4">📚</div>
+              <p className="text-gray-600">No modules found for this cohort.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {modules.map((module) => {
+                const isLinkedToDefault = module.theme === currentCohort.defaultTheme;
+                return (
+                  <div key={module.id} className={`border rounded-lg p-4 ${isLinkedToDefault ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium text-gray-900">
+                            Module {module.moduleNumber}: {module.title}
+                          </h4>
+                          {isLinkedToDefault && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              🎯 Cohort Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">{module.description}</p>
+                        {isLinkedToDefault && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            ⚡ This module's theme is used as the cohort default
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500">Theme:</span>
+                        <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
+                          <span className="text-lg">
+                            {availableThemes.find(t => t.id === module.theme)?.icon || '🚂'}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {availableThemes.find(t => t.id === module.theme)?.name || 'Trains'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {availableThemes.map((theme) => (
+                        <button
+                          key={theme.id}
+                          className={`relative border rounded-lg p-3 text-center transition-all hover:border-primary-300 ${
+                            module.theme === theme.id
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                          onClick={() => handleModuleThemeUpdate(module.id, theme.id)}
+                        >
+                          <div className="text-2xl mb-1">{theme.icon}</div>
+                          <div className="text-xs font-medium text-gray-900">{theme.name}</div>
+                          {module.theme === theme.id && (
+                            <div className="absolute top-1 right-1">
+                              <div className="bg-primary-500 text-white rounded-full p-0.5">
+                                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }, [selectedCohortId, currentCohort, modules, availableThemes, handleDefaultThemeFromModule, handleModuleThemeUpdate]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center">
         <div className="text-center">
           <div className="flex items-center justify-center">
             <span className="text-4xl">⏳</span>
@@ -770,21 +1433,35 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">   
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">   
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <span className="text-6xl mr-4 drop-shadow-lg">🔧</span>
+              <img 
+                src={DashboardIcon} 
+                alt="Admin Dashboard" 
+                className="w-16 h-16 mr-4 drop-shadow-lg"
+              />
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   Admin Dashboard
                 </h1>
-                <p className="text-lg text-gray-600">Manage users and review answers</p>
+                <p className="text-lg text-gray-600">
+                  Manage participants and review answers
+                  {selectedCohort && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohort.name}</span>}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/cohorts')}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center shadow-lg"
+              >
+                <span className="mr-2">🎯</span>
+                Change Cohort
+              </button>
               <button
                 onClick={logout}
                 className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 flex items-center shadow-lg"
@@ -804,16 +1481,18 @@ const AdminDashboard: React.FC = () => {
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {[
               { id: 'overview', name: 'Overview', icon: '📊' },
-              { id: 'users', name: 'Users', icon: '👥' },
+              { id: 'users', name: 'Participants', icon: '👥' },
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
+              { id: 'mini-questions', name: 'Self Learning', icon: '🎯' },
+              { id: 'cohort-config', name: 'Cohort Configuration', icon: '🎨' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules')}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'answers' | 'modules' | 'mini-questions' | 'cohort-config')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm relative ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -837,60 +1516,35 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'answers' && renderPendingAnswers()}
           {activeTab === 'modules' && renderModules()}
+          {activeTab === 'mini-questions' && (
+            <MiniAnswersView 
+              selectedCohortId={selectedCohortId || undefined}
+              cohortUsers={selectedCohortId ? users : undefined}
+            />
+          )}
+          {activeTab === 'cohort-config' && renderCohortConfig()}
         </div>
       </div>
 
       {/* Feedback Modal */}
-      {showFeedbackModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">
-              {feedbackForm.status === 'approved' ? 'Approve Answer' : 'Reject Answer'}
-            </h3>
-            
-            <div className="mb-4">
-              <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-2">
-                Feedback <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="feedback"
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={`Please provide feedback for ${feedbackForm.status === 'approved' ? 'approving' : 'rejecting'} this answer...`}
-                value={feedbackForm.feedback}
-                onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedback: e.target.value }))}
-              />
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowFeedbackModal(false);
-                  setFeedbackForm({ answerId: null, status: null, feedback: '' });
-                }}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitReview}
-                className={`px-4 py-2 text-white rounded-md transition-colors ${
-                  feedbackForm.status === 'approved' 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {feedbackForm.status === 'approved' ? 'Approve with Feedback' : 'Reject with Feedback'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Grading Modal */}
+      {showGradingModal && gradingAnswer && (
+        <GradingModal
+          isOpen={showGradingModal}
+          onClose={() => {
+            setShowGradingModal(false);
+            setGradingAnswer(null);
+          }}
+          onGrade={submitGrade}
+          answer={gradingAnswer}
+          isLoading={gradingLoading}
+        />
       )}
 
       {/* Create Topic Modal */}
       {showCreateTopicModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Create New Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -908,7 +1562,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.topicNumber}
                   onChange={(e) => setTopicForm({...topicForm, topicNumber: parseInt(e.target.value) || 1})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="1"
                   required
                 />
@@ -922,7 +1576,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.points}
                   onChange={(e) => setTopicForm({...topicForm, points: parseInt(e.target.value) || 100})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="1"
                 />
               </div>
@@ -935,7 +1589,7 @@ const AdminDashboard: React.FC = () => {
                   type="number"
                   value={topicForm.bonusPoints}
                   onChange={(e) => setTopicForm({...topicForm, bonusPoints: parseInt(e.target.value) || 50})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   min="0"
                 />
               </div>
@@ -948,8 +1602,17 @@ const AdminDashboard: React.FC = () => {
                   type="datetime-local"
                   value={topicForm.deadline}
                   onChange={(e) => setTopicForm({...topicForm, deadline: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    !createFormValidation.isValid 
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-primary-500'
+                  }`}
                 />
+                {!createFormValidation.isValid && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {createFormValidation.errorMessage}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -961,7 +1624,7 @@ const AdminDashboard: React.FC = () => {
                 type="text"
                 value={topicForm.title}
                 onChange={(e) => setTopicForm({...topicForm, title: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter topic title..."
                 required
               />
@@ -974,7 +1637,7 @@ const AdminDashboard: React.FC = () => {
               <textarea
                 value={topicForm.description}
                 onChange={(e) => setTopicForm({...topicForm, description: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 rows={3}
                 placeholder="Enter topic description..."
                 required
@@ -994,6 +1657,225 @@ const AdminDashboard: React.FC = () => {
                 required
               />
             </div>
+
+            {/* Self Learning Section */}
+            <div className="mb-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">
+                  Self Learning
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newMiniQuestion = {
+                      id: `temp-${Date.now()}`,
+                      title: '',
+                      description: '',
+                      resourceUrl: '',
+                      orderIndex: topicForm.contents.length,
+                      releaseDate: ''
+                    };
+                    
+                    // Create a simple content section if none exists
+                    if (topicForm.contents.length === 0) {
+                      const newContent = {
+                        id: `content-${Date.now()}`,
+                        title: 'Learning Material',
+                        content: '',
+                        description: '',
+                        orderIndex: 0,
+                        miniQuestions: [newMiniQuestion]
+                      };
+                      setTopicForm({ ...topicForm, contents: [newContent] });
+                    } else {
+                      // Add to first content section
+                      const updatedContents = [...topicForm.contents];
+                      updatedContents[0] = {
+                        ...updatedContents[0],
+                        miniQuestions: [...updatedContents[0].miniQuestions, newMiniQuestion]
+                      };
+                      setTopicForm({ ...topicForm, contents: updatedContents });
+                    }
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-sm rounded-md hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-md flex items-center"
+                >
+                  <span className="mr-2">➕</span>
+                  Add New
+                </button>
+              </div>
+
+              {topicForm.contents.length > 0 && topicForm.contents[0].miniQuestions.length > 0 ? (
+                <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Material
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Question
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Resource URL
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Release Date
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {topicForm.contents[0].miniQuestions.map((miniQuestion, index) => (
+                        <tr key={miniQuestion.id} className="hover:bg-blue-50 transition-colors duration-200">
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={miniQuestion.title}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  title: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Material content..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={miniQuestion.description}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  description: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="url"
+                              value={miniQuestion.resourceUrl || ''}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  resourceUrl: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="https://example.com/resource..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="datetime-local"
+                              value={miniQuestion.releaseDate || ''}
+                              onChange={(e) => {
+                                const updatedContents = [...topicForm.contents];
+                                updatedContents[0].miniQuestions[index] = {
+                                  ...miniQuestion,
+                                  releaseDate: e.target.value
+                                };
+                                setTopicForm({ ...topicForm, contents: updatedContents });
+                              }}
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                                miniQuestion.releaseDate && !validateMiniQuestionDate(topicForm.deadline, miniQuestion.releaseDate)
+                                  ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                              }`}
+                            />
+                            {miniQuestion.releaseDate && !validateMiniQuestionDate(topicForm.deadline, miniQuestion.releaseDate) && (
+                              <p className="mt-1 text-xs text-red-600">
+                                Release date must be before assignment deadline
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex justify-center items-center space-x-2">
+                              {index > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedContents = [...topicForm.contents];
+                                    const miniQuestions = [...updatedContents[0].miniQuestions];
+                                    [miniQuestions[index], miniQuestions[index - 1]] = [miniQuestions[index - 1], miniQuestions[index]];
+                                    miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                    updatedContents[0].miniQuestions = miniQuestions;
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move up"
+                                >
+                                  ↑
+                                </button>
+                              )}
+                              {index < topicForm.contents[0].miniQuestions.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedContents = [...topicForm.contents];
+                                    const miniQuestions = [...updatedContents[0].miniQuestions];
+                                    [miniQuestions[index], miniQuestions[index + 1]] = [miniQuestions[index + 1], miniQuestions[index]];
+                                    miniQuestions.forEach((mq, idx) => mq.orderIndex = idx);
+                                    updatedContents[0].miniQuestions = miniQuestions;
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move down"
+                                >
+                                  ↓
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to delete this self learning activity?')) {
+                                    const updatedContents = [...topicForm.contents];
+                                    updatedContents[0].miniQuestions = updatedContents[0].miniQuestions
+                                      .filter((_, idx) => idx !== index)
+                                      .map((mq, idx) => ({ ...mq, orderIndex: idx }));
+                                    setTopicForm({ ...topicForm, contents: updatedContents });
+                                  }
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-all duration-200"
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-700 flex items-center">
+                      <span className="text-blue-600 mr-2">💡</span>
+                      Students will submit links for each self learning activity as part of their enhanced learning process.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
+                  <div className="mb-4">
+                    <span className="text-4xl">📝</span>
+                  </div>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No self learning activities added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first self learning activity for enhanced learning content.</p>
+                </div>
+              )}
+            </div>
             
             <div className="flex justify-end space-x-3">
               <button
@@ -1010,7 +1892,52 @@ const AdminDashboard: React.FC = () => {
                       return;
                     }
 
-                    const response = await adminService.createTopic(selectedModuleForTopic, topicForm);
+                    // Validate required fields
+                    if (!topicForm.title.trim()) {
+                      toast.error('Assignment title is required');
+                      return;
+                    }
+                    if (!topicForm.content.trim()) {
+                      toast.error('Assignment content is required');
+                      return;
+                    }
+                    if (!topicForm.description.trim()) {
+                      toast.error('Assignment description is required');
+                      return;
+                    }
+                    if (!topicForm.deadline.trim()) {
+                      toast.error('Assignment deadline is required');
+                      return;
+                    }
+                    if (!topicForm.points || topicForm.points <= 0) {
+                      toast.error('Assignment points must be greater than 0');
+                      return;
+                    }
+
+                    // Validate deadline against mini question release dates
+                    const validationResult = validateAssignmentDeadline(topicForm.deadline, topicForm.contents);
+                    if (!validationResult.isValid) {
+                      toast.error(validationResult.errorMessage || 'Validation failed');
+                      return;
+                    }
+
+                    // Transform the data to match API expectations
+                    const topicData = {
+                      ...topicForm,
+                      contents: topicForm.contents.map(content => ({
+                        title: content.title,
+                        material: content.content, // API expects 'material' instead of 'content'
+                        miniQuestions: content.miniQuestions.map(mq => ({
+                          title: mq.title,
+                          question: mq.description, // API expects 'question' instead of 'description'
+                          description: mq.description,
+                          resourceUrl: mq.resourceUrl,
+                          releaseDate: mq.releaseDate
+                        }))
+                      }))
+                    };
+
+                    const response = await adminService.createTopic(selectedModuleForTopic, topicData);
                     const newTopic = response.data;
                     
                     // Update modules state with new topic
@@ -1031,15 +1958,20 @@ const AdminDashboard: React.FC = () => {
                       description: '',
                       deadline: '',
                       points: 100,
-                      bonusPoints: 50
+                      bonusPoints: 50,
+                      contents: []
                     });
                     setSelectedModuleForTopic('');
                   } catch (error) {
-                    console.error('Error creating topic:', error);
                     toast.error('Failed to create assignment');
                   }
                 }}
-                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200"
+                disabled={!createFormValidation.isValid}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+                  createFormValidation.isValid
+                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 Create Assignment
               </button>
@@ -1051,7 +1983,7 @@ const AdminDashboard: React.FC = () => {
       {/* Edit Module Modal */}
       {showEditModuleModal && selectedModule && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Edit Module</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1178,11 +2110,10 @@ const AdminDashboard: React.FC = () => {
                     // Refresh data to ensure consistency
                     await loadAdminData();
                   } catch (error) {
-                    console.error('Error updating module:', error);
                     toast.error('Failed to update module');
                   }
                 }}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-2 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200"
               >
                 Save Changes
               </button>
@@ -1201,7 +2132,6 @@ const AdminDashboard: React.FC = () => {
                       setShowEditModuleModal(false);
                       setSelectedModule(null);
                     } catch (error) {
-                      console.error('Error deleting module:', error);
                       toast.error('Failed to delete module');
                     }
                   }
@@ -1218,7 +2148,7 @@ const AdminDashboard: React.FC = () => {
       {/* Edit Topic Modal */}
       {showEditTopicModal && selectedTopic && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Edit Assignment</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1285,8 +2215,17 @@ const AdminDashboard: React.FC = () => {
                   type="datetime-local"
                   value={selectedTopic.deadline.substring(0, 16)}
                   onChange={(e) => setSelectedTopic({...selectedTopic, deadline: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    !editFormValidation.isValid 
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 />
+                {!editFormValidation.isValid && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {editFormValidation.errorMessage}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -1331,6 +2270,188 @@ const AdminDashboard: React.FC = () => {
                 required
               />
             </div>
+
+            {/* Self Learning Section for Edit */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Self Learning
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentContents = selectedTopic.contents || [];
+                    setSelectedTopic({
+                      ...selectedTopic,
+                      contents: [...currentContents, { 
+                        content: '', 
+                        description: '',
+                        resourceUrl: '',
+                        title: '',
+                        orderIndex: currentContents.length,
+                        miniQuestions: [],
+                        releaseDate: ''
+                      }]
+                    });
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-sm rounded-md hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-md flex items-center"
+                >
+                  <span className="mr-2">➕</span>
+                  Add New
+                </button>
+              </div>
+              
+              {selectedTopic.contents && selectedTopic.contents.length > 0 && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Material
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Question
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Resource URL
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                          Release Date
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-24">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {selectedTopic.contents.map((contentItem, index) => (
+                        <tr key={index} className="hover:bg-blue-50 transition-colors duration-200">
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={contentItem.content}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], content: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Material content..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="text"
+                              value={contentItem.description}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], description: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="Question..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="url"
+                              value={contentItem.resourceUrl || ''}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], resourceUrl: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                              placeholder="https://example.com/resource..."
+                            />
+                          </td>
+                          <td className="px-6 py-4 border-r border-gray-100">
+                            <input
+                              type="datetime-local"
+                              value={contentItem.releaseDate || ''}
+                              onChange={(e) => {
+                                const newContents = [...(selectedTopic.contents || [])];
+                                newContents[index] = { ...newContents[index], releaseDate: e.target.value };
+                                setSelectedTopic({ ...selectedTopic, contents: newContents });
+                              }}
+                              className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                                contentItem.releaseDate && selectedTopic && !validateMiniQuestionDate(selectedTopic.deadline, contentItem.releaseDate)
+                                  ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                              }`}
+                            />
+                            {contentItem.releaseDate && selectedTopic && !validateMiniQuestionDate(selectedTopic.deadline, contentItem.releaseDate) && (
+                              <p className="mt-1 text-xs text-red-600">
+                                Release date must be before assignment deadline
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex justify-center items-center space-x-2">
+                              {index > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newContents = [...(selectedTopic.contents || [])];
+                                    [newContents[index], newContents[index - 1]] = [newContents[index - 1], newContents[index]];
+                                    setSelectedTopic({ ...selectedTopic, contents: newContents });
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move up"
+                                >
+                                  ↑
+                                </button>
+                              )}
+                              {index < (selectedTopic.contents?.length || 0) - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newContents = [...(selectedTopic.contents || [])];
+                                    [newContents[index], newContents[index + 1]] = [newContents[index + 1], newContents[index]];
+                                    setSelectedTopic({ ...selectedTopic, contents: newContents });
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-all duration-200"
+                                  title="Move down"
+                                >
+                                  ↓
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newContents = (selectedTopic.contents || []).filter((_, i) => i !== index);
+                                  setSelectedTopic({ ...selectedTopic, contents: newContents });
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-all duration-200"
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-700 flex items-center">
+                      <span className="text-blue-600 mr-2">💡</span>
+                      Students will submit links for each self learning activity as part of their enhanced learning process.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {(!selectedTopic.contents || selectedTopic.contents.length === 0) && (
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
+                  <div className="mb-4">
+                    <span className="text-4xl">📝</span>
+                  </div>
+                  <p className="text-lg font-medium text-gray-600 mb-2">No self learning activities added yet</p>
+                  <p className="text-sm text-gray-500">Click "Add New" to create your first self learning activity for enhanced learning content.</p>
+                </div>
+              )}
+            </div>
             
             <div className="flex justify-end space-x-3">
               <button
@@ -1345,6 +2466,23 @@ const AdminDashboard: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
+                    // Validate deadline against mini question release dates
+                    const validationResult = validateAssignmentDeadline(selectedTopic.deadline, selectedTopic.contents || []);
+                    if (!validationResult.isValid) {
+                      toast.error(validationResult.errorMessage || 'Validation failed');
+                      return;
+                    }
+
+                    // Transform contents to the format expected by the backend
+                    const transformedContents = selectedTopic.contents 
+                      ? selectedTopic.contents.map(item => ({
+                          material: item.content,
+                          question: item.description,
+                          resourceUrl: item.resourceUrl,
+                          releaseDate: item.releaseDate
+                        }))
+                      : [];
+
                     const response = await adminService.updateTopic(selectedTopic.id, {
                       topicNumber: selectedTopic.topicNumber,
                       title: selectedTopic.title,
@@ -1353,7 +2491,8 @@ const AdminDashboard: React.FC = () => {
                       deadline: selectedTopic.deadline,
                       points: selectedTopic.points,
                       bonusPoints: selectedTopic.bonusPoints,
-                      isReleased: selectedTopic.isReleased
+                      isReleased: selectedTopic.isReleased,
+                      contents: transformedContents
                     });
                     
                     const updatedTopic = response.data;
@@ -1375,11 +2514,15 @@ const AdminDashboard: React.FC = () => {
                     // Refresh data to ensure consistency
                     await loadAdminData();
                   } catch (error) {
-                    console.error('Error updating assignment:', error);
                     toast.error('Failed to update assignment');
                   }
                 }}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+                disabled={!editFormValidation.isValid}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+                  editFormValidation.isValid
+                    ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 Save Changes
               </button>
@@ -1401,7 +2544,6 @@ const AdminDashboard: React.FC = () => {
                       setShowEditTopicModal(false);
                       setSelectedTopic(null);
                     } catch (error) {
-                      console.error('Error deleting assignment:', error);
                       toast.error('Failed to delete assignment');
                     }
                   }
@@ -1418,7 +2560,7 @@ const AdminDashboard: React.FC = () => {
       {/* Create Module Modal */}
       {showCreateModuleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Create New Module</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1482,7 +2624,15 @@ const AdminDashboard: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
-                    const response = await adminService.createModule(moduleForm);
+                    if (!selectedCohortId) {
+                      toast.error('Please select a cohort first before creating modules');
+                      return;
+                    }
+
+                    const response = await adminService.createModule({
+                      ...moduleForm,
+                      cohortId: selectedCohortId
+                    });
                     const newModule = response.data;
                     
                     // Add new module to state
@@ -1496,7 +2646,6 @@ const AdminDashboard: React.FC = () => {
                       description: ''
                     });
                   } catch (error) {
-                    console.error('Error creating module:', error);
                     toast.error('Failed to create module');
                   }
                 }}

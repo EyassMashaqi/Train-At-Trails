@@ -9,21 +9,32 @@ export const startQuestionScheduler = () => {
   // Run every hour to check if new questions should be released
   cron.schedule('0 * * * *', async () => {
     try {
-      console.log('🔍 Checking for questions to release...');
-      
-      // Get game config
-      const config = await prisma.gameConfig.findUnique({
-        where: { id: 'singleton' }
+      // Get default cohort
+      const defaultCohort = await prisma.cohort.findFirst({
+        where: { name: 'Default Cohort' }
       });
 
-      if (!config) {
-        console.log('⚠️ Game configuration not found');
+      if (!defaultCohort) {
+        console.log('⚠️ Default cohort not found');
         return;
       }
 
-      // Get the latest released question
+      // Get game config for this cohort
+      const config = await prisma.cohortGameConfig.findFirst({
+        where: { cohortId: defaultCohort.id }
+      });
+
+      if (!config) {
+        console.log('⚠️ Game configuration not found for default cohort');
+        return;
+      }
+
+      // Get the latest released question for this cohort
       const latestQuestion = await prisma.question.findFirst({
-        where: { isActive: true },
+        where: { 
+          isActive: true,
+          cohortId: defaultCohort.id
+        },
         orderBy: { questionNumber: 'desc' }
       });
 
@@ -50,8 +61,11 @@ export const startQuestionScheduler = () => {
         const nextQuestionNumber = latestQuestion ? latestQuestion.questionNumber + 1 : 1;
         
         if (nextQuestionNumber <= config.totalQuestions) {
-          const questionToRelease = await prisma.question.findUnique({
-            where: { questionNumber: nextQuestionNumber }
+          const questionToRelease = await prisma.question.findFirst({
+            where: { 
+              questionNumber: nextQuestionNumber,
+              cohortId: defaultCohort.id
+            }
           });
 
           if (questionToRelease && !questionToRelease.isActive) {
@@ -88,8 +102,20 @@ export const startQuestionScheduler = () => {
 // Helper function to manually release a question (for testing)
 export const releaseQuestion = async (questionNumber: number) => {
   try {
-    const question = await prisma.question.findUnique({
-      where: { questionNumber }
+    // Get default cohort
+    const defaultCohort = await prisma.cohort.findFirst({
+      where: { name: 'Default Cohort' }
+    });
+
+    if (!defaultCohort) {
+      throw new Error('Default cohort not found');
+    }
+
+    const question = await prisma.question.findFirst({
+      where: { 
+        questionNumber,
+        cohortId: defaultCohort.id
+      }
     });
 
     if (!question) {
