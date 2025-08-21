@@ -31,6 +31,8 @@ interface MiniAnswer {
   linkUrl: string;
   notes: string;
   submittedAt: string;
+  resubmissionRequested?: boolean;
+  resubmissionRequestedAt?: string;
   user: User;
   miniQuestion: MiniQuestion;
 }
@@ -51,6 +53,8 @@ interface UserWithMiniQuestions {
       linkUrl: string;
       notes: string;
       submittedAt: string;
+      resubmissionRequested?: boolean;
+      resubmissionRequestedAt?: string;
     };
   }[];
 }
