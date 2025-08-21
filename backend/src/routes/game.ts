@@ -1026,7 +1026,8 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
             reviewedAt: true,
             feedback: true,
             resubmissionRequested: true,
-            resubmissionRequestedAt: true
+            resubmissionRequestedAt: true,
+            resubmissionApproved: true
           },
           orderBy: { submittedAt: 'desc' },
           take: 1
@@ -1335,7 +1336,10 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 status: true,
                 submittedAt: true,
                 reviewedAt: true,
-                feedback: true
+                feedback: true,
+                resubmissionRequested: true,
+                resubmissionApproved: true,
+                resubmissionRequestedAt: true
               },
               orderBy: { submittedAt: 'desc' },
               take: 1

@@ -433,7 +433,8 @@ const GameView: React.FC = () => {
                 status: userAnswer.status,
                 grade: userAnswer.grade,
                 resubmissionRequested: userAnswer.resubmissionRequested,
-                resubmissionApproved: userAnswer.resubmissionApproved
+                resubmissionApproved: userAnswer.resubmissionApproved,
+                resubmissionRequestedAt: userAnswer.resubmissionRequestedAt
               } : null,
               miniQuestionProgress: topic.miniQuestionProgress,
               miniQuestionsCount: topicMiniQuestions.length,
@@ -466,7 +467,8 @@ const GameView: React.FC = () => {
     if (!foundTargetQuestion && currentQuestion) {
       foundTargetQuestion = currentQuestion;
     }
-    
+
+    console.log('calculateTargetQuestion result:', foundTargetQuestion);
     return foundTargetQuestion;
   }, [progress, modules, currentQuestion, miniQuestions]);
 
@@ -1463,6 +1465,7 @@ const GameView: React.FC = () => {
   };
 
   const renderCurrentQuestion = () => {
+    console.log('renderCurrentQuestion called - progress:', !!progress, 'targetQuestion:', targetQuestion);
     if (!progress || !targetQuestion) return null;
 
     // Get mini-questions specifically for this question/topic
@@ -1715,7 +1718,7 @@ const GameView: React.FC = () => {
                   </p>
                 )}
                 <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
-                  Share a link to your GitHub repository, deployed app, or other relevant work
+                  Share a link to your work
                 </p>
               </div>
 
@@ -2512,8 +2515,20 @@ const GameView: React.FC = () => {
                   )}
                   {/* Show resubmission status if requested */}
                   {answer.resubmissionRequested && (
-                    <span className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded-full border border-orange-200">
-                      {answer.grade === 'NEEDS_RESUBMISSION' ? 'Resubmission Required' : 'Resubmission Requested'}
+                    <span className={`px-2 py-1 text-xs rounded-full border ${
+                      answer.resubmissionApproved === true
+                        ? 'bg-green-100 text-green-700 border-green-200' 
+                        : answer.resubmissionApproved === false
+                        ? 'bg-red-100 text-red-700 border-red-200'
+                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                    }`}>
+                      {answer.grade === 'NEEDS_RESUBMISSION' 
+                        ? 'Resubmission Required' 
+                        : answer.resubmissionApproved === true
+                        ? 'Resubmission Approved - You can submit a new answer above!' 
+                        : answer.resubmissionApproved === false
+                        ? 'Resubmission Request Rejected'
+                        : 'Resubmission Request Pending Admin Approval'}
                     </span>
                   )}
                 </div>
@@ -2643,6 +2658,57 @@ const GameView: React.FC = () => {
             ← Back to Dashboard
           </button>
         </div>
+
+        {/* Resubmission Status Notifications */}
+        {progress?.answers?.some(answer => answer.resubmissionRequested) && (
+          <div className="mb-6">
+            {progress.answers
+              .filter(answer => answer.resubmissionRequested)
+              .map(answer => (
+                <div
+                  key={answer.id}
+                  className={`mb-3 p-4 rounded-lg border ${
+                    answer.resubmissionApproved === true
+                      ? 'bg-green-50 border-green-200 text-green-800'
+                      : answer.resubmissionApproved === false
+                      ? 'bg-red-50 border-red-200 text-red-800'
+                      : 'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <span className="text-xl mr-3">
+                      {answer.resubmissionApproved === true
+                        ? '✅'
+                        : answer.resubmissionApproved === false
+                        ? '❌'
+                        : '⏳'
+                      }
+                    </span>
+                    <div>
+                      <p className="font-medium">
+                        Question {answer.question.questionNumber}: {
+                          answer.resubmissionApproved === true
+                            ? 'Resubmission Approved!'
+                            : answer.resubmissionApproved === false
+                            ? 'Resubmission Request Rejected'
+                            : 'Resubmission Request Pending'
+                        }
+                      </p>
+                      <p className="text-sm">
+                        {answer.resubmissionApproved === true
+                          ? 'You can now submit a new answer below in the Main Assignment section.'
+                          : answer.resubmissionApproved === false
+                          ? 'Your resubmission request was rejected. Contact admin for more information.'
+                          : 'Your resubmission request is awaiting admin approval.'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        )}
 
         {/* Leaderboard - All Users' Train Progress */}
         {renderLeaderboard()}
