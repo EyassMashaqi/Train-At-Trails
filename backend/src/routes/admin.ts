@@ -391,7 +391,11 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
         reviewedAt: new Date(),
         reviewedBy: adminId,
         feedback,
-        pointsAwarded: gradeDetails.points
+        pointsAwarded: gradeDetails.points,
+        // Automatically approve resubmission for NEEDS_RESUBMISSION grade
+        resubmissionRequested: grade === 'NEEDS_RESUBMISSION' ? true : false,
+        resubmissionApproved: grade === 'NEEDS_RESUBMISSION' ? true : null,
+        resubmissionRequestedAt: grade === 'NEEDS_RESUBMISSION' ? new Date() : null
       }
     });
 

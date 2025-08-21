@@ -31,6 +31,9 @@ interface Answer {
   grade?: string; // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
   submittedAt: string;
   feedback?: string;
+  resubmissionRequested?: boolean; // Add resubmission status
+  resubmissionApproved?: boolean;
+  resubmissionRequestedAt?: string;
   question: Question;
   topic?: Topic;
 }
@@ -387,10 +390,20 @@ const GameView: React.FC = () => {
             // 2. All mini-questions for this topic are completed
             const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
             
-            // Check if user has already answered this question
-            const hasAnswered = progress?.answers?.some(answer => 
+            // Check if user has already answered this question and cannot resubmit
+            const userAnswer = progress?.answers?.find(answer => 
               answer.question.questionNumber === topicNumber
             );
+            
+            // User can submit/resubmit if:
+            // 1. No answer exists, OR
+            // 2. Grade is NEEDS_RESUBMISSION (new grading system), OR
+            // 3. Status is REJECTED (legacy system), OR 
+            // 4. Resubmission was requested and approved
+            const canSubmitAnswer = !userAnswer || 
+              userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+              userAnswer.status === 'REJECTED' ||
+              (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
             
             console.log(`Topic ${topicNumber} (${topic.title}):`, {
               isReleased: topic.isReleased,
@@ -398,7 +411,14 @@ const GameView: React.FC = () => {
               isTopicAvailable,
               allMiniQuestionsCompleted,
               isActuallyAvailable,
-              hasAnswered,
+              hasAnswered: !!userAnswer,
+              canSubmitAnswer,
+              answerDetails: userAnswer ? {
+                status: userAnswer.status,
+                grade: userAnswer.grade,
+                resubmissionRequested: userAnswer.resubmissionRequested,
+                resubmissionApproved: userAnswer.resubmissionApproved
+              } : null,
               miniQuestionProgress: topic.miniQuestionProgress,
               miniQuestionsCount: topicMiniQuestions.length,
               completedMiniQuestions: topicMiniQuestions.filter(mq => 
@@ -406,8 +426,8 @@ const GameView: React.FC = () => {
               ).length
             });
             
-            // Use backend status to determine if this topic is available
-            if (isActuallyAvailable && !hasAnswered) {
+            // Use backend status to determine if this topic is available for submission
+            if (isActuallyAvailable && canSubmitAnswer) {
               foundTargetQuestion = {
                 id: topic.id, // Keep as string, don't convert to int
                 questionNumber: topicNumber,
@@ -1537,11 +1557,24 @@ const GameView: React.FC = () => {
       );
     }
 
-    // Check if user has already answered this question
-    const hasAnswered = progress?.answers?.some(answer => 
+    // Check if user has already answered this question and get answer details
+    const userAnswer = progress?.answers?.find(answer => 
       answer.question.id === targetQuestion.id || 
       answer.question.questionNumber === targetQuestion.questionNumber
     );
+    
+    // User can submit/resubmit if:
+    // 1. No answer exists, OR
+    // 2. Grade is NEEDS_RESUBMISSION (new grading system), OR
+    // 3. Status is REJECTED (legacy system), OR 
+    // 4. Resubmission was requested and approved
+    const canSubmitAnswer = !userAnswer || 
+      userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+      userAnswer.status === 'REJECTED' ||
+      (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+    
+    const hasAnswered = !!userAnswer;
+    const isResubmissionAvailable = userAnswer && canSubmitAnswer;
 
     return (
       <div className="mb-8">
@@ -1556,7 +1589,8 @@ const GameView: React.FC = () => {
             </div>
             <div className={`${themeClasses.accentBg} rounded-lg px-3 py-1`}>
               <span className={`${themeClasses.accentTextSafe} font-semibold`}>
-                {hasAnswered ? 'Completed' : 'Available'}
+                {isResubmissionAvailable ? 'Resubmission Available' : 
+                 hasAnswered ? 'Completed' : 'Available'}
               </span>
             </div>
           </div>
@@ -1573,18 +1607,49 @@ const GameView: React.FC = () => {
             )}
           </div>
 
-          {hasAnswered ? (
+          {hasAnswered && !canSubmitAnswer ? (
             <div className="bg-green-100 border border-green-200 rounded-lg p-4">
               <div className="flex items-center">
                 <span className="text-green-600 text-xl mr-3">✅</span>
                 <div>
                   <p className="text-green-800 font-medium">Answer Submitted</p>
                   <p className="text-green-700 text-sm">Your answer has been submitted and is awaiting review.</p>
+                  {userAnswer?.grade && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Grade:</span>
+                      <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                      <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
+              {isResubmissionAvailable && (
+                <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center">
+                    <span className="text-orange-600 text-xl mr-3">🔄</span>
+                    <div>
+                      <p className="text-orange-800 font-medium">Resubmission Available</p>
+                      <p className="text-orange-700 text-sm">
+                        {userAnswer?.grade === 'NEEDS_RESUBMISSION' 
+                          ? 'Admin has requested you to update your answer. Please provide a new submission below.'
+                          : userAnswer?.status === 'REJECTED'
+                          ? 'Your answer was rejected. You can submit a new answer below.'
+                          : 'Your resubmission request has been approved. You can now submit a new answer.'}
+                      </p>
+                      {userAnswer?.grade && (
+                        <div className="mt-2 flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">Previous Grade:</span>
+                          <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                          <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
                   Link to Your Work *
@@ -2384,8 +2449,8 @@ const GameView: React.FC = () => {
                   <div className="text-xs text-gray-500">
                     {new Date(answer.submittedAt).toLocaleDateString()}
                   </div>
-                  {/* Resubmission request button */}
-                  {(answer.status === 'APPROVED' || answer.status === 'REJECTED') && (
+                  {/* Resubmission request button - allow for any graded answer */}
+                  {answer.grade && answer.status !== 'PENDING' && !answer.resubmissionRequested && (
                     <button
                       onClick={() => handleResubmissionRequest(answer.id)}
                       className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 border border-blue-200"
@@ -2393,6 +2458,12 @@ const GameView: React.FC = () => {
                     >
                       Request Resubmission
                     </button>
+                  )}
+                  {/* Show resubmission status if requested */}
+                  {answer.resubmissionRequested && (
+                    <span className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded-full border border-orange-200">
+                      {answer.grade === 'NEEDS_RESUBMISSION' ? 'Resubmission Required' : 'Resubmission Requested'}
+                    </span>
                   )}
                 </div>
               </div>
