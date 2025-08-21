@@ -255,7 +255,9 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       <div className="space-y-4">
         {filteredUserMiniQuestions.map((item) => {
           const isExpanded = expandedUsers.has(item.user.id);
-          const completedCount = item.miniQuestions.filter(mq => mq.hasAnswer).length;
+          const completedCount = item.miniQuestions.filter(mq => 
+            mq.hasAnswer && !mq.answer?.resubmissionRequested
+          ).length;
           const totalCount = item.miniQuestions.length;
           const hasAnySubmissions = completedCount > 0;
 

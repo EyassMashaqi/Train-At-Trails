@@ -401,7 +401,9 @@ const GameView: React.FC = () => {
               hasAnswered,
               miniQuestionProgress: topic.miniQuestionProgress,
               miniQuestionsCount: topicMiniQuestions.length,
-              completedMiniQuestions: topicMiniQuestions.filter(mq => mq.hasAnswer).length
+              completedMiniQuestions: topicMiniQuestions.filter(mq => 
+                mq.hasAnswer && !mq.answer?.resubmissionRequested
+              ).length
             });
             
             // Use backend status to determine if this topic is available
@@ -1098,7 +1100,9 @@ const GameView: React.FC = () => {
       setExpandedQuestions(prev => ({ ...prev, ...initialExpanded }));
     }
 
-    const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
+    const completedMiniQuestions = miniQuestions.filter(mq => 
+      mq.hasAnswer && !mq.answer?.resubmissionRequested
+    ).length;
     const totalMiniQuestions = miniQuestions.length;
     const allMiniQuestionsCompleted = completedMiniQuestions === totalMiniQuestions;
 
@@ -1145,7 +1149,9 @@ const GameView: React.FC = () => {
           <div className="space-y-4">
             {Object.entries(groupedMiniQuestions).map(([questionKey, group]) => {
               const isExpanded = expandedQuestions[questionKey];
-              const groupCompleted = group.miniQuestions.filter(mq => mq.hasAnswer).length;
+              const groupCompleted = group.miniQuestions.filter(mq => 
+                mq.hasAnswer && !mq.answer?.resubmissionRequested
+              ).length;
               const groupTotal = group.miniQuestions.length;
               const isFullyCompleted = groupCompleted === groupTotal;
 
@@ -1218,7 +1224,7 @@ const GameView: React.FC = () => {
                               <div className="flex-1">
                                 <div className="flex items-center mb-2">
                                   <span className="text-lg mr-2">
-                                    {miniQuestion.hasAnswer ? '✅' : '❓'}
+                                    {miniQuestion.hasAnswer && !miniQuestion.answer?.resubmissionRequested ? '✅' : '❓'}
                                   </span>
                                   <div className="flex-1">
                                     <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
@@ -1438,7 +1444,9 @@ const GameView: React.FC = () => {
       mq.questionNumber === targetQuestion.questionNumber
     );
     
-    const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => mq.hasAnswer).length;
+    const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => 
+      mq.hasAnswer && !mq.answer?.resubmissionRequested
+    ).length;
     const totalQuestionMiniQuestions = questionMiniQuestions.length;
     // Remove unused variable
     // const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
@@ -2141,7 +2149,9 @@ const GameView: React.FC = () => {
                             ) || [];
                             
                             const hasMiniQuestions = topicMiniQuestions.length > 0;
-                            const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
+                            const completedMiniQuestions = topicMiniQuestions.filter(mq => 
+                              mq.hasAnswer && !mq.answer?.resubmissionRequested
+                            ).length;
                             
                             // Check if there are future mini-questions
                             const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
