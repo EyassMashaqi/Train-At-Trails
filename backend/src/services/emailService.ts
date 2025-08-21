@@ -39,7 +39,7 @@ class EmailService {
     };
 
     this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || '';
-    this.fromName = process.env.SMTP_FROM_NAME || 'Train at Trails';
+    this.fromName = process.env.SMTP_FROM_NAME || 'BVisionRY Lighthouse';
 
     // Create transporter
     this.transporter = nodemailer.createTransport(emailConfig);
@@ -134,14 +134,76 @@ class EmailService {
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
+  // Send self-learning activity release notification
+  async sendMiniQuestionReleaseEmail(
+    userEmail: string,
+    userName: string,
+    miniQuestionTitle: string,
+    contentTitle: string,
+    questionTitle: string
+  ): Promise<boolean> {
+    const template = this.getMiniQuestionReleaseTemplate(userName, miniQuestionTitle, contentTitle, questionTitle);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
+  // Send mini-answer resubmission request notification
+  async sendMiniAnswerResubmissionRequestEmail(
+    userEmail: string,
+    userName: string,
+    miniQuestionTitle: string,
+    contentTitle: string,
+    questionTitle: string
+  ): Promise<boolean> {
+    const template = this.getMiniAnswerResubmissionTemplate(userName, miniQuestionTitle, contentTitle, questionTitle);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
+  // Send bulk emails to cohort users
+  async sendBulkEmailToCohort(
+    emails: string[],
+    subject: string,
+    html: string,
+    text?: string
+  ): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    // Send emails in batches to avoid rate limiting
+    const batchSize = 10;
+    for (let i = 0; i < emails.length; i += batchSize) {
+      const batch = emails.slice(i, i + batchSize);
+      
+      const promises = batch.map(async (email) => {
+        try {
+          await this.sendEmail(email, subject, html, text);
+          return true;
+        } catch (error) {
+          console.error(`Failed to send email to ${email}:`, error);
+          return false;
+        }
+      });
+
+      const results = await Promise.all(promises);
+      success += results.filter(Boolean).length;
+      failed += results.filter(r => !r).length;
+
+      // Add delay between batches to respect rate limits
+      if (i + batchSize < emails.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    return { success, failed };
+  }
+
   // Email Templates
   private getWelcomeTemplate(userName: string): EmailTemplate {
     return {
-      subject: 'Welcome to Train at Trails! 🚂',
+      subject: 'Welcome to BVisionRY Lighthouse! 🚂',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #2563eb; margin-bottom: 10px;">Welcome to Train at Trails! 🚂</h1>
+            <h1 style="color: #2563eb; margin-bottom: 10px;">Welcome to BVisionRY Lighthouse!</h1>
             <p style="color: #64748b; font-size: 16px;">Your learning journey begins now</p>
           </div>
           
@@ -174,7 +236,7 @@ class EmailService {
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
               Happy learning!<br>
-              The Train at Trails Team
+              The BVisionRY Lighthouse Team
             </p>
           </div>
         </div>
@@ -186,12 +248,12 @@ class EmailService {
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
 
     return {
-      subject: 'Reset Your Password - Train at Trails',
+      subject: 'Reset Your Password - BVisionRY Lighthouse',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
             <h1 style="color: #dc2626; margin-bottom: 10px;">Password Reset Request</h1>
-            <p style="color: #64748b; font-size: 16px;">Reset your Train at Trails password</p>
+            <p style="color: #64748b; font-size: 16px;">Reset your BVisionRY Lighthouse password</p>
           </div>
           
           <div style="background: #fef2f2; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #dc2626;">
@@ -218,7 +280,7 @@ class EmailService {
 
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
-              The Train at Trails Team
+              The BVisionRY Lighthouse Team
             </p>
           </div>
         </div>
@@ -264,7 +326,7 @@ class EmailService {
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
               Keep up the great work!<br>
-              The Train at Trails Team
+              The BVisionRY Lighthouse Team
             </p>
           </div>
         </div>
@@ -345,7 +407,7 @@ class EmailService {
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
               Keep learning and growing!<br>
-              The Train at Trails Team
+              The BVisionRY Lighthouse Team
             </p>
           </div>
         </div>
@@ -393,7 +455,125 @@ class EmailService {
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
               Good luck with your answer!<br>
-              The Train at Trails Team
+              The BVisionRY Lighthouse Team
+            </p>
+          </div>
+        </div>
+      `,
+    };
+  }
+
+  private getMiniQuestionReleaseTemplate(
+    userName: string,
+    miniQuestionTitle: string,
+    contentTitle: string,
+    questionTitle: string
+  ): EmailTemplate {
+    return {
+      subject: `New Learning Activity Available - ${miniQuestionTitle} 📚`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #7c3aed; margin-bottom: 10px;">New Learning Activity Available! 📚</h1>
+            <p style="color: #64748b; font-size: 16px;">Expand your knowledge with this self-learning activity</p>
+          </div>
+          
+          <div style="background: #faf5ff; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #7c3aed;">
+            <h2 style="color: #1e293b; margin-bottom: 15px;">Hello ${userName},</h2>
+            <p style="color: #475569; line-height: 1.6;">
+              A new self-learning activity is now available for you to complete!
+            </p>
+            <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px;">
+              <h3 style="color: #7c3aed; margin: 0 0 5px 0;">${miniQuestionTitle}</h3>
+              <p style="color: #6b7280; font-size: 14px; margin: 0;">Part of: ${contentTitle} - ${questionTitle}</p>
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="color: #1d4ed8; margin-bottom: 10px;">💡 What are Learning Activities?</h3>
+            <p style="color: #475569; line-height: 1.6;">
+              Learning activities are self-paced exercises designed to help you:
+            </p>
+            <ul style="color: #475569; line-height: 1.6;">
+              <li>🎯 Master key concepts before tackling main assignments</li>
+              <li>📖 Access curated learning resources and materials</li>
+              <li>✅ Track your progress step by step</li>
+              <li>🚀 Build confidence in your skills</li>
+            </ul>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Start Learning Activity
+            </a>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 14px;">
+              Happy learning!<br>
+              The BVisionRY Lighthouse Team
+            </p>
+          </div>
+        </div>
+      `,
+    };
+  }
+
+  private getMiniAnswerResubmissionTemplate(
+    userName: string,
+    miniQuestionTitle: string,
+    contentTitle: string,
+    questionTitle: string
+  ): EmailTemplate {
+    return {
+      subject: `Resubmission Requested - ${miniQuestionTitle} 🔄`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #ea580c; margin-bottom: 10px;">Resubmission Requested 🔄</h1>
+            <p style="color: #64748b; font-size: 16px;">Your learning activity needs a revision</p>
+          </div>
+          
+          <div style="background: #fff7ed; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #ea580c;">
+            <h2 style="color: #1e293b; margin-bottom: 15px;">Hello ${userName},</h2>
+            <p style="color: #475569; line-height: 1.6;">
+              Our review team has requested that you resubmit your answer for the following learning activity:
+            </p>
+            <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px;">
+              <h3 style="color: #ea580c; margin: 0 0 5px 0;">${miniQuestionTitle}</h3>
+              <p style="color: #6b7280; font-size: 14px; margin: 0;">Part of: ${contentTitle} - ${questionTitle}</p>
+            </div>
+          </div>
+
+          <div style="background: #fefce8; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="color: #a16207; margin-bottom: 10px;">📝 What to do next:</h3>
+            <ul style="color: #713f12; line-height: 1.6;">
+              <li>Review the original learning activity requirements</li>
+              <li>Check any feedback provided by the review team</li>
+              <li>Update your submission with improved content</li>
+              <li>Resubmit your answer when ready</li>
+            </ul>
+          </div>
+
+          <div style="background: #f0fdf4; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <p style="color: #166534; font-size: 14px; margin: 0;">
+              <strong>💡 Tip:</strong> This is a great opportunity to deepen your understanding and improve your work. 
+              Take your time to provide a more comprehensive response!
+            </p>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+               style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Update Your Answer
+            </a>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 14px;">
+              You've got this!<br>
+              The BVisionRY Lighthouse Team
             </p>
           </div>
         </div>

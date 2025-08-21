@@ -211,6 +211,13 @@ export const adminService = {
   requestMiniAnswerResubmission: (miniAnswerId: string, userId: number) =>
     api.post(`/admin/mini-answer/${miniAnswerId}/request-resubmission`, { userId }),
   
+  // Bulk email functionality
+  sendBulkEmail: (cohortId: string, emailData: {
+    subject: string;
+    message: string;
+    emailType?: string;
+  }) => api.post(`/admin/cohorts/${cohortId}/send-email`, emailData),
+  
   getGameStats: (cohortId?: string) => {
     const params = cohortId ? `?cohortId=${cohortId}` : '';
     return api.get(`/admin/stats${params}`);

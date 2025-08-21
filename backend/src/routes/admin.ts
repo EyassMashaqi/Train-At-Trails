@@ -1801,6 +1801,45 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
       include: { module: true }
     });
 
+    // Send email notifications to all cohort users
+    try {
+      if (updatedQuestion.cohortId) {
+        // Get all enrolled users in the cohort
+        const cohortUsers = await prisma.cohortMember.findMany({
+          where: {
+            cohortId: updatedQuestion.cohortId,
+            status: 'ENROLLED'
+          },
+          include: {
+            user: {
+              select: {
+                email: true,
+                fullName: true
+              }
+            }
+          }
+        });
+
+        // Send emails to all enrolled users
+        for (const member of cohortUsers) {
+          try {
+            await emailService.sendNewQuestionEmail(
+              member.user.email,
+              member.user.fullName,
+              updatedQuestion.title,
+              updatedQuestion.topicNumber || updatedQuestion.questionNumber
+            );
+          } catch (emailError) {
+            console.error(`❌ Failed to send topic release email to ${member.user.email}:`, emailError);
+          }
+        }
+        
+        console.log(`📧 Sent topic release notifications to ${cohortUsers.length} users in cohort for topic "${updatedQuestion.title}"`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send topic release emails:', emailError);
+    }
+
     // Return in topic format for compatibility
     const topic = {
       id: updatedQuestion.id,
@@ -2324,6 +2363,21 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', async (req: AuthR
         resubmissionRequestedBy: adminId
       }
     });
+
+    // Send email notification to user
+    try {
+      await emailService.sendMiniAnswerResubmissionRequestEmail(
+        miniAnswer.user.email,
+        miniAnswer.user.fullName,
+        miniAnswer.miniQuestion.title,
+        miniAnswer.miniQuestion.content.title,
+        miniAnswer.miniQuestion.content.question.title
+      );
+      console.log(`✅ Resubmission request email sent to ${miniAnswer.user.email} for mini-question "${miniAnswer.miniQuestion.title}"`);
+    } catch (emailError) {
+      console.error('❌ Failed to send resubmission request email:', emailError);
+      // Don't fail the request if email sending fails
+    }
 
     res.json({ 
       message: `Resubmission requested for ${miniAnswer.user.fullName}'s answer to "${miniAnswer.miniQuestion.title}"`,
@@ -3034,6 +3088,96 @@ router.get('/answer/:answerId/attachment', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Download attachment error:', error);
     res.status(500).json({ error: 'Failed to download attachment' });
+  }
+});
+
+// Send bulk email to cohort users
+router.post('/cohorts/:cohortId/send-email', async (req: AuthRequest, res) => {
+  try {
+    const { cohortId } = req.params;
+    const { subject, message, emailType } = req.body;
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'Subject and message are required' });
+    }
+
+    // Get all enrolled users in the cohort
+    const cohortUsers = await prisma.cohortMember.findMany({
+      where: {
+        cohortId: cohortId,
+        status: 'ENROLLED'
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true
+          }
+        },
+        cohort: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (cohortUsers.length === 0) {
+      return res.status(404).json({ error: 'No enrolled users found in cohort' });
+    }
+
+    // Create HTML email template
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb; margin-bottom: 10px;">${subject}</h1>
+          <p style="color: #64748b; font-size: 16px;">Message from BVisionRY Lighthouse Team</p>
+        </div>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          <div style="color: #475569; line-height: 1.6; white-space: pre-line;">
+            ${message}
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Go to Dashboard
+          </a>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+          <p style="color: #94a3b8; font-size: 14px;">
+            Best regards,<br>
+            The BVisionRY Lighthouse Team
+          </p>
+        </div>
+      </div>
+    `;
+
+    // Send emails to all users
+    const results = await emailService.sendBulkEmailToCohort(
+      cohortUsers.map(user => user.user.email),
+      subject,
+      html
+    );
+
+    // Log the activity
+    console.log(`📧 Bulk email sent to cohort "${cohortUsers[0].cohort.name}": ${results.success} successful, ${results.failed} failed`);
+
+    res.json({
+      message: `Email sent to ${results.success} users successfully`,
+      details: {
+        cohortName: cohortUsers[0].cohort.name,
+        totalUsers: cohortUsers.length,
+        successful: results.success,
+        failed: results.failed
+      }
+    });
+  } catch (error) {
+    console.error('Send bulk email error:', error);
+    res.status(500).json({ error: 'Failed to send bulk email' });
   }
 });
 

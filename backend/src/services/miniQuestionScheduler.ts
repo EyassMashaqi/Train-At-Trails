@@ -1,5 +1,6 @@
 import * as cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
+import emailService from './emailService';
 
 const prisma = new PrismaClient();
 
@@ -48,6 +49,47 @@ export const startMiniQuestionScheduler = () => {
           });
           
           console.log(`✅ Released mini question: "${miniQuestion.title}" for assignment "${miniQuestion.content.question.title}"`);
+
+          // Send email notifications to all cohort users
+          try {
+            const cohortId = miniQuestion.content.question.cohortId;
+            if (cohortId) {
+              // Get all enrolled users in the cohort
+              const cohortUsers = await prisma.cohortMember.findMany({
+                where: {
+                  cohortId: cohortId,
+                  status: 'ENROLLED'
+                },
+                include: {
+                  user: {
+                    select: {
+                      email: true,
+                      fullName: true
+                    }
+                  }
+                }
+              });
+
+              // Send emails to all enrolled users
+              for (const member of cohortUsers) {
+                try {
+                  await emailService.sendMiniQuestionReleaseEmail(
+                    member.user.email,
+                    member.user.fullName,
+                    miniQuestion.title,
+                    miniQuestion.content.title,
+                    miniQuestion.content.question.title
+                  );
+                } catch (emailError) {
+                  console.error(`❌ Failed to send mini-question release email to ${member.user.email}:`, emailError);
+                }
+              }
+              
+              console.log(`📧 Sent learning activity notifications to ${cohortUsers.length} users in cohort for "${miniQuestion.title}"`);
+            }
+          } catch (emailError) {
+            console.error('❌ Failed to send learning activity release emails:', emailError);
+          }
         }
       }
 

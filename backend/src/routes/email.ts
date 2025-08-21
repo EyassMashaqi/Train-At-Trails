@@ -33,11 +33,11 @@ router.post('/test', authenticateToken, async (req: AuthRequest, res) => {
       subject,
       `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2>Test Email from Train at Trails</h2>
+          <h2>Test Email from BVisionRY Lighthouse</h2>
           <p>${message}</p>
           <hr>
           <p style="color: #666; font-size: 12px;">
-            This is a test email sent from the Train at Trails platform.
+            This is a test email sent from the BVisionRY Lighthouse platform.
           </p>
         </div>
       `
@@ -150,7 +150,7 @@ router.post('/notification/bulk', authenticateToken, async (req: AuthRequest, re
         `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #2563eb; margin-bottom: 10px;">Train at Trails Notification</h1>
+              <h1 style="color: #2563eb; margin-bottom: 10px;">BVisionRY Lighthouse Notification</h1>
             </div>
             
             <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
@@ -169,7 +169,7 @@ router.post('/notification/bulk', authenticateToken, async (req: AuthRequest, re
 
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
               <p style="color: #94a3b8; font-size: 14px;">
-                The Train at Trails Team
+                The BVisionRY Lighthouse Team
               </p>
             </div>
           </div>
@@ -212,7 +212,7 @@ router.get('/config/status', authenticateToken, async (req: AuthRequest, res) =>
       port: process.env.SMTP_PORT || 'Not configured',
       user: process.env.SMTP_USER || 'Not configured',
       fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'Not configured',
-      fromName: process.env.SMTP_FROM_NAME || 'Train at Trails',
+      fromName: process.env.SMTP_FROM_NAME || 'BVisionRY Lighthouse',
       isConfigured: !!(
         process.env.SMTP_HOST && 
         process.env.SMTP_PORT && 
