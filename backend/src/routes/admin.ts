@@ -281,10 +281,7 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
 
     const pendingAnswers = await prisma.answer.findMany({
       where: { 
-        OR: [
-          { status: 'PENDING' },
-          { resubmissionRequested: true }
-        ],
+        status: 'PENDING',
         cohortId: { in: cohortIds } // Filter by admin's accessible cohorts
       },
       include: {
@@ -330,6 +327,110 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Get pending answers error:', error);
     res.status(500).json({ error: 'Failed to get pending answers' });
+  }
+});
+
+// Get resubmission requests
+router.get('/resubmission-requests', async (req: AuthRequest, res) => {
+  try {
+    const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string;
+    
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      if (requestedCohortId) {
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { id: requestedCohortId }
+        });
+        
+        if (requestedCohort) {
+          cohortIds = [requestedCohortId];
+        } else {
+          return res.status(400).json({ error: 'Invalid cohort specified' });
+        }
+      } else {
+        const allCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = allCohorts.map(c => c.id);
+      }
+    } else {
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: { cohortId: true }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      if (requestedCohortId && !cohortIds.includes(requestedCohortId)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (requestedCohortId) {
+        cohortIds = [requestedCohortId];
+      }
+    }
+
+    if (cohortIds.length === 0) {
+      return res.json({ resubmissionRequests: [] });
+    }
+
+    const resubmissionRequests = await prisma.answer.findMany({
+      where: { 
+        resubmissionRequested: true,
+        resubmissionApproved: null, // Only pending requests
+        cohortId: { in: cohortIds }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            trainName: true,
+            currentStep: true
+          }
+        },
+        question: {
+          select: {
+            id: true,
+            questionNumber: true,
+            title: true,
+            content: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { resubmissionRequestedAt: 'desc' }
+    });
+
+    const requestsWithInfo = resubmissionRequests.map(answer => ({
+      ...answer,
+      hasAttachment: !!answer.attachmentFileName,
+      attachmentInfo: answer.attachmentFileName ? {
+        fileName: answer.attachmentFileName,
+        fileSize: answer.attachmentFileSize,
+        mimeType: answer.attachmentMimeType
+      } : null
+    }));
+
+    res.json({ resubmissionRequests: requestsWithInfo });
+  } catch (error) {
+    console.error('Get resubmission requests error:', error);
+    res.status(500).json({ error: 'Failed to get resubmission requests' });
   }
 });
 

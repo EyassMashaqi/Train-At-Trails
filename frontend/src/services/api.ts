@@ -188,6 +188,11 @@ export const adminService = {
     const params = cohortId ? `?cohortId=${cohortId}` : '';
     return api.get(`/admin/pending-answers${params}`);
   },
+
+  getResubmissionRequests: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/resubmission-requests${params}`);
+  },
   
   reviewAnswer: (answerId: number, status: 'approved' | 'rejected', feedback?: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 

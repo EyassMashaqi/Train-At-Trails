@@ -34,8 +34,43 @@ interface PendingAnswer {
   notes?: string;
   submittedAt: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  resubmissionRequested?: boolean;
-  resubmissionRequestedAt?: string;
+  hasAttachment: boolean;
+  attachmentInfo?: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  };
+  user: {
+    id: number;
+    fullName: string;
+    trainName: string;
+  };
+  question?: {
+    id: number;
+    questionNumber: number;
+    title: string;
+  };
+  topic?: {
+    id: number;
+    topicNumber: number;
+    title: string;
+    module: {
+      title: string;
+    };
+  };
+}
+
+interface ResubmissionRequest {
+  id: number;
+  content: string;
+  notes?: string;
+  submittedAt: string;
+  status: 'APPROVED' | 'REJECTED';
+  grade: string;
+  feedback?: string;
+  resubmissionRequested: boolean;
+  resubmissionRequestedAt: string;
+  resubmissionApproved: boolean | null;
   hasAttachment: boolean;
   attachmentInfo?: {
     fileName: string;
@@ -222,6 +257,7 @@ const AdminDashboard: React.FC = () => {
   
   const [users, setUsers] = useState<User[]>([]);
   const [pendingAnswers, setPendingAnswers] = useState<PendingAnswer[]>([]);
+  const [resubmissionRequests, setResubmissionRequests] = useState<ResubmissionRequest[]>([]);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
@@ -312,14 +348,17 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Load data based on whether a cohort is selected
-      let usersResponse, pendingResponse, statsResponse;
+      let usersResponse, pendingResponse, resubmissionResponse, statsResponse;
       if (selectedCohortId) {
         // Load cohort-specific data
-        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+        [usersResponse, pendingResponse, resubmissionResponse, statsResponse] = await Promise.all([
           adminService.getCohortUsers(selectedCohortId).catch(err => {
             throw err;
           }),
           adminService.getPendingAnswers(selectedCohortId).catch(err => {
+            throw err;
+          }),
+          adminService.getResubmissionRequests(selectedCohortId).catch(err => {
             throw err;
           }),
           adminService.getGameStats(selectedCohortId).catch(err => {
@@ -328,9 +367,10 @@ const AdminDashboard: React.FC = () => {
         ]);
       } else {
         // Load all data
-        [usersResponse, pendingResponse, statsResponse] = await Promise.all([
+        [usersResponse, pendingResponse, resubmissionResponse, statsResponse] = await Promise.all([
           adminService.getAllUsers(),
           adminService.getPendingAnswers(),
+          adminService.getResubmissionRequests(),
           adminService.getGameStats(),
         ]);
       }
@@ -358,6 +398,7 @@ const AdminDashboard: React.FC = () => {
       }
       
       setPendingAnswers(pendingResponse.data.pendingAnswers);
+      setResubmissionRequests(resubmissionResponse.data.resubmissionRequests);
       setStats(statsResponse.data);
       setModules(modulesResponse.data.modules || []);
       
@@ -472,6 +513,31 @@ const AdminDashboard: React.FC = () => {
     setShowGradingModal(true);
   };
 
+  const handleResubmissionRequest = async (answerId: number, approve: boolean) => {
+    try {
+      await adminService.handleResubmissionRequest(answerId, approve);
+      toast.success(`Resubmission request ${approve ? 'approved' : 'rejected'} successfully!`);
+      await loadAdminData(); // Refresh data
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to handle resubmission request';
+      if (
+        error && 
+        typeof error === 'object' && 
+        'response' in error && 
+        error.response && 
+        typeof error.response === 'object' && 
+        'data' in error.response && 
+        error.response.data && 
+        typeof error.response.data === 'object' && 
+        'error' in error.response.data &&
+        typeof error.response.data.error === 'string'
+      ) {
+        errorMessage = error.response.data.error;
+      }
+      toast.error(errorMessage);
+    }
+  };
+
   const submitGrade = async (grade: string, feedback: string) => {
     if (!gradingAnswer) return;
     
@@ -534,12 +600,17 @@ const AdminDashboard: React.FC = () => {
       totalUsers: users.length,
       totalAnswers: stats.totalAnswers, // TODO: filter by cohort when backend supports it
       pendingAnswers: pendingAnswers.length,
+      resubmissionRequests: resubmissionRequests.length,
       averageProgress: stats.averageProgress
-    } : stats;
+    } : {
+      ...stats,
+      pendingAnswers: pendingAnswers.length,
+      resubmissionRequests: resubmissionRequests.length
+    };
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="bg-primary-50 border border-primary-200 rounded-lg p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -578,6 +649,18 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <span className="text-orange-600 text-2xl">🔄</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-orange-600">Resubmission Requests</p>
+                <p className="text-2xl font-bold text-orange-900">{displayStats.resubmissionRequests}</p>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -598,23 +681,12 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-xl font-semibold text-gray-800 mb-4">In Review</h3>
             <div className="space-y-4">
               {pendingAnswers.slice(0, 3).map((answer) => (
-                <div key={answer.id} className={`border rounded-md p-4 ${
-                  answer.resubmissionRequested 
-                    ? 'border-orange-300 bg-orange-50' 
-                    : 'border-gray-200'
-                }`}>
+                <div key={answer.id} className="border border-gray-200 rounded-md p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-medium text-gray-900">
-                          {answer.user.fullName} ({answer.user.trainName})
-                        </h4>
-                        {answer.resubmissionRequested && (
-                          <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                            🔄
-                          </span>
-                        )}
-                      </div>
+                      <h4 className="font-medium text-gray-900">
+                        {answer.user.fullName} ({answer.user.trainName})
+                      </h4>
                       <p className="text-sm text-gray-600">
                         {answer.question ? (
                           `Question ${answer.question.questionNumber}: ${answer.question.title}`
@@ -682,6 +754,96 @@ const AdminDashboard: React.FC = () => {
                 >
                   View all {pendingAnswers.length} pending answers →
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {resubmissionRequests.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg shadow-lg p-6">
+            <h3 className="text-xl font-semibold text-orange-800 mb-4">🔄 Resubmission Requests</h3>
+            <div className="space-y-4">
+              {resubmissionRequests.slice(0, 3).map((request) => (
+                <div key={request.id} className="bg-white border border-orange-200 rounded-md p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        {request.user.fullName} ({request.user.trainName})
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {request.question ? (
+                          `Question ${request.question.questionNumber}: ${request.question.title}`
+                        ) : (
+                          'Unknown assignment'
+                        )}
+                      </p>
+                      <p className="text-xs text-orange-600 mt-1">
+                        Current Grade: {request.grade} | Requested: {new Date(request.resubmissionRequestedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleResubmissionRequest(request.id, true)}
+                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center space-x-1"
+                      >
+                        <span>✅</span>
+                        <span>Approve</span>
+                      </button>
+                      <button
+                        onClick={() => handleResubmissionRequest(request.id, false)}
+                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center space-x-1"
+                      >
+                        <span>❌</span>
+                        <span>Reject</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-sm">
+                      <strong>Original Answer:</strong>
+                      <a 
+                        href={request.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {request.content}
+                      </a>
+                    </div>
+                    {request.notes && (
+                      <div className="text-sm mt-1">
+                        <strong>Notes:</strong>
+                        <span className="ml-1 text-gray-700">{request.notes}</span>
+                      </div>
+                    )}
+                    {request.feedback && (
+                      <div className="text-sm mt-1">
+                        <strong>Previous Feedback:</strong>
+                        <span className="ml-1 text-gray-700 italic">"{request.feedback}"</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {request.hasAttachment && request.attachmentInfo && (
+                    <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                      <span className="text-sm">📎</span>
+                      <span className="text-sm text-blue-700">{request.attachmentInfo.fileName}</span>
+                      <button
+                        onClick={() => downloadAttachment(request.id.toString(), request.attachmentInfo!.fileName)}
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {resubmissionRequests.length > 3 && (
+              <div className="mt-4 text-center">
+                <span className="text-orange-600 font-medium">
+                  {resubmissionRequests.length - 3} more resubmission requests pending...
+                </span>
               </div>
             )}
           </div>
@@ -816,23 +978,12 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         {pendingAnswers.map((answer) => (
-          <div key={answer.id} className={`rounded-lg shadow-lg p-6 ${
-            answer.resubmissionRequested 
-              ? 'bg-orange-50 border-2 border-orange-200' 
-              : 'bg-white'
-          }`}>
+          <div key={answer.id} className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    {answer.user.fullName} ({answer.user.trainName})
-                  </h4>
-                  {answer.resubmissionRequested && (
-                    <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full border border-orange-200">
-                      🔄 Resubmission Request
-                    </span>
-                  )}
-                </div>
+                <h4 className="text-lg font-semibold text-gray-900">
+                  {answer.user.fullName} ({answer.user.trainName})
+                </h4>
                 <p className="text-sm text-gray-600">
                   {answer.question ? (
                     `Question ${answer.question.questionNumber}: ${answer.question.title}`
@@ -842,11 +993,6 @@ const AdminDashboard: React.FC = () => {
                     'Unknown assignment'
                   )}
                 </p>
-                {answer.resubmissionRequested && answer.resubmissionRequestedAt && (
-                  <p className="text-xs text-orange-600 mt-1">
-                    Resubmission requested: {new Date(answer.resubmissionRequestedAt).toLocaleString()}
-                  </p>
-                )}
               </div>
               <div className="flex space-x-2">
                 <button
