@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Send test email (admin only)
 router.post('/test', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     
     // Check if user is admin
     const user = await prisma.user.findUnique({
@@ -57,7 +57,7 @@ router.post('/test', authenticateToken, async (req: AuthRequest, res) => {
 // Send welcome email to user (admin only)
 router.post('/welcome/:userId', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const currentUserId = req.user!.userId;
+    const currentUserId = req.user!.id;
     const { userId } = req.params;
     
     // Check if current user is admin
@@ -99,7 +99,7 @@ router.post('/welcome/:userId', authenticateToken, async (req: AuthRequest, res)
 // Send bulk notification email (admin only)
 router.post('/notification/bulk', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     
     // Check if user is admin
     const user = await prisma.user.findUnique({
@@ -196,7 +196,7 @@ router.post('/notification/bulk', authenticateToken, async (req: AuthRequest, re
 // Get email configuration status
 router.get('/config/status', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     
     // Check if user is admin
     const user = await prisma.user.findUnique({
