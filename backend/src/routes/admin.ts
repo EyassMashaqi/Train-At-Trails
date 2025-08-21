@@ -281,7 +281,10 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
 
     const pendingAnswers = await prisma.answer.findMany({
       where: { 
-        status: 'PENDING',
+        OR: [
+          { status: 'PENDING' },
+          { resubmissionRequested: true }
+        ],
         cohortId: { in: cohortIds } // Filter by admin's accessible cohorts
       },
       include: {

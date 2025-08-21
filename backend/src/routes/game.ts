@@ -1021,9 +1021,12 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
             id: true,
             content: true,
             status: true,
+            grade: true,
             submittedAt: true,
             reviewedAt: true,
-            feedback: true
+            feedback: true,
+            resubmissionRequested: true,
+            resubmissionRequestedAt: true
           },
           orderBy: { submittedAt: 'desc' },
           take: 1

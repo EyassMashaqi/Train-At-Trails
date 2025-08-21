@@ -33,6 +33,9 @@ interface PendingAnswer {
   content: string;
   notes?: string;
   submittedAt: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  resubmissionRequested?: boolean;
+  resubmissionRequestedAt?: string;
   hasAttachment: boolean;
   attachmentInfo?: {
     fileName: string;
@@ -595,12 +598,23 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-xl font-semibold text-gray-800 mb-4">In Review</h3>
             <div className="space-y-4">
               {pendingAnswers.slice(0, 3).map((answer) => (
-                <div key={answer.id} className="border border-gray-200 rounded-md p-4">
+                <div key={answer.id} className={`border rounded-md p-4 ${
+                  answer.resubmissionRequested 
+                    ? 'border-orange-300 bg-orange-50' 
+                    : 'border-gray-200'
+                }`}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="font-medium text-gray-900">
-                        {answer.user.fullName} ({answer.user.trainName})
-                      </h4>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-medium text-gray-900">
+                          {answer.user.fullName} ({answer.user.trainName})
+                        </h4>
+                        {answer.resubmissionRequested && (
+                          <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                            🔄
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-600">
                         {answer.question ? (
                           `Question ${answer.question.questionNumber}: ${answer.question.title}`
@@ -802,12 +816,23 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         {pendingAnswers.map((answer) => (
-          <div key={answer.id} className="bg-white rounded-lg shadow-lg p-6">
+          <div key={answer.id} className={`rounded-lg shadow-lg p-6 ${
+            answer.resubmissionRequested 
+              ? 'bg-orange-50 border-2 border-orange-200' 
+              : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h4 className="text-lg font-semibold text-gray-900">
-                  {answer.user.fullName} ({answer.user.trainName})
-                </h4>
+                <div className="flex items-center space-x-2 mb-1">
+                  <h4 className="text-lg font-semibold text-gray-900">
+                    {answer.user.fullName} ({answer.user.trainName})
+                  </h4>
+                  {answer.resubmissionRequested && (
+                    <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full border border-orange-200">
+                      🔄 Resubmission Request
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600">
                   {answer.question ? (
                     `Question ${answer.question.questionNumber}: ${answer.question.title}`
@@ -817,6 +842,11 @@ const AdminDashboard: React.FC = () => {
                     'Unknown assignment'
                   )}
                 </p>
+                {answer.resubmissionRequested && answer.resubmissionRequestedAt && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Resubmission requested: {new Date(answer.resubmissionRequestedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className="flex space-x-2">
                 <button

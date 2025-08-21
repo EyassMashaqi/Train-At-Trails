@@ -211,6 +211,22 @@ const GameView: React.FC = () => {
   };
 
   // Get medal icon for grade
+  // Get medal styling for consistent display across all themes
+  const getMedalStyling = (grade: string | null) => {
+    switch (grade) {
+      case 'GOLD':
+        return 'bg-gradient-to-r from-yellow-200 to-yellow-300 border-yellow-400 text-yellow-900';
+      case 'SILVER':
+        return 'bg-gradient-to-r from-gray-200 to-gray-300 border-gray-400 text-gray-900';
+      case 'COPPER':
+        return 'bg-gradient-to-r from-orange-200 to-orange-300 border-orange-400 text-orange-900';
+      case 'NEEDS_RESUBMISSION':
+        return 'bg-gradient-to-r from-red-200 to-red-300 border-red-400 text-red-900';
+      default:
+        return 'bg-gradient-to-r from-emerald-200 to-emerald-300 border-emerald-400 text-gray-900';
+    }
+  };
+
   const getMedalForGrade = (grade?: string | null) => {
     switch (grade) {
       case 'GOLD': return '🥇';
@@ -964,25 +980,15 @@ const GameView: React.FC = () => {
                     <div className="absolute -top-2 -right-8 flex items-center">
                       {/* Grade Medal Badge */}
                       {medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-lg animate-bounce border-2 ${
-                          grade === 'NEEDS_RESUBMISSION' 
-                            ? 'bg-gradient-to-r from-red-100 to-red-200 border-red-300 text-red-900'
-                            : grade === 'GOLD'
-                            ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
-                            : grade === 'SILVER'
-                            ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText}`
-                            : grade === 'COPPER'
-                            ? `${themeClasses.primaryButton} ${themeClasses.primaryBorder} ${themeClasses.buttonText}`
-                            : `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
-                        }`}>
+                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(grade)}`}>
                           {medal}
                         </div>
                       )}
                       
                       {/* Completion Badge (if no grade available yet) */}
                       {!medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`}>
-                          
+                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(null)}`}>
+                          ✅
                         </div>
                       )}
                     </div>
@@ -1608,12 +1614,46 @@ const GameView: React.FC = () => {
           </div>
 
           {hasAnswered && !canSubmitAnswer ? (
-            <div className="bg-green-100 border border-green-200 rounded-lg p-4">
+            <div className={`border rounded-lg p-4 ${
+              userAnswer?.status === 'APPROVED' 
+                ? 'bg-green-100 border-green-200'
+                : userAnswer?.status === 'REJECTED'
+                ? 'bg-red-100 border-red-200'
+                : 'bg-yellow-100 border-yellow-200'
+            }`}>
               <div className="flex items-center">
-                <span className="text-green-600 text-xl mr-3">✅</span>
+                <span className={`text-xl mr-3 ${
+                  userAnswer?.status === 'APPROVED' 
+                    ? 'text-green-600'
+                    : userAnswer?.status === 'REJECTED'
+                    ? 'text-red-600'
+                    : 'text-yellow-600'
+                }`}>
+                  {userAnswer?.status === 'APPROVED' ? '✅' : userAnswer?.status === 'REJECTED' ? '❌' : '⏳'}
+                </span>
                 <div>
-                  <p className="text-green-800 font-medium">Answer Submitted</p>
-                  <p className="text-green-700 text-sm">Your answer has been submitted and is awaiting review.</p>
+                  <p className={`font-medium ${
+                    userAnswer?.status === 'APPROVED' 
+                      ? 'text-green-800'
+                      : userAnswer?.status === 'REJECTED'
+                      ? 'text-red-800'
+                      : 'text-yellow-800'
+                  }`}>
+                    {userAnswer?.status === 'APPROVED' ? 'Answer Approved' 
+                     : userAnswer?.status === 'REJECTED' ? 'Answer Rejected'
+                     : 'Answer Submitted'}
+                  </p>
+                  <p className={`text-sm ${
+                    userAnswer?.status === 'APPROVED' 
+                      ? 'text-green-700'
+                      : userAnswer?.status === 'REJECTED'
+                      ? 'text-red-700'
+                      : 'text-yellow-700'
+                  }`}>
+                    {userAnswer?.status === 'APPROVED' ? 'Your answer has been approved!' 
+                     : userAnswer?.status === 'REJECTED' ? 'Your answer was rejected. Please check the feedback and consider resubmitting.'
+                     : 'Your answer has been submitted and is awaiting review.'}
+                  </p>
                   {userAnswer?.grade && (
                     <div className="mt-2 flex items-center space-x-2">
                       <span className="text-sm text-gray-600">Grade:</span>
@@ -1952,17 +1992,28 @@ const GameView: React.FC = () => {
             })()}
 
             {/* Station/Checkpoint Markers */}
-            {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
-              <div
-                key={step}
-                className="absolute top-8 transform -translate-x-1/2"
-                style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
-              >
-                <div className="bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-gray-300">
-                  <span className={`text-xs font-bold ${themeClasses.textSecondary}`}>{step}</span>
+            {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => {
+              const stepGrade = getBestGradeForStep(step);
+              const stepMedal = getMedalForGrade(stepGrade);
+              
+              return (
+                <div
+                  key={step}
+                  className="absolute top-8 transform -translate-x-1/2"
+                  style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                >
+                  <div className={`rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 ${
+                    stepMedal ? getMedalStyling(stepGrade) : 'bg-white border-gray-300'
+                  }`}>
+                    {stepMedal ? (
+                      <span className="text-xs">{stepMedal}</span>
+                    ) : (
+                      <span className={`text-xs font-bold ${themeClasses.textSecondary}`}>{step}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* All User Trains */}
             {leaderboard.map((user, index) => {
@@ -2449,14 +2500,14 @@ const GameView: React.FC = () => {
                   <div className="text-xs text-gray-500">
                     {new Date(answer.submittedAt).toLocaleDateString()}
                   </div>
-                  {/* Resubmission request button - allow for any graded answer */}
-                  {answer.grade && answer.status !== 'PENDING' && !answer.resubmissionRequested && (
+                  {/* Resubmission request button - allow for approved or graded answers */}
+                  {(answer.status === 'APPROVED' || answer.grade) && answer.status !== 'PENDING' && !answer.resubmissionRequested && (
                     <button
                       onClick={() => handleResubmissionRequest(answer.id)}
                       className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 border border-blue-200"
                       title="Request to resubmit this answer"
                     >
-                      Request Resubmission
+                      Request Resubmit
                     </button>
                   )}
                   {/* Show resubmission status if requested */}
