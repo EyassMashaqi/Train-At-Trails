@@ -46,10 +46,6 @@ const upload = multer({
   }
 });
 
-// Get user's game sta    ]);
-
-    // console.log('Leaderboard API: Found', users.length, 'users');
-    // console.log('Leaderboard API: Returning:', { users });
 // Get user's game status - simplified for questions-only
 router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -493,7 +489,15 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           },
           include: {
             miniAnswers: {
-              where: { userId }
+              where: { userId },
+              select: {
+                id: true,
+                linkUrl: true,
+                notes: true,
+                submittedAt: true,
+                resubmissionRequested: true,
+                resubmissionRequestedAt: true
+              }
             }
           }
         }
@@ -505,7 +509,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     );
     
     const completedMiniQuestions = contents.reduce((total: number, content: any) =>
-      total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+      total + content.miniQuestions.filter((mq: any) => 
+        mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+      ).length, 0
     );
 
     if (totalReleasedMiniQuestions > 0 && completedMiniQuestions < totalReleasedMiniQuestions) {
@@ -677,6 +683,60 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
   } catch (error) {
     console.error('Request resubmission error:', error);
     res.status(500).json({ error: 'Failed to request resubmission' });
+  }
+});
+
+// Request resubmission for a mini-answer
+router.post('/mini-answer/:miniAnswerId/request-resubmission', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { miniAnswerId } = req.params;
+
+    const miniAnswer = await prisma.miniAnswer.findUnique({
+      where: { id: miniAnswerId },
+      include: {
+        user: true,
+        miniQuestion: {
+          include: {
+            content: {
+              include: {
+                question: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!miniAnswer) {
+      return res.status(404).json({ error: 'Mini-answer not found' });
+    }
+
+    if (miniAnswer.userId !== userId) {
+      return res.status(403).json({ error: 'You can only request resubmission for your own mini-answers' });
+    }
+
+    if (miniAnswer.resubmissionRequested) {
+      return res.status(400).json({ 
+        error: 'Resubmission has already been requested for this mini-answer' 
+      });
+    }
+
+    const updatedMiniAnswer = await prisma.miniAnswer.update({
+      where: { id: miniAnswerId },
+      data: {
+        resubmissionRequested: true,
+        resubmissionRequestedAt: new Date()
+      }
+    });
+
+    res.json({
+      message: 'Mini-answer resubmission request submitted successfully',
+      miniAnswer: updatedMiniAnswer
+    });
+  } catch (error) {
+    console.error('Request mini-answer resubmission error:', error);
+    res.status(500).json({ error: 'Failed to request mini-answer resubmission' });
   }
 });
 
@@ -931,7 +991,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       );
       
       const completedMiniQuestions = contents.reduce((total: number, content: any) =>
-        total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+        total + content.miniQuestions.filter((mq: any) => 
+          mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+        ).length, 0
       );
 
       const canSolveMainQuestion = totalMiniQuestions === 0 || completedMiniQuestions === totalMiniQuestions;
@@ -997,6 +1059,8 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
             isReleased: mq.isReleased,
             releaseDate: mq.releaseDate,
             hasAnswer: mq.miniAnswers.length > 0,
+            isCompleted: mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested,
+            needsResubmission: mq.miniAnswers.length > 0 && mq.miniAnswers[0]?.resubmissionRequested,
             answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
           }))
         }))
@@ -1179,7 +1243,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                         id: true,
                         linkUrl: true,
                         notes: true,
-                        submittedAt: true
+                        submittedAt: true,
+                        resubmissionRequested: true,
+                        resubmissionRequestedAt: true
                       }
                     }
                   },
@@ -1235,7 +1301,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                     id: true,
                     linkUrl: true,
                     notes: true,
-                    submittedAt: true
+                    submittedAt: true,
+                    resubmissionRequested: true,
+                    resubmissionRequestedAt: true
                   }
                 }
               },
@@ -1265,7 +1333,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         );
         
         const completedAllMiniQuestions = allContentsForQuestion.reduce((total: number, content: any) =>
-          total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+          total + content.miniQuestions.filter((mq: any) => 
+            mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+          ).length, 0
         );
 
         // Calculate currently released mini-question progress for UI display
@@ -1275,7 +1345,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         );
         
         const completedReleasedMiniQuestions = contents.reduce((total: number, content: any) =>
-          total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+          total + content.miniQuestions.filter((mq: any) => 
+            mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+          ).length, 0
         );
 
         // Main assignment is only available if ALL mini-questions (including future ones) are completed
@@ -1377,6 +1449,8 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
               isReleased: mq.isReleased,
               releaseDate: mq.releaseDate,
               hasAnswer: mq.miniAnswers.length > 0,
+              isCompleted: mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested,
+              needsResubmission: mq.miniAnswers.length > 0 && mq.miniAnswers[0]?.resubmissionRequested,
               answer: mq.miniAnswers.length > 0 ? mq.miniAnswers[0] : null
             })) || []
           })) || []
@@ -1462,18 +1536,35 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
     });
 
     if (existingAnswer) {
-      // Update existing answer
+      // Check if resubmission was requested - only allow updates if resubmission was requested
+      if (!existingAnswer.resubmissionRequested) {
+        return res.status(400).json({ 
+          error: 'You have already submitted an answer for this mini-question. If you need to make changes, please request resubmission first.',
+          existingAnswer: {
+            id: existingAnswer.id,
+            linkUrl: existingAnswer.linkUrl,
+            notes: existingAnswer.notes,
+            submittedAt: existingAnswer.submittedAt,
+            resubmissionRequested: existingAnswer.resubmissionRequested
+          }
+        });
+      }
+
+      // Update existing answer and clear resubmission request flags
       const updatedAnswer = await prisma.miniAnswer.update({
         where: { id: existingAnswer.id },
         data: {
           linkUrl: linkUrl.trim(),
           notes: notes ? notes.trim() : null,
-          submittedAt: new Date()
+          submittedAt: new Date(),
+          resubmissionRequested: false,
+          resubmissionRequestedAt: null,
+          resubmissionRequestedBy: null
         }
       });
 
       res.json({
-        message: 'Mini-answer updated successfully',
+        message: 'Mini-answer resubmitted successfully',
         miniAnswer: updatedAnswer
       });
     } else {
@@ -1553,7 +1644,9 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
                   select: {
                     id: true,
                     linkUrl: true,
-                    submittedAt: true
+                    submittedAt: true,
+                    resubmissionRequested: true,
+                    resubmissionRequestedAt: true
                   }
                 }
               },
@@ -1576,7 +1669,9 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
     );
     
     const completedMiniQuestions = contents.reduce((total: number, content: any) =>
-      total + content.miniQuestions.filter((mq: any) => mq.miniAnswers.length > 0).length, 0
+      total + content.miniQuestions.filter((mq: any) => 
+        mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+      ).length, 0
     );
 
     // Check if user can solve main question (all released mini questions must be completed)
@@ -1602,6 +1697,8 @@ router.get('/questions/:questionId/content-progress', authenticateToken, async (
           isReleased: mq.isReleased,
           releaseDate: mq.releaseDate,
           hasAnswer: mq.miniAnswers.length > 0,
+          isCompleted: mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested,
+          needsResubmission: mq.miniAnswers.length > 0 && mq.miniAnswers[0]?.resubmissionRequested,
           submittedAt: mq.miniAnswers.length > 0 ? mq.miniAnswers[0].submittedAt : null
         }))
       }))
