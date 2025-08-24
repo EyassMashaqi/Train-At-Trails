@@ -275,6 +275,18 @@ const GameView: React.FC = () => {
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
     
+    // Debug: log all answers for this step
+    const allStepAnswers = progress.answers.filter(answer => 
+      answer.question?.questionNumber === step
+    );
+    
+    console.log(`Step ${step} - All answers:`, allStepAnswers.map(a => ({
+      id: a.id,
+      status: a.status,
+      grade: a.grade,
+      questionNumber: a.question?.questionNumber
+    })));
+    
     const stepAnswers = progress.answers.filter(answer => 
       answer.question?.questionNumber === step && 
       answer.status === 'APPROVED'
@@ -295,6 +307,7 @@ const GameView: React.FC = () => {
       }
     }
     
+    console.log(`Step ${step} - Best grade:`, bestGrade);
     return bestGrade;
   };
 
@@ -977,22 +990,13 @@ const GameView: React.FC = () => {
                 const medal = getMedalForGrade(grade);
                 const hasAnswer = step <= progress.currentStep;
                 
-                if (hasAnswer) {
+                if (false && hasAnswer) {
                   return (
                     <div className="absolute -top-2 -right-8 flex items-center">
-                      {/* Grade Medal Badge */}
-                      {medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(grade)}`}>
-                          {medal}
-                        </div>
-                      )}
-                      
-                      {/* Completion Badge (if no grade available yet) */}
-                      {!medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(null)}`}>
-                          ✅
-                        </div>
-                      )}
+                      {/* Always show medal if available, otherwise show sample medals for testing */}
+                      <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(grade)}`}>
+                        {medal || (step === 1 ? '🥇' : step === 2 ? '🥈' : step === 3 ? '🥉' : '�')}
+                      </div>
                     </div>
                   );
                 }
@@ -1014,7 +1018,9 @@ const GameView: React.FC = () => {
             <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
               {(() => {
                 if (step <= progress.currentStep) {
-                  return '✓';
+                  const grade = getBestGradeForStep(step);
+                  const medal = getMedalForGrade(grade);
+                  return medal || (step === 1 ? '🥇' : step === 2 ? '🥈' : step === 3 ? '🥉' : '�');
                 } else if (step === progress.currentStep + 1) {
                   return '⭐';
                 } else {
@@ -1593,7 +1599,9 @@ const GameView: React.FC = () => {
               <span className="text-3xl mr-3">📝</span>
               <div>
                 <h3 className={`text-xl font-bold ${themeClasses.accentTextSafe}`}>Main Assignment</h3>
-                <p className={`${themeClasses.accentTextSafeMedium}`}>Ready to submit your answer</p>
+                <p className={`${themeClasses.accentTextSafeMedium}`}>
+                  {hasAnswered ? 'Answer submitted' : 'Ready to submit your answer'}
+                </p>
               </div>
             </div>
             <div className={`${themeClasses.accentBg} rounded-lg px-3 py-1`}>
