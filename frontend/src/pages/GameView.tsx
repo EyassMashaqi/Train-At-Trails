@@ -1015,7 +1015,7 @@ const GameView: React.FC = () => {
                 return null;
               })()}
             </div>
-            <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
+            <div className={`text-sm text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
               {(() => {
                 if (step <= progress.currentStep) {
                   const grade = getBestGradeForStep(step);
