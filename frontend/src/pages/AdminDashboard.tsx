@@ -1460,7 +1460,7 @@ const AdminDashboard: React.FC = () => {
         {/* Default Theme Source Selection */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center mb-6">
-            <div className="text-2xl mr-3">�</div>
+            <div className="text-2xl mr-3">🎨</div>
             <div>
               <h3 className="text-lg font-medium text-gray-900">Cohort Default Theme</h3>
               <p className="text-sm text-gray-600">

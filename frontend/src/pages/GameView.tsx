@@ -4,7 +4,7 @@ import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
-import { getThemeClasses, getVehicleIcon } from '../utils/themes';
+import { getThemeClasses, getVehicleIcon, getVehicleIconStyle } from '../utils/themes';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 
@@ -130,7 +130,7 @@ const getThemeSpecificBg = (themeId: string): string => {
     case 'f1':
       return 'bg-gradient-to-br from-gray-100 via-slate-100 to-gray-200';
     default:
-      return 'bg-white';
+      return 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50';
   }
 };
 
@@ -142,6 +142,11 @@ const GameView: React.FC = () => {
   // Get theme-specific classes
   const themeClasses = useMemo(() => getThemeClasses(currentTheme), [currentTheme]);
   const vehicleIcon = useMemo(() => getVehicleIcon(currentTheme), [currentTheme]);
+  const vehicleIconStyle = useMemo(() => {
+    const style = getVehicleIconStyle(currentTheme.id);
+    console.log('Vehicle Icon Style for theme', currentTheme.id, ':', style);
+    return style;
+  }, [currentTheme.id]);
   
   const [progress, setProgress] = useState<TrailProgress | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -954,7 +959,9 @@ const GameView: React.FC = () => {
             }`}
           style={{
             left: `${(progress.currentStep / progress.totalSteps) * 95}%`,
-            transform: 'translateX(-50%)'
+            transform: currentTheme.id === 'trains' || currentTheme.id === 'cars' || currentTheme.id === 'f1' 
+              ? 'translateX(-50%) scaleX(-1)' 
+              : 'translateX(-50%)'
           }}
         >
           <div className="relative">
@@ -1171,9 +1178,9 @@ const GameView: React.FC = () => {
               <span>Overall Progress</span>
               <span>{totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0}%</span>
             </div>
-            <div className={`w-full ${themeClasses.primaryBg} rounded-full h-2`}>
+            <div className={`w-full ${themeClasses.progressContainer} rounded-full h-2`}>
               <div
-                className={`${themeClasses.primaryButton} h-2 rounded-full transition-all duration-300`}
+                className={`${themeClasses.primaryBg} h-2 rounded-full transition-all duration-300`}
                 style={{ width: `${totalMiniQuestions > 0 ? (completedMiniQuestions / totalMiniQuestions) * 100 : 0}%` }}
               />
             </div>
@@ -1196,7 +1203,7 @@ const GameView: React.FC = () => {
                     className={`p-4 cursor-pointer transition-colors ${
                       isFullyCompleted 
                         ? `${themeClasses.accentBg} ${themeClasses.accentBgHover} ${themeClasses.accentBorder}` 
-                        : `bg-white hover:${themeClasses.accentBg}`
+                        : `${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} hover:${themeClasses.accentBg}`
                     }`}
                     onClick={() => toggleQuestionGroup(questionKey)}
                   >
@@ -1221,11 +1228,9 @@ const GameView: React.FC = () => {
                       <div className="flex items-center space-x-3">
                         {/* Progress indicator */}
                         <div className="flex items-center space-x-2">
-                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                          <div className={`w-20 ${themeClasses.progressContainer} rounded-full h-2`}>
                             <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                isFullyCompleted ? themeClasses.accentButton : themeClasses.primaryButton
-                              }`}
+                              className={`${themeClasses.primaryBg} h-2 rounded-full transition-all duration-300`}
                               style={{ width: `${(groupCompleted / groupTotal) * 100}%` }}
                             />
                           </div>
@@ -1251,7 +1256,7 @@ const GameView: React.FC = () => {
                           <div 
                             key={miniQuestion.id}
                             className={`border rounded-lg p-4 ${
-                              miniQuestion.hasAnswer ? `${themeClasses.accentBg} ${themeClasses.accentBorder}` : 'bg-white border-gray-200'
+                              miniQuestion.hasAnswer ? `${themeClasses.accentBg} ${themeClasses.accentBorder}` : `${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} ${themeClasses.brandBorder || 'border-primary-200'}`
                             }`}
                           >
                             <div className="flex items-start justify-between mb-3">
@@ -1460,7 +1465,7 @@ const GameView: React.FC = () => {
                 <span className={`${themeClasses.accentTextSafeMedium} text-xl mr-3`}>🎉</span>
                 <div>
                   <p className={`${themeClasses.accentTextSafe} font-medium`}>Excellent work!</p>
-                  <p className={`${themeClasses.accentTextSafeLight} text-sm`}>You've completed all available self learning activities for this assignment.</p>
+                  <p className={`${themeClasses.accentTextSafeLight} text-sm`}>You've completed all available self learning activities for all available assignments.</p>
                 </div>
               </div>
             </div>
@@ -1537,7 +1542,7 @@ const GameView: React.FC = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg p-4 mb-6 border border-orange-200">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} rounded-lg p-4 mb-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
                 Question {targetQuestion.questionNumber}: {targetQuestion.title}
               </h4>
@@ -1612,7 +1617,7 @@ const GameView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-4 mb-6 border border-accent-200">
+          <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} rounded-lg p-4 mb-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
             <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
               Question {targetQuestion.questionNumber}: {targetQuestion.title}
             </h4>
@@ -1794,7 +1799,7 @@ const GameView: React.FC = () => {
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             {themeClasses.leaderboardTitle}
-            <span className="ml-3">{vehicleIcon}</span>
+            <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
           </h3>
           <div className={`text-center ${themeClasses.textMuted}`}>
             Loading leaderboard...
@@ -1809,10 +1814,10 @@ const GameView: React.FC = () => {
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             {themeClasses.leaderboardTitle}
-            <span className="ml-3">{vehicleIcon}</span>
+            <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
           </h3>
           <div className={`text-center py-12 bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl shadow-xl border ${themeClasses.primaryBorder}`}>
-            <div className="text-6xl mb-4">{vehicleIcon}</div>
+            <div className="text-6xl mb-4" style={vehicleIconStyle}>{vehicleIcon}</div>
             <h4 className={`text-xl font-semibold mb-2 ${themeClasses.primaryText}`}>All {currentTheme?.name} Are Still at the Station!</h4>
             <p className={`${themeClasses.textSecondary} max-w-md mx-auto`}>
               The journey hasn't begun yet. Be the first to answer questions and start your {themeClasses.pathDescription}!
@@ -1833,12 +1838,12 @@ const GameView: React.FC = () => {
         <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
           <span className="mr-3">🏆</span>
           {themeClasses.leaderboardTitle}
-          <span className="ml-3">{vehicleIcon}</span>
+          <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
         </h3>
 
         {/* Theme-specific Path Background */}
         <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder} overflow-visible`}>
-          <div className="relative h-40 rounded-xl overflow-visible shadow-inner">
+          <div className={themeClasses.trackStyling}>
             {/* Theme-specific track rendering for leaderboard */}
             {(() => {
               switch (currentTheme.id) {
@@ -2045,7 +2050,7 @@ const GameView: React.FC = () => {
                 >
                   <div className={`relative ${isCurrentUser ? 'animate-bounce' : ''}`}>
                     {/* Vehicle Emoji */}
-                    <span className={`text-2xl ${isCurrentUser ? 'filter drop-shadow-lg' : ''}`}>
+                    <span className={`text-2xl ${isCurrentUser ? 'filter drop-shadow-lg' : ''}`} style={vehicleIconStyle}>
                       {vehicleIcon}
                     </span>
 
@@ -2080,7 +2085,7 @@ const GameView: React.FC = () => {
           {/* Leaderboard Table */}
           <div className="mt-8 bg-white rounded-xl shadow-lg overflow-hidden">
             <div className={`${themeClasses.primaryButton} px-6 py-4`}>
-              <h4 className={`text-xl font-bold ${themeClasses.buttonText} flex items-center`}>
+              <h4 className={`text-xl font-bold ${themeClasses.buttonTextLight} flex items-center`}>
                 <span className="mr-2">📊</span>
                 {themeClasses.leaderboardTitle} Rankings
               </h4>
@@ -2127,7 +2132,7 @@ const GameView: React.FC = () => {
                         <div>
                           <div className={`font-semibold flex items-center ${isCurrentUser ? themeClasses.primaryTextDark : themeClasses.textPrimary
                             }`}>
-                            {vehicleIcon} {user.trainName}
+                            <span style={vehicleIconStyle}>{vehicleIcon}</span> {user.trainName}
                             <span className={`ml-2 text-sm ${themeClasses.textMuted}`}>({user.fullName})</span>
                             {isCurrentUser && (
                               <span className={`ml-2 ${
@@ -2594,7 +2599,7 @@ const GameView: React.FC = () => {
       <div className={`min-h-screen bg-gradient-to-br ${themeClasses.cardBg} flex items-center justify-center`}>
         <div className="text-center">
           <div className="relative">
-            <span className="text-8xl animate-bounce">{vehicleIcon}</span>
+            <span className="text-8xl animate-bounce" style={vehicleIconStyle}>{vehicleIcon}</span>
             <div className="absolute -top-2 -right-2 animate-ping">
               <span className="text-4xl">💨</span>
             </div>

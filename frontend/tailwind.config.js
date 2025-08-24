@@ -7,13 +7,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Your primary brand colors - used across all themes
         primary: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#0f3460',
+          50: '#f0f4ff',
+          100: '#e6ecff',
+          200: '#c7d4ff',
+          300: '#a8bcff',
+          400: '#6a8cff',
+          500: '#0f3460',  // Your main brand color
           600: '#0d2b4d',
           700: '#0a233a',
           800: '#081b28',
@@ -25,23 +26,55 @@ export default {
           200: '#fde68a',
           300: '#fcd34d',
           400: '#fbbf24',
-          500: '#ffc107',
+          500: '#ffc107',  // Your main secondary color
           600: '#f59e0b',
           700: '#d97706',
           800: '#b45309',
           900: '#92400e',
         },
         accent: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
+          50: '#fcfcfc',
+          100: '#f8f8f8',  // Your main accent color
+          200: '#f0f0f0',
+          300: '#e8e8e8',
+          400: '#d0d0d0',
+          500: '#a8a8a8',
+          600: '#808080',
+          700: '#585858',
+          800: '#303030',
+          900: '#181818',
+        },
+        // Brand gradient combinations for enhanced theming
+        brand: {
+          'primary-to-secondary': 'linear-gradient(135deg, #0f3460 0%, #ffc107 100%)',
+          'secondary-to-accent': 'linear-gradient(135deg, #ffc107 0%, #f8f8f8 100%)',
+          'primary-to-accent': 'linear-gradient(135deg, #0f3460 0%, #f8f8f8 100%)',
+        },
+        // Theme-specific color variations based on your base colors
+        trains: {
+          primary: '#0f3460',    // Your base dark blue - Railway steel
+          secondary: '#ffc107',  // Your base golden - Train lights
+          accent: '#f8f8f8',     // Your base light gray - Steam/smoke
+        },
+        planes: {
+          primary: '#1e40af',    // Sky blue variation of your dark blue
+          secondary: '#f59e0b',  // Sunset amber variation of your golden
+          accent: '#e2e8f0',     // Cloud variation of your light gray
+        },
+        sailboat: {
+          primary: '#0891b2',    // Ocean cyan variation of your dark blue
+          secondary: '#ea580c',  // Sunset orange variation of your golden
+          accent: '#dbeafe',     // Foam/sail variation of your light gray
+        },
+        cars: {
+          primary: '#374151',    // Asphalt gray variation of your dark blue
+          secondary: '#eab308',  // Traffic light variation of your golden
+          accent: '#f3f4f6',     // Concrete variation of your light gray
+        },
+        f1: {
+          primary: '#dc2626',    // Racing red variation of your dark blue
+          secondary: '#fbbf24',  // Racing flag variation of your golden
+          accent: '#f4f4f5',     // Track variation of your light gray
         },
         train: {
           blue: '#0f3460',
