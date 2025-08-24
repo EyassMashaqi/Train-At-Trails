@@ -1,3 +1,5 @@
+import React from 'react';
+
 export interface ThemeInfo {
   id: string;
   name: string;
@@ -153,7 +155,7 @@ export const getVehicleIcon = (theme: ThemeInfo) => {
 };
 
 // Helper function to get emoji direction styling
-export const getVehicleIconStyle = (themeId: string) => {
+export const getVehicleIconStyle = (themeId: string): React.CSSProperties => {
   // Flip emojis that naturally face left to make them face right for progress
   if (themeId === 'trains' || themeId === 'cars' || themeId === 'f1') {
     return { 
@@ -161,7 +163,7 @@ export const getVehicleIconStyle = (themeId: string) => {
       display: 'inline-block',
       WebkitTransform: 'scaleX(-1)', // For better browser compatibility
       transformOrigin: 'center center', // Ensure proper rotation center
-      backfaceVisibility: 'hidden' // Prevent flickering during animations
+      backfaceVisibility: 'hidden' as const // Prevent flickering during animations
     };
   }
   return {
