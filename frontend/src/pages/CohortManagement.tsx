@@ -342,7 +342,7 @@ const CohortManagement: React.FC = () => {
 
         // Prepare assignments/questions data
         const assignmentsData = [
-          ['Question ID', 'Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Submitted At', 'Late Submission']
+          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Submitted At', 'Late Submission']
         ];
 
         answers.forEach((answer: any) => {
@@ -350,7 +350,6 @@ const CohortManagement: React.FC = () => {
           const isLate = answer.isLateSubmission || false;
           
           assignmentsData.push([
-            answer.question.id,
             answer.question.title,
             answer.question.module?.title || 'Self Learning',
             answer.question.category || 'General',
@@ -362,14 +361,13 @@ const CohortManagement: React.FC = () => {
           ]);
         });
 
-        // Prepare mini questions data
-        const miniQuestionsData = [
-          ['Mini Question ID', 'Title', 'Question Text', 'Answer', 'Submitted At']
+        // Prepare self learning data
+        const selfLearningData = [
+          ['Title', 'Question Text', 'Answer', 'Submitted At']
         ];
 
         miniAnswers.forEach((miniAnswer: any) => {
-          miniQuestionsData.push([
-            miniAnswer.miniQuestion.id,
+          selfLearningData.push([
             miniAnswer.miniQuestion.title || 'N/A',
             miniAnswer.miniQuestion.question,
             miniAnswer.linkUrl || 'N/A',
@@ -388,9 +386,9 @@ const CohortManagement: React.FC = () => {
         const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
         XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments & Questions');
 
-        // Add mini questions sheet
-        const miniQuestionsSheet = XLSX.utils.aoa_to_sheet(miniQuestionsData);
-        XLSX.utils.book_append_sheet(workbook, miniQuestionsSheet, 'Mini Questions');
+        // Add self learning sheet
+        const selfLearningSheet = XLSX.utils.aoa_to_sheet(selfLearningData);
+        XLSX.utils.book_append_sheet(workbook, selfLearningSheet, 'Self Learning');
 
         // Download the file
         XLSX.writeFile(workbook, fileName);
