@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
+import * as XLSX from 'xlsx';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -54,6 +55,7 @@ const CohortManagement: React.FC = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [copyLoading, setCopyLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
   const [copyingCohort, setCopyingCohort] = useState<Cohort | null>(null);
   const [formData, setFormData] = useState<CreateCohortData>({
@@ -292,6 +294,120 @@ const CohortManagement: React.FC = () => {
     }
   };
 
+  const handleExportCohort = async (cohort: Cohort) => {
+    try {
+      setExportLoading(cohort.id);
+      toast.loading('Preparing export data...');
+      
+      const response = await api.get(`/admin/cohorts/${cohort.id}/export`);
+      const { cohort: cohortData, userData } = response.data;
+
+      if (!userData || userData.length === 0) {
+        toast.dismiss();
+        toast.error('No users found in this cohort');
+        return;
+      }
+
+      // Generate Excel files for each user
+      for (const userInfo of userData) {
+        const user = userInfo.user;
+        const answers = userInfo.answers || [];
+        const miniAnswers = userInfo.miniAnswers || [];
+        const membershipInfo = userInfo.membershipInfo;
+
+        // Create filename: UserName_CohortName_C#
+        const cleanUserName = user.fullName.replace(/[^a-zA-Z0-9]/g, '');
+        const cleanCohortName = cohortData.name.replace(/[^a-zA-Z0-9]/g, '');
+        const fileName = `${cleanUserName}_${cleanCohortName}_C${cohortData.cohortNumber}.xlsx`;
+
+        // Prepare user info sheet
+        const userInfoData = [
+          ['User Information', ''],
+          ['Full Name', user.fullName],
+          ['Email', user.email],
+          ['Train Name', user.trainName || 'N/A'],
+          ['User Created', new Date(user.createdAt).toLocaleString()],
+          ['Joined Cohort', new Date(membershipInfo.joinedAt).toLocaleString()],
+          ['Status', membershipInfo.status],
+          ['Active', membershipInfo.isActive ? 'Yes' : 'No'],
+          ['Current Step', user.currentStep || 0],
+          ['', ''],
+          ['Cohort Information', ''],
+          ['Cohort Name', cohortData.name],
+          ['Cohort Number', cohortData.cohortNumber],
+          ['Description', cohortData.description || 'N/A'],
+          ['Start Date', new Date(cohortData.startDate).toLocaleDateString()],
+          ['End Date', cohortData.endDate ? new Date(cohortData.endDate).toLocaleDateString() : 'N/A']
+        ];
+
+        // Prepare assignments/questions data
+        const assignmentsData = [
+          ['Question ID', 'Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Submitted At', 'Late Submission']
+        ];
+
+        answers.forEach((answer: any) => {
+          const submittedAt = new Date(answer.submittedAt);
+          const isLate = answer.isLateSubmission || false;
+          
+          assignmentsData.push([
+            answer.question.id,
+            answer.question.title,
+            answer.question.module?.title || 'Self Learning',
+            answer.question.category || 'General',
+            answer.content || 'N/A',
+            answer.status,
+            answer.grade || 'Not Graded',
+            submittedAt.toLocaleString(),
+            isLate ? 'Yes' : 'No'
+          ]);
+        });
+
+        // Prepare mini questions data
+        const miniQuestionsData = [
+          ['Mini Question ID', 'Title', 'Question Text', 'Answer', 'Submitted At']
+        ];
+
+        miniAnswers.forEach((miniAnswer: any) => {
+          miniQuestionsData.push([
+            miniAnswer.miniQuestion.id,
+            miniAnswer.miniQuestion.title || 'N/A',
+            miniAnswer.miniQuestion.question,
+            miniAnswer.linkUrl || 'N/A',
+            new Date(miniAnswer.submittedAt).toLocaleString()
+          ]);
+        });
+
+        // Create workbook with multiple sheets
+        const workbook = XLSX.utils.book_new();
+        
+        // Add user info sheet
+        const userInfoSheet = XLSX.utils.aoa_to_sheet(userInfoData);
+        XLSX.utils.book_append_sheet(workbook, userInfoSheet, 'User Info');
+
+        // Add assignments sheet
+        const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
+        XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments & Questions');
+
+        // Add mini questions sheet
+        const miniQuestionsSheet = XLSX.utils.aoa_to_sheet(miniQuestionsData);
+        XLSX.utils.book_append_sheet(workbook, miniQuestionsSheet, 'Mini Questions');
+
+        // Download the file
+        XLSX.writeFile(workbook, fileName);
+      }
+
+      toast.dismiss();
+      toast.success(`Exported ${userData.length} user file(s) successfully`);
+
+    } catch (error: any) {
+      toast.dismiss();
+      const errorMessage = error.response?.data?.message || 'Failed to export cohort data';
+      toast.error(errorMessage);
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
   // Filter and sort cohorts
   const filteredCohorts = React.useMemo(() => {
     let filtered = cohorts.filter(cohort => {
@@ -513,16 +629,16 @@ const CohortManagement: React.FC = () => {
               >
                 <div className="p-6">
                   {/* Cohort Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
+                  <div className="mb-4">
+                    <div className="flex items-center space-x-3 mb-3">
                       <span className="text-3xl">
                         {cohort.isActive ? '🏫' : '🚫'}
                       </span>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-800 leading-tight">
                           <span className="text-sm text-gray-500 font-medium">#{cohort.cohortNumber}</span> {cohort.name}
                         </h3>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        <span className={`inline-block text-xs px-2 py-1 rounded-full font-medium mt-1 ${
                           cohort.isActive 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-600'
@@ -531,7 +647,20 @@ const CohortManagement: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center justify-center space-x-1 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportCohort(cohort);
+                        }}
+                        disabled={exportLoading === cohort.id}
+                        className="p-2 rounded-full text-green-600 hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Export User Data"
+                      >
+                        {exportLoading === cohort.id ? '⏳' : '⬇️'}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
