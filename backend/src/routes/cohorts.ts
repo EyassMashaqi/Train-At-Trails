@@ -839,6 +839,15 @@ router.get('/:cohortId/export', authenticateToken, requireAdmin, async (req, res
 
         console.log(`Found ${miniAnswers.length} mini answers for user ${userId}`);
 
+        // Calculate total points for this user in this cohort
+        const totalPoints = answers.reduce((sum: number, answer: any) => {
+          // Use gradePoints if available, otherwise use pointsAwarded, otherwise 0
+          const points = answer.gradePoints || answer.pointsAwarded || 0;
+          return sum + points;
+        }, 0);
+
+        console.log(`Total points for user ${userId}: ${totalPoints}`);
+
         return {
           user: member.user,
           membershipInfo: {
@@ -847,7 +856,8 @@ router.get('/:cohortId/export', authenticateToken, requireAdmin, async (req, res
             isActive: member.isActive
           },
           answers,
-          miniAnswers
+          miniAnswers,
+          totalPoints
         };
       } catch (userError: any) {
         console.error(`Error processing user ${userId}:`, userError);

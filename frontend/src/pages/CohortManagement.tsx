@@ -326,11 +326,12 @@ const CohortManagement: React.FC = () => {
           ['Full Name', user.fullName],
           ['Email', user.email],
           ['Train Name', user.trainName || 'N/A'],
-          ['User Created', new Date(user.createdAt).toLocaleString()],
-          ['Joined Cohort', new Date(membershipInfo.joinedAt).toLocaleString()],
+          ['User Created', new Date(user.createdAt).toLocaleDateString() + ' ' + new Date(user.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })],
+          ['Joined Cohort', new Date(membershipInfo.joinedAt).toLocaleDateString() + ' ' + new Date(membershipInfo.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })],
           ['Status', membershipInfo.status],
           ['Active', membershipInfo.isActive ? 'Yes' : 'No'],
           ['Current Step', user.currentStep || 0],
+          ['Total Points in Cohort', userInfo.totalPoints || 0],
           ['', ''],
           ['Cohort Information', ''],
           ['Cohort Name', cohortData.name],
@@ -342,12 +343,21 @@ const CohortManagement: React.FC = () => {
 
         // Prepare assignments/questions data
         const assignmentsData = [
-          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Submitted At', 'Late Submission']
+          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Points', 'Submitted At', 'Late Submission']
         ];
 
         answers.forEach((answer: any) => {
           const submittedAt = new Date(answer.submittedAt);
           const isLate = answer.isLateSubmission || false;
+          const points = answer.gradePoints || answer.pointsAwarded || 0;
+          
+          // Format date and time separately (HH:MM format)
+          const dateStr = submittedAt.toLocaleDateString();
+          const timeStr = submittedAt.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
           
           assignmentsData.push([
             answer.question.title,
@@ -356,7 +366,8 @@ const CohortManagement: React.FC = () => {
             answer.content || 'N/A',
             answer.status,
             answer.grade || 'Not Graded',
-            submittedAt.toLocaleString(),
+            points,
+            `${dateStr} ${timeStr}`,
             isLate ? 'Yes' : 'No'
           ]);
         });
@@ -367,27 +378,170 @@ const CohortManagement: React.FC = () => {
         ];
 
         miniAnswers.forEach((miniAnswer: any) => {
+          const submittedAt = new Date(miniAnswer.submittedAt);
+          
+          // Format date and time separately (HH:MM format)
+          const dateStr = submittedAt.toLocaleDateString();
+          const timeStr = submittedAt.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+          
           selfLearningData.push([
             miniAnswer.miniQuestion.title || 'N/A',
             miniAnswer.miniQuestion.question,
             miniAnswer.linkUrl || 'N/A',
-            new Date(miniAnswer.submittedAt).toLocaleString()
+            `${dateStr} ${timeStr}`
           ]);
         });
 
         // Create workbook with multiple sheets
         const workbook = XLSX.utils.book_new();
         
-        // Add user info sheet
+        // Add user info sheet with styling
         const userInfoSheet = XLSX.utils.aoa_to_sheet(userInfoData);
+        
+        // Style the user info sheet
+        const userInfoRange = XLSX.utils.decode_range(userInfoSheet['!ref'] || 'A1');
+        for (let row = userInfoRange.s.r; row <= userInfoRange.e.r; row++) {
+          for (let col = userInfoRange.s.c; col <= userInfoRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (!userInfoSheet[cellRef]) continue;
+            
+            // Style header rows (User Information, Cohort Information)
+            if (userInfoData[row] && (userInfoData[row][0] === 'User Information' || userInfoData[row][0] === 'Cohort Information')) {
+              userInfoSheet[cellRef].s = {
+                font: { bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "0F3460" } },
+                alignment: { horizontal: "center" }
+              };
+            }
+            // Style data labels (left column)
+            else if (col === 0 && userInfoData[row] && userInfoData[row][0] && userInfoData[row][0] !== '') {
+              userInfoSheet[cellRef].s = {
+                font: { bold: true },
+                fill: { fgColor: { rgb: "F8F8F8" } }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for user info
+        userInfoSheet['!cols'] = [
+          { width: 20 },  // Labels column
+          { width: 30 }   // Values column
+        ];
+        
         XLSX.utils.book_append_sheet(workbook, userInfoSheet, 'User Info');
 
-        // Add assignments sheet
+        // Add assignments sheet with table styling
         const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
+        
+        // Style the assignments header row
+        const assignmentsRange = XLSX.utils.decode_range(assignmentsSheet['!ref'] || 'A1');
+        for (let col = assignmentsRange.s.c; col <= assignmentsRange.e.c; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+          if (assignmentsSheet[cellRef]) {
+            assignmentsSheet[cellRef].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "0F3460" } },
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+              }
+            };
+          }
+        }
+        
+        // Style data rows with alternating colors
+        for (let row = 1; row <= assignmentsRange.e.r; row++) {
+          const isEvenRow = row % 2 === 0;
+          for (let col = assignmentsRange.s.c; col <= assignmentsRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (assignmentsSheet[cellRef]) {
+              assignmentsSheet[cellRef].s = {
+                fill: { fgColor: { rgb: isEvenRow ? "F8F8F8" : "FFFFFF" } },
+                border: {
+                  top: { style: "thin", color: { rgb: "CCCCCC" } },
+                  bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                  left: { style: "thin", color: { rgb: "CCCCCC" } },
+                  right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                alignment: { vertical: "top", wrapText: true }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for assignments
+        assignmentsSheet['!cols'] = [
+          { width: 30 },  // Question Title
+          { width: 20 },  // Module/Topic
+          { width: 15 },  // Category
+          { width: 40 },  // Answer
+          { width: 12 },  // Status
+          { width: 15 },  // Grade
+          { width: 10 },  // Points
+          { width: 18 },  // Submitted At
+          { width: 12 }   // Late Submission
+        ];
+        
         XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments & Questions');
 
-        // Add self learning sheet
+        // Add self learning sheet with table styling
         const selfLearningSheet = XLSX.utils.aoa_to_sheet(selfLearningData);
+        
+        // Style the self learning header row
+        const selfLearningRange = XLSX.utils.decode_range(selfLearningSheet['!ref'] || 'A1');
+        for (let col = selfLearningRange.s.c; col <= selfLearningRange.e.c; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+          if (selfLearningSheet[cellRef]) {
+            selfLearningSheet[cellRef].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "FFC107" } },
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+              }
+            };
+          }
+        }
+        
+        // Style data rows with alternating colors
+        for (let row = 1; row <= selfLearningRange.e.r; row++) {
+          const isEvenRow = row % 2 === 0;
+          for (let col = selfLearningRange.s.c; col <= selfLearningRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (selfLearningSheet[cellRef]) {
+              selfLearningSheet[cellRef].s = {
+                fill: { fgColor: { rgb: isEvenRow ? "FFF8E1" : "FFFFFF" } },
+                border: {
+                  top: { style: "thin", color: { rgb: "CCCCCC" } },
+                  bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                  left: { style: "thin", color: { rgb: "CCCCCC" } },
+                  right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                alignment: { vertical: "top", wrapText: true }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for self learning
+        selfLearningSheet['!cols'] = [
+          { width: 25 },  // Title
+          { width: 40 },  // Question Text
+          { width: 40 },  // Answer
+          { width: 18 }   // Submitted At
+        ];
+        
         XLSX.utils.book_append_sheet(workbook, selfLearningSheet, 'Self Learning');
 
         // Download the file
