@@ -2057,8 +2057,8 @@ const GameView: React.FC = () => {
                     {/* User Info Tooltip */}
                     <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max z-50">
                       <div className={`text-xs font-bold ${themeClasses.textPrimary}`}>{user.trainName}</div>
-                      <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
-                      <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div>
+                      {/* <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
+                      <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div> */}
                     </div>
 
                     {/* Rank Badge */}
@@ -2066,7 +2066,7 @@ const GameView: React.FC = () => {
                       currentTheme.id === 'trains' 
                         ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white' 
                         : `${themeClasses.accentButton} ${themeClasses.buttonText}`
-                    } rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
+                    } rounded-full w-6 h-6 flex items-center justify-center text-s font-bold shadow-lg`}>
                       {getRankDisplay(index + 1, user)}
                     </div>
 
