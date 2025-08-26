@@ -72,7 +72,28 @@ router.get('/users', async (req: AuthRequest, res) => {
       ]
     });
 
-    res.json({ users });
+    // Calculate total points for each user
+    const usersWithPoints = await Promise.all(
+      users.map(async (user) => {
+        const totalPoints = await (prisma as any).answer.aggregate({
+          where: {
+            userId: user.id,
+            status: 'APPROVED',
+            gradePoints: { not: null }
+          },
+          _sum: {
+            gradePoints: true
+          }
+        });
+
+        return {
+          ...user,
+          totalPoints: totalPoints._sum.gradePoints || 0
+        };
+      })
+    );
+
+    res.json({ users: usersWithPoints });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Failed to get users' });
@@ -451,7 +472,7 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
 
     if (!gradeConfig[grade as keyof typeof gradeConfig]) {
       return res.status(400).json({ 
-        error: 'Grade must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
+        error: 'Mastery points must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
       });
     }
 
@@ -2977,21 +2998,40 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
 
     const availableStatuses = allStatuses.map((item: any) => item.status);
 
+    // Calculate total points for each user and format response
+    const membersWithPoints = await Promise.all(
+      cohortMembers.map(async (member: any) => {
+        const totalPoints = await (prisma as any).answer.aggregate({
+          where: {
+            userId: member.user.id,
+            status: 'APPROVED',
+            gradePoints: { not: null }
+          },
+          _sum: {
+            gradePoints: true
+          }
+        });
+
+        return {
+          ...member.user,
+          totalPoints: totalPoints._sum.gradePoints || 0,
+          cohortStatus: member.status,
+          joinedAt: member.joinedAt,
+          statusChangedAt: member.statusChangedAt,
+          statusChangedBy: member.statusChangedBy,
+          graduatedAt: member.graduatedAt,
+          graduatedBy: member.graduatedBy,
+          isCurrentCohort: member.user.currentCohortId === cohortId,
+          // Add additional cohort membership details
+          currentStep: member.currentStep || member.user.currentStep,
+          isActive: member.isActive
+        };
+      })
+    );
+
     res.json({ 
       cohort,
-      members: cohortMembers.map((member: any) => ({
-        ...member.user,
-        cohortStatus: member.status,
-        joinedAt: member.joinedAt,
-        statusChangedAt: member.statusChangedAt,
-        statusChangedBy: member.statusChangedBy,
-        graduatedAt: member.graduatedAt,
-        graduatedBy: member.graduatedBy,
-        isCurrentCohort: member.user.currentCohortId === cohortId,
-        // Add additional cohort membership details
-        currentStep: member.currentStep || member.user.currentStep,
-        isActive: member.isActive
-      })),
+      members: membersWithPoints,
       filters: {
         availableStatuses,
         currentFilter: status || 'all'

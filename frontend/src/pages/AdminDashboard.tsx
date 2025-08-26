@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService, gameService } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
-import GradingModal from '../components/GradingModal';
+import MasteryPointsModal from '../components/GradingModal';
 
 // Import the dashboard icon
 import DashboardIcon from '../assets/dashboard-icon.png';
@@ -16,6 +16,7 @@ interface User {
   trainName: string;
   currentStep: number;
   createdAt: string;
+  totalPoints?: number; // Add points field
   // Cohort-specific fields
   cohortStatus?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED';
   status?: 'ENROLLED' | 'GRADUATED' | 'SUSPENDED' | 'REMOVED'; // Add status property
@@ -268,7 +269,7 @@ const AdminDashboard: React.FC = () => {
   const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]); // Store unfiltered users
   
-  // Grading modal state
+  // Mastery Points modal state
   const [showGradingModal, setShowGradingModal] = useState(false);
   const [gradingAnswer, setGradingAnswer] = useState<PendingAnswer | null>(null);
   const [gradingLoading, setGradingLoading] = useState(false);
@@ -508,7 +509,7 @@ const AdminDashboard: React.FC = () => {
     validateEditForm();
   }, [validateEditForm]);
 
-  const handleGradeAnswer = (answer: PendingAnswer) => {
+  const handleAssignMasteryPoints = (answer: PendingAnswer) => {
     setGradingAnswer(answer);
     setShowGradingModal(true);
   };
@@ -540,16 +541,16 @@ const AdminDashboard: React.FC = () => {
 
   const submitGrade = async (grade: string, feedback: string) => {
     if (!gradingAnswer) return;
-    
+
     setGradingLoading(true);
     try {
       await adminService.gradeAnswer(gradingAnswer.id, grade, feedback);
-      toast.success(`Answer graded as ${grade} successfully!`);
+      toast.success(`Mastery points assigned as ${grade} successfully!`);
       setShowGradingModal(false);
       setGradingAnswer(null);
       await loadAdminData(); // Refresh data
     } catch (error: unknown) {
-      let errorMessage = 'Failed to grade answer';
+      let errorMessage = 'Failed to assign mastery points';
       if (
         error && 
         typeof error === 'object' && 
@@ -699,11 +700,11 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleGradeAnswer(answer)}
+                        onClick={() => handleAssignMasteryPoints(answer)}
                         className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 flex items-center space-x-1"
                       >
                         <span>🎯</span>
-                        <span>Grade</span>
+                        <span>Assign Points</span>
                       </button>
                     </div>
                   </div>
@@ -778,7 +779,7 @@ const AdminDashboard: React.FC = () => {
                         )}
                       </p>
                       <p className="text-xs text-orange-600 mt-1">
-                        Current Grade: {request.grade} | Requested: {new Date(request.resubmissionRequestedAt).toLocaleString()}
+                        Current Mastery Points: {request.grade} | Requested: {new Date(request.resubmissionRequestedAt).toLocaleString()}
                       </p>
                     </div>
                     <div className="flex space-x-2">
@@ -896,6 +897,9 @@ const AdminDashboard: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Progress
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Points Earned
+                </th>
                 {/* Status column - only show for cohort view */}
                 {selectedCohortId && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -928,6 +932,11 @@ const AdminDashboard: React.FC = () => {
                           style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
                         ></div>
                       </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900 font-medium">
+                      {user.totalPoints !== undefined ? user.totalPoints : '---'} pts
                     </div>
                   </td>
                   {/* Status column - only show for cohort view */}
@@ -996,11 +1005,11 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handleGradeAnswer(answer)}
+                  onClick={() => handleAssignMasteryPoints(answer)}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors flex items-center space-x-2"
                 >
                   <span>🎯</span>
-                  <span>Grade Assignment</span>
+                  <span>Mastery Points Assignment</span>
                 </button>
               </div>
             </div>
@@ -1703,9 +1712,9 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Feedback Modal */}
-      {/* Grading Modal */}
+      {/* Mastery Points Modal */}
       {showGradingModal && gradingAnswer && (
-        <GradingModal
+        <MasteryPointsModal
           isOpen={showGradingModal}
           onClose={() => {
             setShowGradingModal(false);

@@ -215,7 +215,7 @@ const GameView: React.FC = () => {
     }
   };
 
-  // Get medal icon for grade
+  // Get medal icon for mastery points
   // Get medal styling for consistent display across all themes
   const getMedalStyling = (grade: string | null) => {
     switch (grade) {
@@ -276,7 +276,7 @@ const GameView: React.FC = () => {
     return userHasAnswered(user) ? getRankMedal(rank) : '○';
   };
 
-  // Get the best grade for a completed step
+  // Get the best mastery points for a completed step
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
     
@@ -299,7 +299,7 @@ const GameView: React.FC = () => {
     
     if (stepAnswers.length === 0) return null;
     
-    // Find the best grade (Gold > Silver > Copper)
+    // Find the best mastery points (Gold > Silver > Copper)
     const gradeOrder = { 'GOLD': 3, 'SILVER': 2, 'COPPER': 1 };
     let bestGrade: string | null = null;
     let bestScore = 0;
@@ -312,7 +312,7 @@ const GameView: React.FC = () => {
       }
     }
     
-    console.log(`Step ${step} - Best grade:`, bestGrade);
+    console.log(`Step ${step} - Best mastery points:`, bestGrade);
     return bestGrade;
   };
 
@@ -446,7 +446,7 @@ const GameView: React.FC = () => {
             
             // User can submit/resubmit if:
             // 1. No answer exists, OR
-            // 2. Grade is NEEDS_RESUBMISSION (new grading system), OR
+            // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
             // 3. Status is REJECTED (legacy system), OR 
             // 4. Resubmission was requested and approved
             const canSubmitAnswer = !userAnswer || 
@@ -1600,7 +1600,7 @@ const GameView: React.FC = () => {
     
     // User can submit/resubmit if:
     // 1. No answer exists, OR
-    // 2. Grade is NEEDS_RESUBMISSION (new grading system), OR
+    // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
     // 3. Status is REJECTED (legacy system), OR 
     // 4. Resubmission was requested and approved
     const canSubmitAnswer = !userAnswer || 

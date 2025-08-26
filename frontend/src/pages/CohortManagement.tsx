@@ -343,7 +343,7 @@ const CohortManagement: React.FC = () => {
 
         // Prepare assignments/questions data
         const assignmentsData = [
-          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Grade', 'Points', 'Submitted At', 'Late Submission']
+          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Mastery Points', 'Points', 'Submitted At', 'Late Submission']
         ];
 
         answers.forEach((answer: any) => {
@@ -365,7 +365,7 @@ const CohortManagement: React.FC = () => {
             answer.question.category || 'General',
             answer.content || 'N/A',
             answer.status,
-            answer.grade || 'Not Graded',
+            answer.grade || 'Not Assigned',
             points,
             `${dateStr} ${timeStr}`,
             isLate ? 'Yes' : 'No'

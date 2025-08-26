@@ -714,7 +714,7 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
     // Allow resubmission requests for any grade (removed COPPER/SILVER restriction)
     if (!answer.grade) {
       return res.status(400).json({ 
-        error: 'Answer must be graded before requesting resubmission' 
+        error: 'Answer must be assigned mastery points before requesting resubmission' 
       });
     }
 
@@ -796,7 +796,7 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', authenticateToken
   }
 });
 
-// Get leaderboard (users with progress > 0 from same cohort)
+// Get leaderboard (users sorted by points earned from same cohort)
 router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -816,7 +816,7 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
-    // Get all users from the same cohort with progress > 0
+    // Get all users from the same cohort with their points
     const cohortMembers = await prisma.cohortMember.findMany({
       where: {
         cohortId: userCohort.cohortId,
@@ -836,20 +836,48 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
 
-    // Filter and format users (excluding admins) - include all users regardless of progress
-    const users = cohortMembers
-      .filter(member => 
-        !member.user.isAdmin
-      )
-      .map(member => member.user)
+    // Get points for each user
+    const usersWithPoints = await Promise.all(
+      cohortMembers
+        .filter(member => !member.user.isAdmin)
+        .map(async (member) => {
+          // Calculate total points from approved answers with gradePoints
+          const totalPoints = await (prisma as any).answer.aggregate({
+            where: {
+              userId: member.user.id,
+              status: 'APPROVED',
+              gradePoints: { not: null }
+            },
+            _sum: {
+              gradePoints: true
+            }
+          });
+
+          return {
+            ...member.user,
+            totalPoints: totalPoints._sum.gradePoints || 0
+          };
+        })
+    );
+
+    // Sort by total points (desc), then by progress (desc), then by createdAt (asc)
+    const sortedUsers = usersWithPoints
       .sort((a, b) => {
-        // Sort by currentStep desc, then by createdAt asc
+        // Primary sort: total points (descending)
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+        // Secondary sort: current step (descending)
         if (b.currentStep !== a.currentStep) {
           return b.currentStep - a.currentStep;
         }
+        // Tertiary sort: creation date (ascending - earlier users ranked higher)
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       })
       .slice(0, 20); // Take top 20
+
+    // Remove points from response (don't show points in leaderboard)
+    const users = sortedUsers.map(({ totalPoints, ...user }) => user);
 
     res.json({ users });
   } catch (error) {
