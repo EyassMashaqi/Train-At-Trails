@@ -52,6 +52,7 @@ interface Topic {
   module: Module;
   contents?: Content[];
   questionNumber?: number;
+  userAnswer?: Answer; // Add userAnswer property
   miniQuestionProgress?: {
     hasFutureMiniQuestions: boolean;
     totalAll: number;
@@ -426,73 +427,109 @@ const GameView: React.FC = () => {
           if (topic.isReleased) {
             const topicNumber = topic.questionNumber || topic.topicNumber;
             
-            // Check if backend says this topic is available (it handles all future mini-questions logic)
-            const isTopicAvailable = topic.status === 'available';
-            
-            // Also check if all mini-questions are completed for this topic (fallback logic)
-            const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
-            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
-              topicMiniQuestions.every(mq => mq.hasAnswer);
-            
-            // Topic is available if either:
-            // 1. Backend says it's available, OR
-            // 2. All mini-questions for this topic are completed
-            const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
-            
-            // Check if user has already answered this question and cannot resubmit
+            // Check if user has already answered this question
             const userAnswer = progress?.answers?.find(answer => 
               answer.question.questionNumber === topicNumber
             );
             
-            // User can submit/resubmit if:
-            // 1. No answer exists, OR
-            // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
-            // 3. Status is REJECTED (legacy system), OR 
-            // 4. Resubmission was requested and approved
-            const canSubmitAnswer = !userAnswer || 
-              userAnswer.grade === 'NEEDS_RESUBMISSION' || 
-              userAnswer.status === 'REJECTED' ||
-              (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+            // PRIORITY CHECK: Look for approved resubmissions first
+            const hasApprovedResubmission = userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved;
             
-            console.log(`Topic ${topicNumber} (${topic.title}):`, {
-              isReleased: topic.isReleased,
-              status: topic.status,
-              isTopicAvailable,
-              allMiniQuestionsCompleted,
-              isActuallyAvailable,
-              hasAnswered: !!userAnswer,
-              canSubmitAnswer,
-              answerDetails: userAnswer ? {
-                status: userAnswer.status,
-                grade: userAnswer.grade,
-                resubmissionRequested: userAnswer.resubmissionRequested,
-                resubmissionApproved: userAnswer.resubmissionApproved,
-                resubmissionRequestedAt: userAnswer.resubmissionRequestedAt
-              } : null,
-              miniQuestionProgress: topic.miniQuestionProgress,
-              miniQuestionsCount: topicMiniQuestions.length,
-              completedMiniQuestions: topicMiniQuestions.filter(mq => 
-                mq.hasAnswer && !mq.answer?.resubmissionRequested
-              ).length
-            });
-            
-            // Use backend status to determine if this topic is available for submission
-            if (isActuallyAvailable && canSubmitAnswer) {
+            if (hasApprovedResubmission) {
               foundTargetQuestion = {
-                id: topic.id, // Keep as string, don't convert to int
+                id: topic.id,
                 questionNumber: topicNumber,
                 title: topic.title,
                 description: topic.description,
                 content: topic.content || '',
                 releaseDate: topic.deadline,
-                hasAnswered: false
+                hasAnswered: true // This is a resubmission
               };
-              console.log('Found target question:', foundTargetQuestion);
-              break;
+              console.log('Found PRIORITY target question (approved resubmission):', foundTargetQuestion);
+              break; // Stop searching once we find an approved resubmission
             }
           }
         }
-        if (foundTargetQuestion) break;
+        if (foundTargetQuestion) break; // Exit outer loop if we found a resubmission
+      }
+    }
+    
+    // If no approved resubmissions found, look for normal available questions
+    if (!foundTargetQuestion) {
+      for (const module of modules) {
+        if (module.isReleased) {
+          for (const topic of module.topics) {
+            if (topic.isReleased) {
+              const topicNumber = topic.questionNumber || topic.topicNumber;
+              
+              // Check if backend says this topic is available (it handles all future mini-questions logic)
+              const isTopicAvailable = topic.status === 'available';
+              
+              // Also check if all mini-questions are completed for this topic (fallback logic)
+              const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
+              const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
+                topicMiniQuestions.every(mq => mq.hasAnswer);
+              
+              // Topic is available if either:
+              // 1. Backend says it's available, OR
+              // 2. All mini-questions for this topic are completed
+              const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
+              
+              // Check if user has already answered this question and cannot resubmit
+              const userAnswer = progress?.answers?.find(answer => 
+                answer.question.questionNumber === topicNumber
+              );
+              
+              // User can submit/resubmit if:
+              // 1. No answer exists, OR
+              // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
+              // 3. Status is REJECTED (legacy system), OR 
+              // 4. Resubmission was requested and approved
+              const canSubmitAnswer = !userAnswer || 
+                userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+                userAnswer.status === 'REJECTED' ||
+                (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+              
+              console.log(`Topic ${topicNumber} (${topic.title}):`, {
+                isReleased: topic.isReleased,
+                status: topic.status,
+                isTopicAvailable,
+                allMiniQuestionsCompleted,
+                isActuallyAvailable,
+                hasAnswered: !!userAnswer,
+                canSubmitAnswer,
+                answerDetails: userAnswer ? {
+                  status: userAnswer.status,
+                  grade: userAnswer.grade,
+                  resubmissionRequested: userAnswer.resubmissionRequested,
+                  resubmissionApproved: userAnswer.resubmissionApproved,
+                  resubmissionRequestedAt: userAnswer.resubmissionRequestedAt
+                } : null,
+                miniQuestionProgress: topic.miniQuestionProgress,
+                miniQuestionsCount: topicMiniQuestions.length,
+                completedMiniQuestions: topicMiniQuestions.filter(mq => 
+                  mq.hasAnswer && !mq.answer?.resubmissionRequested
+                ).length
+              });
+              
+              // Use backend status to determine if this topic is available for submission
+              if (isActuallyAvailable && canSubmitAnswer) {
+                foundTargetQuestion = {
+                  id: topic.id, // Keep as string, don't convert to int
+                  questionNumber: topicNumber,
+                  title: topic.title,
+                  description: topic.description,
+                  content: topic.content || '',
+                  releaseDate: topic.deadline,
+                  hasAnswered: false
+                };
+                console.log('Found target question (normal availability):', foundTargetQuestion);
+                break;
+              }
+            }
+          }
+          if (foundTargetQuestion) break;
+        }
       }
     }
     
@@ -509,6 +546,65 @@ const GameView: React.FC = () => {
   useEffect(() => {
     setTargetQuestion(calculateTargetQuestion);
   }, [calculateTargetQuestion]);
+
+  // Poll for resubmission approvals every 30 seconds
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    const pollForResubmissionApprovals = async () => {
+      try {
+        const response = await gameService.getProgress();
+        const newData = response.data;
+        
+        // Check if any resubmission has been newly approved
+        let hasNewlyApprovedResubmission = false;
+        
+        // Check questions from the response for newly approved resubmissions
+        if (newData.questions) {
+          hasNewlyApprovedResubmission = newData.questions.some((newQ: any) => {
+            const currentAnswer = newQ.answers?.[0];
+            return currentAnswer?.resubmissionRequested && currentAnswer?.resubmissionApproved;
+          });
+        }
+
+        if (hasNewlyApprovedResubmission) {
+          // Update all state with fresh data
+          setProgress({
+            currentStep: newData.currentStep,
+            totalSteps: newData.totalSteps,
+            answers: newData.answers
+          });
+          setCurrentQuestion(newData.currentQuestion);
+          
+          // Also update modules data to get latest state
+          const modulesResponse = await gameService.getModules();
+          setModules(modulesResponse.data);
+          
+          toast.success('Your resubmission request has been approved! You can now submit a new answer.');
+        }
+      } catch (error) {
+        // Silently handle polling errors to avoid spamming user with notifications
+        console.log('Resubmission polling error:', error);
+      }
+    };
+
+    // Start polling if user has pending resubmission requests in modules
+    const hasPendingResubmissions = modules?.some(module => 
+      module.topics?.some(topic => 
+        topic.userAnswer?.resubmissionRequested && !topic.userAnswer?.resubmissionApproved
+      )
+    );
+
+    if (hasPendingResubmissions) {
+      pollInterval = setInterval(pollForResubmissionApprovals, 30000); // Poll every 30 seconds
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [modules]);
 
   const loadGameData = async () => {
     try {
@@ -1515,7 +1611,20 @@ const GameView: React.FC = () => {
     const completedAllMiniQuestions = relatedTopic?.miniQuestionProgress?.completedAll || completedQuestionMiniQuestions;
 
     // Main assignment is locked if there are any incomplete mini-questions (current or future)
-    const isMainAssignmentLocked = totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions;
+    // BUT allow access for approved resubmissions regardless of mini-question completion
+    const topicUserAnswer = relatedTopic?.userAnswer;
+    
+    // Check for resubmission approval in both topic answer and progress answers
+    const progressUserAnswer = progress?.answers?.find(answer => 
+      answer.question.id === targetQuestion.id || 
+      answer.question.questionNumber === targetQuestion.questionNumber
+    );
+    
+    const isResubmissionApproved = 
+      (topicUserAnswer?.resubmissionRequested && topicUserAnswer?.resubmissionApproved) ||
+      (progressUserAnswer?.resubmissionRequested && progressUserAnswer?.resubmissionApproved);
+      
+    const isMainAssignmentLocked = (totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions) && !isResubmissionApproved;
 
     // Debug logging
     console.log('Main Assignment Debug:', {
@@ -1524,6 +1633,15 @@ const GameView: React.FC = () => {
       completedAllMiniQuestions,
       isMainAssignmentLocked,
       hasFutureMiniQuestions,
+      isResubmissionApproved,
+      topicUserAnswer: topicUserAnswer ? {
+        resubmissionRequested: topicUserAnswer.resubmissionRequested,
+        resubmissionApproved: topicUserAnswer.resubmissionApproved
+      } : null,
+      progressUserAnswer: progressUserAnswer ? {
+        resubmissionRequested: progressUserAnswer.resubmissionRequested,
+        resubmissionApproved: progressUserAnswer.resubmissionApproved
+      } : null,
       relatedTopic: relatedTopic ? {
         id: relatedTopic.id,
         title: relatedTopic.title,
@@ -1611,6 +1729,23 @@ const GameView: React.FC = () => {
     const hasAnswered = !!userAnswer;
     const isResubmissionAvailable = userAnswer && canSubmitAnswer;
 
+    // Debug logging for resubmission logic
+    console.log('renderMainAssignmentForm Debug:', {
+      targetQuestionNumber: targetQuestion.questionNumber,
+      userAnswer: userAnswer ? {
+        id: userAnswer.id,
+        status: userAnswer.status,
+        grade: userAnswer.grade,
+        resubmissionRequested: userAnswer.resubmissionRequested,
+        resubmissionApproved: userAnswer.resubmissionApproved
+      } : null,
+      hasAnswered,
+      canSubmitAnswer,
+      isResubmissionAvailable,
+      showApprovedSection: hasAnswered && !canSubmitAnswer,
+      showResubmissionForm: hasAnswered && canSubmitAnswer
+    });
+
     return (
       <div className="mb-8">
         <div className="bg-gradient-to-br from-accent-50 to-accent-100 border border-accent-200 rounded-xl p-6 shadow-lg">
@@ -1696,8 +1831,22 @@ const GameView: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {isResubmissionAvailable && (
+            // Show submission form for new answers OR approved resubmissions
+            <div className="space-y-4">{
+              // OVERRIDE: If this question has an approved resubmission, show the form regardless
+              userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved ? (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center">
+                    <span className="text-green-600 text-xl mr-3">🎉</span>
+                    <div>
+                      <p className="text-green-800 font-medium">Resubmission Approved!</p>
+                      <p className="text-green-700 text-sm">
+                        Your resubmission request has been approved. You can now submit a new answer below.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : isResubmissionAvailable ? (
                 <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center">
                     <span className="text-orange-600 text-xl mr-3">🔄</span>
@@ -1720,7 +1869,8 @@ const GameView: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              ) : null}
+              
               <div>
                 <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
                   Link to Your Work *
@@ -2703,34 +2853,44 @@ const GameView: React.FC = () => {
                       : 'bg-blue-50 border-blue-200 text-blue-800'
                   }`}
                 >
-                  <div className="flex items-center">
-                    <span className="text-xl mr-3">
-                      {answer.resubmissionApproved === true
-                        ? '✅'
-                        : answer.resubmissionApproved === false
-                        ? '❌'
-                        : '⏳'
-                      }
-                    </span>
-                    <div>
-                      <p className="font-medium">
-                        Question {answer.question.questionNumber}: {
-                          answer.resubmissionApproved === true
-                            ? 'Resubmission Approved!'
-                            : answer.resubmissionApproved === false
-                            ? 'Resubmission Request Rejected'
-                            : 'Resubmission Request Pending'
-                        }
-                      </p>
-                      <p className="text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="text-xl mr-3">
                         {answer.resubmissionApproved === true
-                          ? 'You can now submit a new answer below in the Main Assignment section.'
+                          ? '✅'
                           : answer.resubmissionApproved === false
-                          ? 'Your resubmission request was rejected. Contact admin for more information.'
-                          : 'Your resubmission request is awaiting admin approval.'
+                          ? '❌'
+                          : '⏳'
                         }
-                      </p>
+                      </span>
+                      <div>
+                        <p className="font-medium">
+                          Question {answer.question.questionNumber}: {
+                            answer.resubmissionApproved === true
+                              ? 'Resubmission Approved!'
+                              : answer.resubmissionApproved === false
+                              ? 'Resubmission Request Rejected'
+                              : 'Resubmission Request Pending'
+                          }
+                        </p>
+                        <p className="text-sm">
+                          {answer.resubmissionApproved === true
+                            ? 'You can now submit a new answer! Check the Main Assignment section below.'
+                            : answer.resubmissionApproved === false
+                            ? 'Your resubmission request was rejected. Contact admin for more information.'
+                            : 'Your resubmission request is awaiting admin approval.'
+                          }
+                        </p>
+                      </div>
                     </div>
+                    {answer.resubmissionApproved === true && (
+                      <button
+                        onClick={() => document.getElementById('current-question-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200"
+                      >
+                        Submit New Answer →
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

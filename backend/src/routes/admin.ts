@@ -624,6 +624,20 @@ router.put('/answer/:answerId/resubmission-request', async (req: AuthRequest, re
       }
     });
 
+    // Send email notification to user when resubmission is approved
+    if (approve) {
+      try {
+        await emailService.sendResubmissionApprovalEmail(
+          answer.user.email,
+          answer.user.fullName,
+          answer.question.title
+        );
+      } catch (emailError) {
+        console.error('Failed to send resubmission approval email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
     res.json({
       message: `Resubmission request ${approve ? 'approved' : 'rejected'} successfully`,
       answer: updatedAnswer

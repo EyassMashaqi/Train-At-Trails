@@ -158,6 +158,16 @@ class EmailService {
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
+  // Send resubmission approval notification
+  async sendResubmissionApprovalEmail(
+    userEmail: string,
+    userName: string,
+    questionTitle: string
+  ): Promise<boolean> {
+    const template = this.getResubmissionApprovalTemplate(userName, questionTitle);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
   // Send bulk emails to cohort users
   async sendBulkEmailToCohort(
     emails: string[],
@@ -573,6 +583,62 @@ class EmailService {
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #94a3b8; font-size: 14px;">
               You've got this!<br>
+              The BVisionRY Lighthouse Team
+            </p>
+          </div>
+        </div>
+      `,
+    };
+  }
+
+  // Template for resubmission approval notification
+  private getResubmissionApprovalTemplate(userName: string, questionTitle: string): EmailTemplate {
+    return {
+      subject: '✅ Your Resubmission Request Has Been Approved!',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+            <h1 style="margin: 0; font-size: 28px; font-weight: bold;">🎉 Resubmission Approved!</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Ready for your next submission</p>
+          </div>
+
+          <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">
+              Hello <strong>${userName}</strong>,
+            </p>
+
+            <p style="font-size: 16px; color: #374151; line-height: 1.6; margin-bottom: 20px;">
+              Great news! Your resubmission request for <strong>"${questionTitle}"</strong> has been approved by the admin.
+            </p>
+
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+              <h3 style="margin: 0 0 10px 0; font-size: 18px;">✅ You can now submit a new answer!</h3>
+              <p style="margin: 0; font-size: 14px; opacity: 0.9;">
+                Head back to your dashboard to submit your improved solution.
+              </p>
+            </div>
+
+            <p style="font-size: 16px; color: #374151; line-height: 1.6; margin-bottom: 20px;">
+              This is your opportunity to improve your work and demonstrate your learning progress. Take your time to create a quality submission.
+            </p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" 
+                 style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Go to Dashboard
+              </a>
+            </div>
+
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #64748b;">
+                💡 <strong>Tip:</strong> Review any previous feedback and make sure to address all points before resubmitting.
+              </p>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 14px;">
+              Keep up the great work!<br>
               The BVisionRY Lighthouse Team
             </p>
           </div>
