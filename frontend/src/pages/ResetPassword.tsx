@@ -11,16 +11,47 @@ const ResetPassword: React.FC = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidatingToken, setIsValidatingToken] = useState(true);
+  const [tokenValid, setTokenValid] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [errors, setErrors] = useState({ password: '', confirmPassword: '' });
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
   const token = searchParams.get('token');
 
+  // Validate token on component mount
   useEffect(() => {
-    if (!token) {
-      setError('Invalid reset link. Please request a new password reset.');
-    }
+    const validateToken = async () => {
+      if (!token) {
+        setError('Invalid reset link. Please request a new password reset.');
+        setIsValidatingToken(false);
+        setTokenValid(false);
+        return;
+      }
+
+      try {
+        setIsValidatingToken(true);
+        const response = await api.post('/auth/validate-reset-token', { token });
+        
+        if (response.data.valid) {
+          setTokenValid(true);
+          setTimeRemaining(response.data.timeRemainingMinutes);
+          setError('');
+        } else {
+          setTokenValid(false);
+          setError(response.data.error || 'Invalid or expired reset token.');
+        }
+      } catch (error: any) {
+        setTokenValid(false);
+        const errorMessage = error.response?.data?.error || 'Unable to validate reset token. Please try again.';
+        setError(errorMessage);
+      } finally {
+        setIsValidatingToken(false);
+      }
+    };
+
+    validateToken();
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,7 +109,8 @@ const ResetPassword: React.FC = () => {
     }
   };
 
-  if (!token) {
+  // Loading state while validating token
+  if (isValidatingToken) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
@@ -93,20 +125,65 @@ const ResetPassword: React.FC = () => {
                 className="w-32 h-32 lighthouse-logo"
               />
             </div>
-            <div className="text-red-600 mb-4">
-              <span className="text-6xl">⚠️</span>
+            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+              <div className="flex items-center justify-center mb-4">
+                <svg className="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Validating Reset Link</h2>
+              <p className="text-gray-600">Please wait while we verify your reset token...</p>
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Invalid Reset Link</h2>
-            <p className="text-gray-600 mb-6">
-              This password reset link is invalid or has expired.
-            </p>
-            <Link 
-              to="/forgot-password" 
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <span className="mr-2">📧</span>
-              Request New Reset Link
-            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Invalid token or no token
+  if (!token || !tokenValid) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="flex flex-col items-center mb-6 space-y-6">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
+                BVisionRY Lighthouse
+              </h1>
+              <img 
+                src={LighthouseLogo} 
+                alt="Lighthouse Logo" 
+                className="w-32 h-32 lighthouse-logo"
+              />
+            </div>
+            <div className="bg-white p-8 rounded-xl shadow-lg border border-red-100">
+              <div className="text-red-600 mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                {!token ? 'Invalid Reset Link' : 'Reset Link Expired'}
+              </h2>
+              <p className="text-gray-600 mb-6">
+                {error || 'This password reset link is invalid or has expired. Please request a new password reset.'}
+              </p>
+              <div className="space-y-3">
+                <Link 
+                  to="/forgot-password" 
+                  className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-3 px-4 rounded-lg hover:from-primary-700 hover:to-secondary-700 transition-all duration-200 font-medium inline-block text-center"
+                >
+                  Request New Reset Link
+                </Link>
+                <Link 
+                  to="/login" 
+                  className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium inline-block text-center"
+                >
+                  Back to Login
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -133,6 +210,18 @@ const ResetPassword: React.FC = () => {
           <p className="mt-2 text-sm text-gray-600">
             Enter your new password below.
           </p>
+          {timeRemaining !== null && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-blue-700 font-medium">
+                  This reset link expires in {timeRemaining} minutes
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg" onSubmit={handleSubmit}>

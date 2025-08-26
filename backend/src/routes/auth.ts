@@ -320,7 +320,10 @@ router.post('/forgot-password', async (req, res) => {
 
     // Generate secure reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+    
+    // Get token expiry time from environment (default 1 hour)
+    const tokenExpiryMinutes = parseInt(process.env.RESET_TOKEN_EXPIRY_MINUTES || '60');
+    const resetTokenExpiry = new Date(Date.now() + (tokenExpiryMinutes * 60 * 1000));
 
     // Save reset token to database
     await prisma.user.update({
@@ -353,6 +356,58 @@ router.post('/forgot-password', async (req, res) => {
     console.error('❌ Forgot password error:', error);
     res.status(500).json({ 
       error: 'An unexpected error occurred. Please try again.' 
+    });
+  }
+});
+
+// Validate Reset Token endpoint
+router.post('/validate-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ 
+        error: 'Reset token is required',
+        valid: false 
+      });
+    }
+
+    // Find user with valid reset token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date() // Token must not be expired
+        }
+      } as any,
+      select: {
+        id: true,
+        email: true,
+        resetTokenExpiry: true
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ 
+        error: 'Invalid or expired reset token. Please request a new password reset.',
+        valid: false 
+      });
+    }
+
+    // Calculate time remaining
+    const timeRemaining = user.resetTokenExpiry ? 
+      Math.max(0, Math.floor((user.resetTokenExpiry.getTime() - Date.now()) / 1000 / 60)) : 0;
+
+    res.json({
+      valid: true,
+      message: 'Reset token is valid',
+      timeRemainingMinutes: timeRemaining
+    });
+  } catch (error) {
+    console.error('❌ Token validation error:', error);
+    res.status(500).json({ 
+      error: 'An unexpected error occurred while validating the token',
+      valid: false 
     });
   }
 });
