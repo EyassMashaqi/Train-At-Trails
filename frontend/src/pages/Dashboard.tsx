@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { gameService } from '../services/api';
 import { getThemeClasses, getVehicleIcon } from '../utils/themes';
+import toast from 'react-hot-toast';
 
 interface Topic {
   id: string;
@@ -68,13 +69,38 @@ const Dashboard: React.FC = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    // Check if user has active cohort assignment
+    // Check if user has active cohort assignment and can access dashboard
     const checkCohortAccess = async () => {
       try {
-        const response = await gameService.getCohortHistory();
-        const hasActive = response.data.hasActiveCohort;
+        // First check cohort status for access permissions
+        const statusResponse = await gameService.checkCohortStatus();
+        const { isEnrolled, canAccessDashboard, message, status } = statusResponse.data;
         
-        // Redirect to cohort history if no active cohort or not enrolled
+        if (!isEnrolled) {
+          navigate('/cohort-history');
+          return;
+        }
+
+        // For ENROLLED users, check if they can access dashboard (handles deactivated cohorts)
+        if (status === 'ENROLLED' && !canAccessDashboard) {
+          if (message) {
+            toast.error(message);
+          }
+          navigate('/cohort-history');
+          return;
+        }
+
+        // For non-ENROLLED users (GRADUATED, REMOVED, SUSPENDED), they should go to cohort history anyway
+        if (status !== 'ENROLLED') {
+          navigate('/cohort-history');
+          return;
+        }
+
+        // Additional check using cohort history for hasActiveCohort (only for ENROLLED users)
+        const historyResponse = await gameService.getCohortHistory();
+        const hasActive = historyResponse.data.hasActiveCohort;
+        
+        // Redirect to cohort history if no active cohort
         if (!hasActive) {
           navigate('/cohort-history');
         }

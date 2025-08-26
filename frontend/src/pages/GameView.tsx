@@ -372,14 +372,29 @@ const GameView: React.FC = () => {
   const checkCohortEnrollment = async () => {
     try {
       const response = await gameService.checkCohortStatus();
-      const { isEnrolled } = response.data;
+      const { isEnrolled, canAccessGame, message, status } = response.data;
       
       if (!isEnrolled) {
         navigate('/cohort-history');
         return;
       }
+
+      // For ENROLLED users, check if they can access game (handles deactivated cohorts)
+      if (status === 'ENROLLED' && !canAccessGame) {
+        if (message) {
+          toast.error(message);
+        }
+        navigate('/cohort-history');
+        return;
+      }
+
+      // For non-ENROLLED users (GRADUATED, REMOVED, SUSPENDED), they shouldn't access game anyway
+      if (status !== 'ENROLLED') {
+        navigate('/cohort-history');
+        return;
+      }
       
-      // If enrolled, proceed to load game data
+      // If enrolled and can access game, proceed to load game data
       loadGameData();
     } catch (error) {
       // If we can't check cohort status, still try to load game data

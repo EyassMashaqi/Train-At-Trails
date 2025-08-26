@@ -298,6 +298,12 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       membership.status === 'ENROLLED'
     );
     
+    // For hasActiveCohort, consider both enrollment and cohort activity
+    // Only ENROLLED users in ACTIVE cohorts are truly "active"
+    const activeEnrolledCohorts = activeCohorts.filter((membership: any) => 
+      membership.cohort.isActive
+    );
+    
     const graduatedCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'GRADUATED'
     );
@@ -328,7 +334,8 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         status: membership.status,
         statusChangedAt: membership.statusChangedAt,
         statusChangedBy: membership.statusChangedBy,
-        isActive: membership.isActive
+        isActive: membership.isActive,
+        cohortIsActive: membership.cohort.isActive // Include cohort activity status
       })),
       graduatedCohorts: graduatedCohorts.map((membership: any) => ({
         id: membership.cohort.id,
@@ -362,7 +369,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       })),
       removedCohorts,
       suspendedCohorts,
-      hasActiveCohort: activeCohorts.length > 0,
+      hasActiveCohort: activeEnrolledCohorts.length > 0, // Only active cohorts with enrolled users
       hasGraduatedCohorts: graduatedCohorts.length > 0,
       hasHistoryCohorts: historyCohorts.length > 0,
       totalCohorts: cohortMemberships.length

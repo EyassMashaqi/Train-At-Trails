@@ -203,12 +203,46 @@ router.get('/cohort-status', authenticateToken, async (req: AuthRequest, res) =>
     });
 
     if (cohortMember) {
-      res.json({
-        isEnrolled: true,
-        cohort: cohortMember.cohort,
-        currentStep: cohortMember.currentStep,
-        status: cohortMember.status || 'ENROLLED'
-      });
+      const userStatus = cohortMember.status || 'ENROLLED';
+      const cohortIsActive = cohortMember.cohort.isActive;
+      
+      // Special handling for deactivated cohorts
+      if (!cohortIsActive) {
+        // Only ENROLLED users should get the deactivation message and access restrictions
+        // Other statuses (GRADUATED, REMOVED, SUSPENDED) see the cohort normally but can't access dashboard/game anyway
+        if (userStatus === 'ENROLLED') {
+          res.json({
+            isEnrolled: true,
+            cohort: cohortMember.cohort,
+            currentStep: cohortMember.currentStep,
+            status: userStatus,
+            canAccessDashboard: false,
+            canAccessGame: false,
+            message: 'Your cohort has been deactivated. You cannot access the dashboard or game at this time.'
+          });
+        } else {
+          // For other statuses, show the cohort normally but they can't access dashboard/game anyway
+          res.json({
+            isEnrolled: true,
+            cohort: cohortMember.cohort,
+            currentStep: cohortMember.currentStep,
+            status: userStatus,
+            canAccessDashboard: false,
+            canAccessGame: false
+            // No deactivation message for non-ENROLLED users
+          });
+        }
+      } else {
+        // Active cohort - normal behavior
+        res.json({
+          isEnrolled: true,
+          cohort: cohortMember.cohort,
+          currentStep: cohortMember.currentStep,
+          status: userStatus,
+          canAccessDashboard: true,
+          canAccessGame: true
+        });
+      }
     } else {
       res.json({
         isEnrolled: false,
