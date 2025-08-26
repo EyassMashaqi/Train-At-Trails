@@ -518,6 +518,24 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
           currentStep: newStep
         }
       });
+
+      // Also update the cohort member's current step
+      const cohortMember = await (prisma as any).cohortMember.findFirst({
+        where: {
+          userId: answer.userId,
+          status: 'ENROLLED',
+          isActive: true
+        }
+      });
+
+      if (cohortMember) {
+        await (prisma as any).cohortMember.update({
+          where: { id: cohortMember.id },
+          data: {
+            currentStep: newStep
+          }
+        });
+      }
     }
 
     // Send email notification to user
