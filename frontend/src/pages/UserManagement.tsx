@@ -18,6 +18,7 @@ interface User {
   createdAt: string;
   updatedAt: string;
   currentCohort?: {
+    cohortNumber: number;
     id: string;
     name: string;
     isActive: boolean;
@@ -401,7 +402,7 @@ const UserManagement: React.FC = () => {
                     {user.currentCohort ? (
                       <div className="text-center">
                         <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                          🎯 {user.currentCohort.name}
+                          🎯 {user.currentCohort.name} - {user.currentCohort.cohortNumber}
                         </span>
                         {!user.currentCohort.isActive && (
                           <p className="text-xs text-red-600 mt-1">⚠️ Inactive Cohort</p>

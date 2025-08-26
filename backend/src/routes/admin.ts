@@ -2770,6 +2770,14 @@ router.put('/user-cohort-status', async (req: AuthRequest, res) => {
       });
     }
 
+    // If user is enrolled in this cohort, set it as their current cohort
+    if (status === 'ENROLLED') {
+      await (prisma as any).user.update({
+        where: { id: userId },
+        data: { currentCohortId: cohortId }
+      });
+    }
+
     res.json({ 
       message: `${cohortMember.user.fullName} status changed to ${status} in ${cohortMember.cohort.name}`,
       updatedMember 
@@ -3005,6 +3013,7 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
           select: {
             id: true,
             name: true,
+            cohortNumber: true,
             isActive: true
           }
         },

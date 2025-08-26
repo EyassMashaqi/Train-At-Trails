@@ -1626,7 +1626,7 @@ const AdminDashboard: React.FC = () => {
                 </h1>
                 <p className="text-lg text-gray-600">
                   Manage participants and review answers
-                  {selectedCohort && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohort.name}</span>}
+                  {selectedCohort && <span className="ml-2 text-primary-600 font-medium">• Cohort: {selectedCohort.name} - {selectedCohort.cohortNumber}</span>}
                 </p>
               </div>
             </div>
