@@ -72,7 +72,28 @@ router.get('/users', async (req: AuthRequest, res) => {
       ]
     });
 
-    res.json({ users });
+    // Calculate total points for each user
+    const usersWithPoints = await Promise.all(
+      users.map(async (user) => {
+        const totalPoints = await (prisma as any).answer.aggregate({
+          where: {
+            userId: user.id,
+            status: 'APPROVED',
+            gradePoints: { not: null }
+          },
+          _sum: {
+            gradePoints: true
+          }
+        });
+
+        return {
+          ...user,
+          totalPoints: totalPoints._sum.gradePoints || 0
+        };
+      })
+    );
+
+    res.json({ users: usersWithPoints });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Failed to get users' });
@@ -330,6 +351,110 @@ router.get('/pending-answers', async (req: AuthRequest, res) => {
   }
 });
 
+// Get resubmission requests
+router.get('/resubmission-requests', async (req: AuthRequest, res) => {
+  try {
+    const adminUserId = req.user!.id;
+    const requestedCohortId = req.query.cohortId as string;
+    
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      if (requestedCohortId) {
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { id: requestedCohortId }
+        });
+        
+        if (requestedCohort) {
+          cohortIds = [requestedCohortId];
+        } else {
+          return res.status(400).json({ error: 'Invalid cohort specified' });
+        }
+      } else {
+        const allCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = allCohorts.map(c => c.id);
+      }
+    } else {
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: { cohortId: true }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      if (requestedCohortId && !cohortIds.includes(requestedCohortId)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (requestedCohortId) {
+        cohortIds = [requestedCohortId];
+      }
+    }
+
+    if (cohortIds.length === 0) {
+      return res.json({ resubmissionRequests: [] });
+    }
+
+    const resubmissionRequests = await prisma.answer.findMany({
+      where: { 
+        resubmissionRequested: true,
+        resubmissionApproved: null, // Only pending requests
+        cohortId: { in: cohortIds }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            trainName: true,
+            currentStep: true
+          }
+        },
+        question: {
+          select: {
+            id: true,
+            questionNumber: true,
+            title: true,
+            content: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { resubmissionRequestedAt: 'desc' }
+    });
+
+    const requestsWithInfo = resubmissionRequests.map(answer => ({
+      ...answer,
+      hasAttachment: !!answer.attachmentFileName,
+      attachmentInfo: answer.attachmentFileName ? {
+        fileName: answer.attachmentFileName,
+        fileSize: answer.attachmentFileSize,
+        mimeType: answer.attachmentMimeType
+      } : null
+    }));
+
+    res.json({ resubmissionRequests: requestsWithInfo });
+  } catch (error) {
+    console.error('Get resubmission requests error:', error);
+    res.status(500).json({ error: 'Failed to get resubmission requests' });
+  }
+});
+
 // Review an answer with grading system
 router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
   try {
@@ -347,7 +472,7 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
 
     if (!gradeConfig[grade as keyof typeof gradeConfig]) {
       return res.status(400).json({ 
-        error: 'Grade must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
+        error: 'Mastery points must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
       });
     }
 
@@ -391,7 +516,11 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
         reviewedAt: new Date(),
         reviewedBy: adminId,
         feedback,
-        pointsAwarded: gradeDetails.points
+        pointsAwarded: gradeDetails.points,
+        // Automatically approve resubmission for NEEDS_RESUBMISSION grade
+        resubmissionRequested: grade === 'NEEDS_RESUBMISSION' ? true : false,
+        resubmissionApproved: grade === 'NEEDS_RESUBMISSION' ? true : null,
+        resubmissionRequestedAt: grade === 'NEEDS_RESUBMISSION' ? new Date() : null
       }
     });
 
@@ -410,6 +539,24 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
           currentStep: newStep
         }
       });
+
+      // Also update the cohort member's current step
+      const cohortMember = await (prisma as any).cohortMember.findFirst({
+        where: {
+          userId: answer.userId,
+          status: 'ENROLLED',
+          isActive: true
+        }
+      });
+
+      if (cohortMember) {
+        await (prisma as any).cohortMember.update({
+          where: { id: cohortMember.id },
+          data: {
+            currentStep: newStep
+          }
+        });
+      }
     }
 
     // Send email notification to user
@@ -476,6 +623,20 @@ router.put('/answer/:answerId/resubmission-request', async (req: AuthRequest, re
         reviewedBy: adminId
       }
     });
+
+    // Send email notification to user when resubmission is approved
+    if (approve) {
+      try {
+        await emailService.sendResubmissionApprovalEmail(
+          answer.user.email,
+          answer.user.fullName,
+          answer.question.title
+        );
+      } catch (emailError) {
+        console.error('Failed to send resubmission approval email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     res.json({
       message: `Resubmission request ${approve ? 'approved' : 'rejected'} successfully`,
@@ -1801,6 +1962,45 @@ router.post('/topics/:topicId/release', async (req: AuthRequest, res) => {
       include: { module: true }
     });
 
+    // Send email notifications to all cohort users
+    try {
+      if (updatedQuestion.cohortId) {
+        // Get all enrolled users in the cohort
+        const cohortUsers = await prisma.cohortMember.findMany({
+          where: {
+            cohortId: updatedQuestion.cohortId,
+            status: 'ENROLLED'
+          },
+          include: {
+            user: {
+              select: {
+                email: true,
+                fullName: true
+              }
+            }
+          }
+        });
+
+        // Send emails to all enrolled users
+        for (const member of cohortUsers) {
+          try {
+            await emailService.sendNewQuestionEmail(
+              member.user.email,
+              member.user.fullName,
+              updatedQuestion.title,
+              updatedQuestion.topicNumber || updatedQuestion.questionNumber
+            );
+          } catch (emailError) {
+            console.error(`❌ Failed to send topic release email to ${member.user.email}:`, emailError);
+          }
+        }
+        
+        console.log(`📧 Sent topic release notifications to ${cohortUsers.length} users in cohort for topic "${updatedQuestion.title}"`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send topic release emails:', emailError);
+    }
+
     // Return in topic format for compatibility
     const topic = {
       id: updatedQuestion.id,
@@ -2325,6 +2525,21 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', async (req: AuthR
       }
     });
 
+    // Send email notification to user
+    try {
+      await emailService.sendMiniAnswerResubmissionRequestEmail(
+        miniAnswer.user.email,
+        miniAnswer.user.fullName,
+        miniAnswer.miniQuestion.title,
+        miniAnswer.miniQuestion.content.title,
+        miniAnswer.miniQuestion.content.question.title
+      );
+      console.log(`✅ Resubmission request email sent to ${miniAnswer.user.email} for mini-question "${miniAnswer.miniQuestion.title}"`);
+    } catch (emailError) {
+      console.error('❌ Failed to send resubmission request email:', emailError);
+      // Don't fail the request if email sending fails
+    }
+
     res.json({ 
       message: `Resubmission requested for ${miniAnswer.user.fullName}'s answer to "${miniAnswer.miniQuestion.title}"`,
       miniAnswer: updatedMiniAnswer 
@@ -2590,6 +2805,14 @@ router.put('/user-cohort-status', async (req: AuthRequest, res) => {
       });
     }
 
+    // If user is enrolled in this cohort, set it as their current cohort
+    if (status === 'ENROLLED') {
+      await (prisma as any).user.update({
+        where: { id: userId },
+        data: { currentCohortId: cohortId }
+      });
+    }
+
     res.json({ 
       message: `${cohortMember.user.fullName} status changed to ${status} in ${cohortMember.cohort.name}`,
       updatedMember 
@@ -2789,21 +3012,40 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
 
     const availableStatuses = allStatuses.map((item: any) => item.status);
 
+    // Calculate total points for each user and format response
+    const membersWithPoints = await Promise.all(
+      cohortMembers.map(async (member: any) => {
+        const totalPoints = await (prisma as any).answer.aggregate({
+          where: {
+            userId: member.user.id,
+            status: 'APPROVED',
+            gradePoints: { not: null }
+          },
+          _sum: {
+            gradePoints: true
+          }
+        });
+
+        return {
+          ...member.user,
+          totalPoints: totalPoints._sum.gradePoints || 0,
+          cohortStatus: member.status,
+          joinedAt: member.joinedAt,
+          statusChangedAt: member.statusChangedAt,
+          statusChangedBy: member.statusChangedBy,
+          graduatedAt: member.graduatedAt,
+          graduatedBy: member.graduatedBy,
+          isCurrentCohort: member.user.currentCohortId === cohortId,
+          // Add additional cohort membership details
+          currentStep: member.currentStep || member.user.currentStep,
+          isActive: member.isActive
+        };
+      })
+    );
+
     res.json({ 
       cohort,
-      members: cohortMembers.map((member: any) => ({
-        ...member.user,
-        cohortStatus: member.status,
-        joinedAt: member.joinedAt,
-        statusChangedAt: member.statusChangedAt,
-        statusChangedBy: member.statusChangedBy,
-        graduatedAt: member.graduatedAt,
-        graduatedBy: member.graduatedBy,
-        isCurrentCohort: member.user.currentCohortId === cohortId,
-        // Add additional cohort membership details
-        currentStep: member.currentStep || member.user.currentStep,
-        isActive: member.isActive
-      })),
+      members: membersWithPoints,
       filters: {
         availableStatuses,
         currentFilter: status || 'all'
@@ -2825,6 +3067,7 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
           select: {
             id: true,
             name: true,
+            cohortNumber: true,
             isActive: true
           }
         },
@@ -3034,6 +3277,96 @@ router.get('/answer/:answerId/attachment', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Download attachment error:', error);
     res.status(500).json({ error: 'Failed to download attachment' });
+  }
+});
+
+// Send bulk email to cohort users
+router.post('/cohorts/:cohortId/send-email', async (req: AuthRequest, res) => {
+  try {
+    const { cohortId } = req.params;
+    const { subject, message, emailType } = req.body;
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'Subject and message are required' });
+    }
+
+    // Get all enrolled users in the cohort
+    const cohortUsers = await prisma.cohortMember.findMany({
+      where: {
+        cohortId: cohortId,
+        status: 'ENROLLED'
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true
+          }
+        },
+        cohort: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (cohortUsers.length === 0) {
+      return res.status(404).json({ error: 'No enrolled users found in cohort' });
+    }
+
+    // Create HTML email template
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb; margin-bottom: 10px;">${subject}</h1>
+          <p style="color: #64748b; font-size: 16px;">Message from BVisionRY Lighthouse Team</p>
+        </div>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          <div style="color: #475569; line-height: 1.6; white-space: pre-line;">
+            ${message}
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Go to Dashboard
+          </a>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+          <p style="color: #94a3b8; font-size: 14px;">
+            Best regards,<br>
+            The BVisionRY Lighthouse Team
+          </p>
+        </div>
+      </div>
+    `;
+
+    // Send emails to all users
+    const results = await emailService.sendBulkEmailToCohort(
+      cohortUsers.map(user => user.user.email),
+      subject,
+      html
+    );
+
+    // Log the activity
+    console.log(`📧 Bulk email sent to cohort "${cohortUsers[0].cohort.name}": ${results.success} successful, ${results.failed} failed`);
+
+    res.json({
+      message: `Email sent to ${results.success} users successfully`,
+      details: {
+        cohortName: cohortUsers[0].cohort.name,
+        totalUsers: cohortUsers.length,
+        successful: results.success,
+        failed: results.failed
+      }
+    });
+  } catch (error) {
+    console.error('Send bulk email error:', error);
+    res.status(500).json({ error: 'Failed to send bulk email' });
   }
 });
 

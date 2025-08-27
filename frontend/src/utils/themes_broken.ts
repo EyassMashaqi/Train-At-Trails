@@ -1,5 +1,3 @@
-import React from 'react';
-
 export interface ThemeInfo {
   id: string;
   name: string;
@@ -152,23 +150,6 @@ export const getThemeClasses = (theme: ThemeInfo) => {
 // Special function for theme-based vehicle icons
 export const getVehicleIcon = (theme: ThemeInfo) => {
   return theme.icon;
-};
-
-// Helper function to get emoji direction styling
-export const getVehicleIconStyle = (themeId: string): React.CSSProperties => {
-  // Flip emojis that naturally face left to make them face right for progress
-  if (themeId === 'trains' || themeId === 'cars' || themeId === 'f1') {
-    return { 
-      transform: 'scaleX(-1)', 
-      display: 'inline-block',
-      WebkitTransform: 'scaleX(-1)', // For better browser compatibility
-      transformOrigin: 'center center', // Ensure proper rotation center
-      backfaceVisibility: 'hidden' as const // Prevent flickering during animations
-    };
-  }
-  return {
-    display: 'inline-block'
-  };
 };
 
 // Theme-specific leaderboard backgrounds - using brand colors consistently

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { gameService } from '../services/api';
 import { getThemeClasses, getVehicleIcon } from '../utils/themes';
+import toast from 'react-hot-toast';
 
 interface Topic {
   id: string;
@@ -68,13 +69,38 @@ const Dashboard: React.FC = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    // Check if user has active cohort assignment
+    // Check if user has active cohort assignment and can access dashboard
     const checkCohortAccess = async () => {
       try {
-        const response = await gameService.getCohortHistory();
-        const hasActive = response.data.hasActiveCohort;
+        // First check cohort status for access permissions
+        const statusResponse = await gameService.checkCohortStatus();
+        const { isEnrolled, canAccessDashboard, message, status } = statusResponse.data;
         
-        // Redirect to cohort history if no active cohort or not enrolled
+        if (!isEnrolled) {
+          navigate('/cohort-history');
+          return;
+        }
+
+        // For ENROLLED users, check if they can access dashboard (handles deactivated cohorts)
+        if (status === 'ENROLLED' && !canAccessDashboard) {
+          if (message) {
+            toast.error(message);
+          }
+          navigate('/cohort-history');
+          return;
+        }
+
+        // For non-ENROLLED users (GRADUATED, REMOVED, SUSPENDED), they should go to cohort history anyway
+        if (status !== 'ENROLLED') {
+          navigate('/cohort-history');
+          return;
+        }
+
+        // Additional check using cohort history for hasActiveCohort (only for ENROLLED users)
+        const historyResponse = await gameService.getCohortHistory();
+        const hasActive = historyResponse.data.hasActiveCohort;
+        
+        // Redirect to cohort history if no active cohort
         if (!hasActive) {
           navigate('/cohort-history');
         }
@@ -248,7 +274,7 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Train Card */}
           <div className="lg:col-span-2">
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} backdrop-blur-sm rounded-2xl shadow-2xl p-8 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <div className="flex items-center mb-8">
                 <div className="relative">
                   <span className="text-8xl mr-6 drop-shadow-lg">{vehicleIcon}</span>
@@ -275,12 +301,12 @@ const Dashboard: React.FC = () => {
                   </span>
                 </div>
                 <div className="relative">
-                  <div className="w-full bg-gray-300 rounded-full h-6 shadow-inner border border-gray-400">
+                  <div className={`w-full ${themeClasses.progressContainer || 'bg-accent-200'} rounded-full h-6 shadow-inner border ${themeClasses.accentBorder}`}>
                     <div
-                      className={`${themeClasses.progressBg} h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden border border-gray-500`}
+                      className={`${themeClasses.progressBg} h-6 rounded-full transition-all duration-1000 shadow-lg relative overflow-hidden border ${themeClasses.primaryBorder}`}
                       style={{ width: `${progressPercentage}%` }}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-secondary-300/30 to-transparent animate-shimmer"></div>
                     </div>
                   </div>
                   {/* Progress sparkles */}
@@ -330,7 +356,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Active Questions Card - Moved from right column */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 mt-8">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border ${themeClasses.brandBorder || 'border-primary-200'} mt-8`}>
               <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">🎯</span>
                 Active Questions
@@ -376,7 +402,7 @@ const Dashboard: React.FC = () => {
           {/* Side Panel */}
           <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">📊</span>
                 Your Stats
@@ -400,7 +426,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Live Clock */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">🕒</span>
                 Current Time
@@ -416,7 +442,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Journey Guide */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <h3 className={`text-2xl font-bold ${themeClasses.textPrimary} mb-6 flex items-center`}>
                 <span className="mr-3">🗺️</span>
                 Journey Guide

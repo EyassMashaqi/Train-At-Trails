@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
@@ -13,6 +13,16 @@ const Login: React.FC = () => {
   const [errors, setErrors] = useState({ email: '', password: '', general: '' });
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle messages from password reset
+  useEffect(() => {
+    if (location.state?.message) {
+      toast.success(location.state.message);
+      // Clear the location state to prevent showing the message again on refresh
+      navigate('/login', { replace: true });
+    }
+  }, [location.state, navigate]);
 
   const handleAdminLogin = async () => {
     setLoading(true);
@@ -219,6 +229,15 @@ const Login: React.FC = () => {
                 </>
               )}
             </button>
+          </div>
+
+          <div className="text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-primary-600 hover:text-primary-500 font-medium"
+            >
+              Forgot your password?
+            </Link>
           </div>
 
           <div className="text-center">

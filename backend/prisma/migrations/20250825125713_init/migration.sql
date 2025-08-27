@@ -7,8 +7,12 @@ CREATE TABLE "users" (
     "trainName" TEXT,
     "isAdmin" BOOLEAN NOT NULL DEFAULT false,
     "currentStep" INTEGER NOT NULL DEFAULT 0,
+    "currentCohortId" TEXT,
+    "resetToken" TEXT,
+    "resetTokenExpiry" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "users_currentCohortId_fkey" FOREIGN KEY ("currentCohortId") REFERENCES "cohorts" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -17,6 +21,7 @@ CREATE TABLE "modules" (
     "moduleNumber" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
+    "theme" TEXT NOT NULL DEFAULT 'trains',
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "isReleased" BOOLEAN NOT NULL DEFAULT false,
     "releaseDate" DATETIME,
@@ -55,12 +60,18 @@ CREATE TABLE "questions" (
 CREATE TABLE "answers" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "content" TEXT NOT NULL,
+    "notes" TEXT,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "grade" TEXT,
+    "gradePoints" INTEGER,
     "submittedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "reviewedAt" DATETIME,
     "reviewedBy" TEXT,
     "feedback" TEXT,
     "pointsAwarded" INTEGER,
+    "resubmissionRequested" BOOLEAN NOT NULL DEFAULT false,
+    "resubmissionApproved" BOOLEAN,
+    "resubmissionRequestedAt" DATETIME,
     "attachmentFileName" TEXT,
     "attachmentFilePath" TEXT,
     "attachmentFileSize" INTEGER,
@@ -92,6 +103,7 @@ CREATE TABLE "mini_questions" (
     "title" TEXT NOT NULL,
     "question" TEXT NOT NULL,
     "description" TEXT,
+    "resourceUrl" TEXT,
     "releaseDate" DATETIME,
     "isReleased" BOOLEAN NOT NULL DEFAULT false,
     "actualReleaseDate" DATETIME,
@@ -112,6 +124,9 @@ CREATE TABLE "mini_answers" (
     "userId" TEXT NOT NULL,
     "miniQuestionId" TEXT NOT NULL,
     "cohortId" TEXT NOT NULL,
+    "resubmissionRequested" BOOLEAN NOT NULL DEFAULT false,
+    "resubmissionRequestedAt" DATETIME,
+    "resubmissionRequestedBy" TEXT,
     CONSTRAINT "mini_answers_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "mini_answers_miniQuestionId_fkey" FOREIGN KEY ("miniQuestionId") REFERENCES "mini_questions" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "mini_answers_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "cohorts" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -129,10 +144,12 @@ CREATE TABLE "game_config" (
 -- CreateTable
 CREATE TABLE "cohorts" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "cohortNumber" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "startDate" DATETIME NOT NULL,
     "endDate" DATETIME,
+    "defaultTheme" TEXT NOT NULL DEFAULT 'trains',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
@@ -145,7 +162,13 @@ CREATE TABLE "cohort_members" (
     "cohortId" TEXT NOT NULL,
     "currentStep" INTEGER NOT NULL DEFAULT 0,
     "joinedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'ENROLLED',
+    "statusChangedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "statusChangedBy" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "isGraduated" BOOLEAN NOT NULL DEFAULT false,
+    "graduatedAt" DATETIME,
+    "graduatedBy" TEXT,
     CONSTRAINT "cohort_members_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "cohort_members_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "cohorts" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -177,7 +200,7 @@ CREATE UNIQUE INDEX "answers_userId_questionId_cohortId_key" ON "answers"("userI
 CREATE UNIQUE INDEX "mini_answers_userId_miniQuestionId_cohortId_key" ON "mini_answers"("userId", "miniQuestionId", "cohortId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "cohorts_name_key" ON "cohorts"("name");
+CREATE UNIQUE INDEX "cohorts_name_cohortNumber_key" ON "cohorts"("name", "cohortNumber");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "cohort_members_userId_cohortId_key" ON "cohort_members"("userId", "cohortId");

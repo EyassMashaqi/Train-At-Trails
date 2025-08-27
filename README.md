@@ -73,7 +73,7 @@ chmod +x setup.sh && ./setup.sh
 
 #### Prerequisites
 - Node.js 18+
-- PostgreSQL database (or SQLite for development)
+- PostgreSQL database
 - npm or yarn
 
 #### 1. Install Dependencies

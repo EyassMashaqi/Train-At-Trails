@@ -4,7 +4,7 @@ import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
-import { getThemeClasses, getVehicleIcon } from '../utils/themes';
+import { getThemeClasses, getVehicleIcon, getVehicleIconStyle } from '../utils/themes';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 
@@ -31,6 +31,9 @@ interface Answer {
   grade?: string; // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
   submittedAt: string;
   feedback?: string;
+  resubmissionRequested?: boolean; // Add resubmission status
+  resubmissionApproved?: boolean;
+  resubmissionRequestedAt?: string;
   question: Question;
   topic?: Topic;
 }
@@ -49,6 +52,7 @@ interface Topic {
   module: Module;
   contents?: Content[];
   questionNumber?: number;
+  userAnswer?: Answer; // Add userAnswer property
   miniQuestionProgress?: {
     hasFutureMiniQuestions: boolean;
     totalAll: number;
@@ -127,7 +131,7 @@ const getThemeSpecificBg = (themeId: string): string => {
     case 'f1':
       return 'bg-gradient-to-br from-gray-100 via-slate-100 to-gray-200';
     default:
-      return 'bg-white';
+      return 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50';
   }
 };
 
@@ -139,6 +143,11 @@ const GameView: React.FC = () => {
   // Get theme-specific classes
   const themeClasses = useMemo(() => getThemeClasses(currentTheme), [currentTheme]);
   const vehicleIcon = useMemo(() => getVehicleIcon(currentTheme), [currentTheme]);
+  const vehicleIconStyle = useMemo(() => {
+    const style = getVehicleIconStyle(currentTheme.id);
+    console.log('Vehicle Icon Style for theme', currentTheme.id, ':', style);
+    return style;
+  }, [currentTheme.id]);
   
   const [progress, setProgress] = useState<TrailProgress | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -207,7 +216,23 @@ const GameView: React.FC = () => {
     }
   };
 
-  // Get medal icon for grade
+  // Get medal icon for mastery points
+  // Get medal styling for consistent display across all themes
+  const getMedalStyling = (grade: string | null) => {
+    switch (grade) {
+      case 'GOLD':
+        return 'bg-gradient-to-r from-yellow-200 to-yellow-300 border-yellow-400 text-yellow-900';
+      case 'SILVER':
+        return 'bg-gradient-to-r from-gray-200 to-gray-300 border-gray-400 text-gray-900';
+      case 'COPPER':
+        return 'bg-gradient-to-r from-orange-200 to-orange-300 border-orange-400 text-orange-900';
+      case 'NEEDS_RESUBMISSION':
+        return 'bg-gradient-to-r from-red-200 to-red-300 border-red-400 text-red-900';
+      default:
+        return 'bg-gradient-to-r from-emerald-200 to-emerald-300 border-emerald-400 text-gray-900';
+    }
+  };
+
   const getMedalForGrade = (grade?: string | null) => {
     switch (grade) {
       case 'GOLD': return '🥇';
@@ -252,9 +277,21 @@ const GameView: React.FC = () => {
     return userHasAnswered(user) ? getRankMedal(rank) : '○';
   };
 
-  // Get the best grade for a completed step
+  // Get the best mastery points for a completed step
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
+    
+    // Debug: log all answers for this step
+    const allStepAnswers = progress.answers.filter(answer => 
+      answer.question?.questionNumber === step
+    );
+    
+    console.log(`Step ${step} - All answers:`, allStepAnswers.map(a => ({
+      id: a.id,
+      status: a.status,
+      grade: a.grade,
+      questionNumber: a.question?.questionNumber
+    })));
     
     const stepAnswers = progress.answers.filter(answer => 
       answer.question?.questionNumber === step && 
@@ -263,7 +300,7 @@ const GameView: React.FC = () => {
     
     if (stepAnswers.length === 0) return null;
     
-    // Find the best grade (Gold > Silver > Copper)
+    // Find the best mastery points (Gold > Silver > Copper)
     const gradeOrder = { 'GOLD': 3, 'SILVER': 2, 'COPPER': 1 };
     let bestGrade: string | null = null;
     let bestScore = 0;
@@ -276,6 +313,7 @@ const GameView: React.FC = () => {
       }
     }
     
+    console.log(`Step ${step} - Best mastery points:`, bestGrade);
     return bestGrade;
   };
 
@@ -335,14 +373,29 @@ const GameView: React.FC = () => {
   const checkCohortEnrollment = async () => {
     try {
       const response = await gameService.checkCohortStatus();
-      const { isEnrolled } = response.data;
+      const { isEnrolled, canAccessGame, message, status } = response.data;
       
       if (!isEnrolled) {
         navigate('/cohort-history');
         return;
       }
+
+      // For ENROLLED users, check if they can access game (handles deactivated cohorts)
+      if (status === 'ENROLLED' && !canAccessGame) {
+        if (message) {
+          toast.error(message);
+        }
+        navigate('/cohort-history');
+        return;
+      }
+
+      // For non-ENROLLED users (GRADUATED, REMOVED, SUSPENDED), they shouldn't access game anyway
+      if (status !== 'ENROLLED') {
+        navigate('/cohort-history');
+        return;
+      }
       
-      // If enrolled, proceed to load game data
+      // If enrolled and can access game, proceed to load game data
       loadGameData();
     } catch (error) {
       // If we can't check cohort status, still try to load game data
@@ -350,6 +403,122 @@ const GameView: React.FC = () => {
       loadGameData();
     }
   };
+
+  // Calculate ALL available target questions (for multiple assignments)
+  const calculateAllAvailableQuestions = useMemo(() => {
+    if (!progress || !modules || modules.length === 0) return [];
+    
+    const availableQuestions: Question[] = [];
+    
+    // Look through modules to find ALL questions where the user can submit the main assignment
+    console.log('Calculate All Available Questions Debug:', {
+      modulesCount: modules.length,
+      totalTopics: modules.flatMap(m => m.topics).length
+    });
+    
+    // First pass: Look for approved resubmissions (priority)
+    for (const module of modules) {
+      if (module.isReleased) {
+        for (const topic of module.topics) {
+          if (topic.isReleased) {
+            const topicNumber = topic.questionNumber || topic.topicNumber;
+            
+            // Check if user has already answered this question
+            const userAnswer = progress?.answers?.find(answer => 
+              answer.question.questionNumber === topicNumber
+            );
+            
+            // PRIORITY CHECK: Look for approved resubmissions
+            const hasApprovedResubmission = userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved;
+            
+            if (hasApprovedResubmission) {
+              availableQuestions.push({
+                id: topic.id,
+                questionNumber: topicNumber,
+                title: topic.title,
+                description: topic.description,
+                content: topic.content || '',
+                releaseDate: topic.deadline,
+                hasAnswered: true // This is a resubmission
+              });
+              console.log('Found PRIORITY available question (approved resubmission):', topic.title);
+            }
+          }
+        }
+      }
+    }
+    
+    // Second pass: Look for normal available questions
+    for (const module of modules) {
+      if (module.isReleased) {
+        for (const topic of module.topics) {
+          if (topic.isReleased) {
+            const topicNumber = topic.questionNumber || topic.topicNumber;
+            
+            // Skip if already added as resubmission
+            if (availableQuestions.find(q => q.questionNumber === topicNumber)) {
+              continue;
+            }
+            
+            // Check if backend says this topic is available (it handles all future mini-questions logic)
+            const isTopicAvailable = topic.status === 'available';
+            
+            // Also check if all mini-questions are completed for this topic (fallback logic)
+            const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
+            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
+              topicMiniQuestions.every(mq => mq.hasAnswer);
+            
+            // Topic is available if either:
+            // 1. Backend says it's available, OR
+            // 2. All mini-questions for this topic are completed
+            const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
+            
+            // Check if user has already answered this question and cannot resubmit
+            const userAnswer = progress?.answers?.find(answer => 
+              answer.question.questionNumber === topicNumber
+            );
+            
+            // User can submit/resubmit if:
+            // 1. No answer exists, OR
+            // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
+            // 3. Status is REJECTED (legacy system), OR 
+            // 4. Resubmission was requested and approved
+            const canSubmitAnswer = !userAnswer || 
+              userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+              userAnswer.status === 'REJECTED' ||
+              (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+            
+            console.log(`Topic ${topicNumber} (${topic.title}):`, {
+              isReleased: topic.isReleased,
+              status: topic.status,
+              isTopicAvailable,
+              allMiniQuestionsCompleted,
+              isActuallyAvailable,
+              hasAnswered: !!userAnswer,
+              canSubmitAnswer
+            });
+            
+            // Use backend status to determine if this topic is available for submission
+            if (isActuallyAvailable && canSubmitAnswer) {
+              availableQuestions.push({
+                id: topic.id,
+                questionNumber: topicNumber,
+                title: topic.title,
+                description: topic.description,
+                content: topic.content || '',
+                releaseDate: topic.deadline,
+                hasAnswered: false
+              });
+              console.log('Found available question (normal availability):', topic.title);
+            }
+          }
+        }
+      }
+    }
+    
+    console.log('calculateAllAvailableQuestions result:', availableQuestions.map(q => q.title));
+    return availableQuestions;
+  }, [progress, modules, currentQuestion, miniQuestions]);
 
   // Calculate target question based on current progress and modules
   const calculateTargetQuestion = useMemo(() => {
@@ -374,53 +543,109 @@ const GameView: React.FC = () => {
           if (topic.isReleased) {
             const topicNumber = topic.questionNumber || topic.topicNumber;
             
-            // Check if backend says this topic is available (it handles all future mini-questions logic)
-            const isTopicAvailable = topic.status === 'available';
-            
-            // Also check if all mini-questions are completed for this topic (fallback logic)
-            const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
-            const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
-              topicMiniQuestions.every(mq => mq.hasAnswer);
-            
-            // Topic is available if either:
-            // 1. Backend says it's available, OR
-            // 2. All mini-questions for this topic are completed
-            const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
-            
             // Check if user has already answered this question
-            const hasAnswered = progress?.answers?.some(answer => 
+            const userAnswer = progress?.answers?.find(answer => 
               answer.question.questionNumber === topicNumber
             );
             
-            console.log(`Topic ${topicNumber} (${topic.title}):`, {
-              isReleased: topic.isReleased,
-              status: topic.status,
-              isTopicAvailable,
-              allMiniQuestionsCompleted,
-              isActuallyAvailable,
-              hasAnswered,
-              miniQuestionProgress: topic.miniQuestionProgress,
-              miniQuestionsCount: topicMiniQuestions.length,
-              completedMiniQuestions: topicMiniQuestions.filter(mq => mq.hasAnswer).length
-            });
+            // PRIORITY CHECK: Look for approved resubmissions first
+            const hasApprovedResubmission = userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved;
             
-            // Use backend status to determine if this topic is available
-            if (isActuallyAvailable && !hasAnswered) {
+            if (hasApprovedResubmission) {
               foundTargetQuestion = {
-                id: topic.id, // Keep as string, don't convert to int
+                id: topic.id,
                 questionNumber: topicNumber,
                 title: topic.title,
                 description: topic.description,
                 content: topic.content || '',
                 releaseDate: topic.deadline,
-                hasAnswered: false
+                hasAnswered: true // This is a resubmission
               };
-              console.log('Found target question:', foundTargetQuestion);
-              break;
+              console.log('Found PRIORITY target question (approved resubmission):', foundTargetQuestion);
+              break; // Stop searching once we find an approved resubmission
             }
           }
         }
-        if (foundTargetQuestion) break;
+        if (foundTargetQuestion) break; // Exit outer loop if we found a resubmission
+      }
+    }
+    
+    // If no approved resubmissions found, look for normal available questions
+    if (!foundTargetQuestion) {
+      for (const module of modules) {
+        if (module.isReleased) {
+          for (const topic of module.topics) {
+            if (topic.isReleased) {
+              const topicNumber = topic.questionNumber || topic.topicNumber;
+              
+              // Check if backend says this topic is available (it handles all future mini-questions logic)
+              const isTopicAvailable = topic.status === 'available';
+              
+              // Also check if all mini-questions are completed for this topic (fallback logic)
+              const topicMiniQuestions = miniQuestions.filter(mq => mq.questionNumber === topicNumber);
+              const allMiniQuestionsCompleted = topicMiniQuestions.length === 0 || 
+                topicMiniQuestions.every(mq => mq.hasAnswer);
+              
+              // Topic is available if either:
+              // 1. Backend says it's available, OR
+              // 2. All mini-questions for this topic are completed
+              const isActuallyAvailable = isTopicAvailable || allMiniQuestionsCompleted;
+              
+              // Check if user has already answered this question and cannot resubmit
+              const userAnswer = progress?.answers?.find(answer => 
+                answer.question.questionNumber === topicNumber
+              );
+              
+              // User can submit/resubmit if:
+              // 1. No answer exists, OR
+              // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
+              // 3. Status is REJECTED (legacy system), OR 
+              // 4. Resubmission was requested and approved
+              const canSubmitAnswer = !userAnswer || 
+                userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+                userAnswer.status === 'REJECTED' ||
+                (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+              
+              console.log(`Topic ${topicNumber} (${topic.title}):`, {
+                isReleased: topic.isReleased,
+                status: topic.status,
+                isTopicAvailable,
+                allMiniQuestionsCompleted,
+                isActuallyAvailable,
+                hasAnswered: !!userAnswer,
+                canSubmitAnswer,
+                answerDetails: userAnswer ? {
+                  status: userAnswer.status,
+                  grade: userAnswer.grade,
+                  resubmissionRequested: userAnswer.resubmissionRequested,
+                  resubmissionApproved: userAnswer.resubmissionApproved,
+                  resubmissionRequestedAt: userAnswer.resubmissionRequestedAt
+                } : null,
+                miniQuestionProgress: topic.miniQuestionProgress,
+                miniQuestionsCount: topicMiniQuestions.length,
+                completedMiniQuestions: topicMiniQuestions.filter(mq => 
+                  mq.hasAnswer && !mq.answer?.resubmissionRequested
+                ).length
+              });
+              
+              // Use backend status to determine if this topic is available for submission
+              if (isActuallyAvailable && canSubmitAnswer) {
+                foundTargetQuestion = {
+                  id: topic.id, // Keep as string, don't convert to int
+                  questionNumber: topicNumber,
+                  title: topic.title,
+                  description: topic.description,
+                  content: topic.content || '',
+                  releaseDate: topic.deadline,
+                  hasAnswered: false
+                };
+                console.log('Found target question (normal availability):', foundTargetQuestion);
+                break;
+              }
+            }
+          }
+          if (foundTargetQuestion) break;
+        }
       }
     }
     
@@ -428,7 +653,8 @@ const GameView: React.FC = () => {
     if (!foundTargetQuestion && currentQuestion) {
       foundTargetQuestion = currentQuestion;
     }
-    
+
+    console.log('calculateTargetQuestion result:', foundTargetQuestion);
     return foundTargetQuestion;
   }, [progress, modules, currentQuestion, miniQuestions]);
 
@@ -436,6 +662,65 @@ const GameView: React.FC = () => {
   useEffect(() => {
     setTargetQuestion(calculateTargetQuestion);
   }, [calculateTargetQuestion]);
+
+  // Poll for resubmission approvals every 30 seconds
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    const pollForResubmissionApprovals = async () => {
+      try {
+        const response = await gameService.getProgress();
+        const newData = response.data;
+        
+        // Check if any resubmission has been newly approved
+        let hasNewlyApprovedResubmission = false;
+        
+        // Check questions from the response for newly approved resubmissions
+        if (newData.questions) {
+          hasNewlyApprovedResubmission = newData.questions.some((newQ: any) => {
+            const currentAnswer = newQ.answers?.[0];
+            return currentAnswer?.resubmissionRequested && currentAnswer?.resubmissionApproved;
+          });
+        }
+
+        if (hasNewlyApprovedResubmission) {
+          // Update all state with fresh data
+          setProgress({
+            currentStep: newData.currentStep,
+            totalSteps: newData.totalSteps,
+            answers: newData.answers
+          });
+          setCurrentQuestion(newData.currentQuestion);
+          
+          // Also update modules data to get latest state
+          const modulesResponse = await gameService.getModules();
+          setModules(modulesResponse.data);
+          
+          toast.success('Your resubmission request has been approved! You can now submit a new answer.');
+        }
+      } catch (error) {
+        // Silently handle polling errors to avoid spamming user with notifications
+        console.log('Resubmission polling error:', error);
+      }
+    };
+
+    // Start polling if user has pending resubmission requests in modules
+    const hasPendingResubmissions = modules?.some(module => 
+      module.topics?.some(topic => 
+        topic.userAnswer?.resubmissionRequested && !topic.userAnswer?.resubmissionApproved
+      )
+    );
+
+    if (hasPendingResubmissions) {
+      pollInterval = setInterval(pollForResubmissionApprovals, 30000); // Poll every 30 seconds
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [modules]);
 
   const loadGameData = async () => {
     try {
@@ -661,7 +946,7 @@ const GameView: React.FC = () => {
   };
 
   // Main question submission handler
-  const handleMainAnswerSubmit = async () => {
+  const handleMainAnswerSubmit = async (questionToSubmit?: Question) => {
     if (!answerLink.trim()) {
       toast.error('Please provide a link');
       return;
@@ -679,7 +964,8 @@ const GameView: React.FC = () => {
       return;
     }
 
-    if (!targetQuestion) {
+    const questionForSubmission = questionToSubmit || targetQuestion;
+    if (!questionForSubmission) {
       toast.error('No target question available');
       return;
     }
@@ -692,7 +978,7 @@ const GameView: React.FC = () => {
       await gameService.submitAnswer(
         answerLink.trim(),
         answerNotes.trim(), 
-        targetQuestion.id.toString(), // questionId
+        questionForSubmission.id.toString(), // questionId
         answerFile
       );
       toast.success('Answer submitted successfully!');
@@ -901,7 +1187,9 @@ const GameView: React.FC = () => {
             }`}
           style={{
             left: `${(progress.currentStep / progress.totalSteps) * 95}%`,
-            transform: 'translateX(-50%)'
+            transform: currentTheme.id === 'trains' || currentTheme.id === 'cars' || currentTheme.id === 'f1' 
+              ? 'translateX(-50%) scaleX(-1)' 
+              : 'translateX(-50%)'
           }}
         >
           <div className="relative">
@@ -937,32 +1225,13 @@ const GameView: React.FC = () => {
                 const medal = getMedalForGrade(grade);
                 const hasAnswer = step <= progress.currentStep;
                 
-                if (hasAnswer) {
+                if (false && hasAnswer) {
                   return (
                     <div className="absolute -top-2 -right-8 flex items-center">
-                      {/* Grade Medal Badge */}
-                      {medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-lg animate-bounce border-2 ${
-                          grade === 'NEEDS_RESUBMISSION' 
-                            ? 'bg-gradient-to-r from-red-100 to-red-200 border-red-300 text-red-900'
-                            : grade === 'GOLD'
-                            ? `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
-                            : grade === 'SILVER'
-                            ? `${themeClasses.secondaryButton} ${themeClasses.secondaryBorder} ${themeClasses.buttonText}`
-                            : grade === 'COPPER'
-                            ? `${themeClasses.primaryButton} ${themeClasses.primaryBorder} ${themeClasses.buttonText}`
-                            : `${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`
-                        }`}>
-                          {medal}
-                        </div>
-                      )}
-                      
-                      {/* Completion Badge (if no grade available yet) */}
-                      {!medal && (
-                        <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${themeClasses.accentButton} ${themeClasses.accentBorder} ${themeClasses.buttonText}`}>
-                          
-                        </div>
-                      )}
+                      {/* Always show medal if available, otherwise show sample medals for testing */}
+                      <div className={`rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 ${getMedalStyling(grade)}`}>
+                        {medal || (step === 1 ? '🥇' : step === 2 ? '🥈' : step === 3 ? '🥉' : '�')}
+                      </div>
                     </div>
                   );
                 }
@@ -981,10 +1250,12 @@ const GameView: React.FC = () => {
                 return null;
               })()}
             </div>
-            <div className={`text-xs text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
+            <div className={`text-sm text-center mt-1 font-medium ${themeClasses.textSecondary}`}>
               {(() => {
                 if (step <= progress.currentStep) {
-                  return '✓';
+                  const grade = getBestGradeForStep(step);
+                  const medal = getMedalForGrade(grade);
+                  return medal || (step === 1 ? '🥇' : step === 2 ? '🥈' : step === 3 ? '🥉' : '�');
                 } else if (step === progress.currentStep + 1) {
                   return '⭐';
                 } else {
@@ -1098,7 +1369,9 @@ const GameView: React.FC = () => {
       setExpandedQuestions(prev => ({ ...prev, ...initialExpanded }));
     }
 
-    const completedMiniQuestions = miniQuestions.filter(mq => mq.hasAnswer).length;
+    const completedMiniQuestions = miniQuestions.filter(mq => 
+      mq.hasAnswer && !mq.answer?.resubmissionRequested
+    ).length;
     const totalMiniQuestions = miniQuestions.length;
     const allMiniQuestionsCompleted = completedMiniQuestions === totalMiniQuestions;
 
@@ -1133,9 +1406,9 @@ const GameView: React.FC = () => {
               <span>Overall Progress</span>
               <span>{totalMiniQuestions > 0 ? Math.round((completedMiniQuestions / totalMiniQuestions) * 100) : 0}%</span>
             </div>
-            <div className={`w-full ${themeClasses.primaryBg} rounded-full h-2`}>
+            <div className={`w-full ${themeClasses.progressContainer} rounded-full h-2`}>
               <div
-                className={`${themeClasses.primaryButton} h-2 rounded-full transition-all duration-300`}
+                className={`${themeClasses.primaryBg} h-2 rounded-full transition-all duration-300`}
                 style={{ width: `${totalMiniQuestions > 0 ? (completedMiniQuestions / totalMiniQuestions) * 100 : 0}%` }}
               />
             </div>
@@ -1145,7 +1418,9 @@ const GameView: React.FC = () => {
           <div className="space-y-4">
             {Object.entries(groupedMiniQuestions).map(([questionKey, group]) => {
               const isExpanded = expandedQuestions[questionKey];
-              const groupCompleted = group.miniQuestions.filter(mq => mq.hasAnswer).length;
+              const groupCompleted = group.miniQuestions.filter(mq => 
+                mq.hasAnswer && !mq.answer?.resubmissionRequested
+              ).length;
               const groupTotal = group.miniQuestions.length;
               const isFullyCompleted = groupCompleted === groupTotal;
 
@@ -1156,7 +1431,7 @@ const GameView: React.FC = () => {
                     className={`p-4 cursor-pointer transition-colors ${
                       isFullyCompleted 
                         ? `${themeClasses.accentBg} ${themeClasses.accentBgHover} ${themeClasses.accentBorder}` 
-                        : `bg-white hover:${themeClasses.accentBg}`
+                        : `${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} hover:${themeClasses.accentBg}`
                     }`}
                     onClick={() => toggleQuestionGroup(questionKey)}
                   >
@@ -1181,11 +1456,9 @@ const GameView: React.FC = () => {
                       <div className="flex items-center space-x-3">
                         {/* Progress indicator */}
                         <div className="flex items-center space-x-2">
-                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                          <div className={`w-20 ${themeClasses.progressContainer} rounded-full h-2`}>
                             <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                isFullyCompleted ? themeClasses.accentButton : themeClasses.primaryButton
-                              }`}
+                              className={`${themeClasses.primaryBg} h-2 rounded-full transition-all duration-300`}
                               style={{ width: `${(groupCompleted / groupTotal) * 100}%` }}
                             />
                           </div>
@@ -1211,14 +1484,14 @@ const GameView: React.FC = () => {
                           <div 
                             key={miniQuestion.id}
                             className={`border rounded-lg p-4 ${
-                              miniQuestion.hasAnswer ? `${themeClasses.accentBg} ${themeClasses.accentBorder}` : 'bg-white border-gray-200'
+                              miniQuestion.hasAnswer ? `${themeClasses.accentBg} ${themeClasses.accentBorder}` : `${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} ${themeClasses.brandBorder || 'border-primary-200'}`
                             }`}
                           >
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
                                 <div className="flex items-center mb-2">
                                   <span className="text-lg mr-2">
-                                    {miniQuestion.hasAnswer ? '✅' : '❓'}
+                                    {miniQuestion.hasAnswer && !miniQuestion.answer?.resubmissionRequested ? '✅' : '❓'}
                                   </span>
                                   <div className="flex-1">
                                     <h5 className={`font-semibold ${themeClasses.textPrimary}`}>
@@ -1420,7 +1693,7 @@ const GameView: React.FC = () => {
                 <span className={`${themeClasses.accentTextSafeMedium} text-xl mr-3`}>🎉</span>
                 <div>
                   <p className={`${themeClasses.accentTextSafe} font-medium`}>Excellent work!</p>
-                  <p className={`${themeClasses.accentTextSafeLight} text-sm`}>You've completed all available self learning activities for this assignment.</p>
+                  <p className={`${themeClasses.accentTextSafeLight} text-sm`}>You've completed all available self learning activities for all available assignments.</p>
                 </div>
               </div>
             </div>
@@ -1430,7 +1703,292 @@ const GameView: React.FC = () => {
     );
   };
 
+  // Render answer form for a specific question
+  const renderAnswerForm = (question: Question) => {
+    const progressUserAnswer = progress?.answers?.find(answer => 
+      answer.question.id === question.id || 
+      answer.question.questionNumber === question.questionNumber
+    );
+
+    const userAnswer = progressUserAnswer;
+    const hasAnswered = !!userAnswer;
+    const isResubmissionAvailable = userAnswer && (
+      userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+      userAnswer.status === 'REJECTED' ||
+      (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved)
+    );
+
+    return (
+      <div className="space-y-4">
+        {/* Show resubmission notice if applicable */}
+        {hasAnswered && userAnswer ? (
+          userAnswer.status === 'APPROVED' && !isResubmissionAvailable ? (
+            <div className="bg-green-100 border border-green-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <span className="text-green-600 text-xl mr-3">✅</span>
+                <div>
+                  <p className="text-green-800 font-medium">Answer Approved</p>
+                  <p className="text-green-700 text-sm">Your answer has been approved!</p>
+                  {userAnswer.grade && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Grade:</span>
+                      <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                      <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : isResubmissionAvailable ? (
+            <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <span className="text-orange-600 text-xl mr-3">🔄</span>
+                <div>
+                  <p className="text-orange-800 font-medium">Resubmission Available</p>
+                  <p className="text-orange-700 text-sm">
+                    {userAnswer?.grade === 'NEEDS_RESUBMISSION' 
+                      ? 'Admin has requested you to update your answer. Please provide a new submission below.'
+                      : userAnswer?.status === 'REJECTED'
+                      ? 'Your answer was rejected. You can submit a new answer below.'
+                      : 'Your resubmission request has been approved. You can now submit a new answer.'}
+                  </p>
+                  {userAnswer?.grade && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Previous Grade:</span>
+                      <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                      <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null
+        ) : null}
+        
+        {/* Show form if no answer or resubmission available */}
+        {(!hasAnswered || isResubmissionAvailable) && (
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
+                Link to Your Work *
+              </label>
+              <input
+                type="url"
+                value={answerLink}
+                onChange={(e) => handleAnswerLinkChange(e.target.value)}
+                placeholder="https://example.com/article"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+                  answerLink.trim() && !answerLinkValidation.isValid
+                    ? 'border-red-300 focus:ring-red-500'
+                    : answerLink.trim() && answerLinkValidation.isValid
+                    ? 'border-green-300 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-accent-500'
+                }`}
+              />
+              {answerLink.trim() && answerLinkValidation.message && (
+                <p className={`text-xs mt-1 ${
+                  answerLinkValidation.isValid ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {answerLinkValidation.message}
+                </p>
+              )}
+              <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
+                Share a link to your work
+              </p>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
+                Notes About Your Work *
+              </label>
+              <textarea
+                value={answerNotes}
+                onChange={(e) => setAnswerNotes(e.target.value)}
+                placeholder="Describe what you built, challenges you faced, what you learned..."
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-vertical"
+              />
+              <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
+                Provide context about your work, the approach you took, and any key insights
+              </p>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
+                Attachment (optional)
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setAnswerFile(e.target.files?.[0] || null)}
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+              />
+              {answerFile && (
+                <p className={`text-sm ${themeClasses.textSecondary} mt-1`}>
+                  Selected: {answerFile.name} ({Math.round(answerFile.size / 1024)} KB)
+                </p>
+              )}
+              <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
+                Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, GIF (Max 10MB)
+              </p>
+            </div>
+
+            <button
+              onClick={() => handleMainAnswerSubmit(question)}
+              disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
+              className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            >
+              {submitting ? (
+                <div className="flex items-center">
+                  <span className="animate-spin mr-2">⏳</span>
+                  Submitting Answer...
+                </div>
+              ) : (
+                'Submit Answer'
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render multiple main assignments (NEW APPROACH)
+  const renderMainAssignments = () => {
+    console.log('renderMainAssignments called - progress:', !!progress);
+    if (!progress) return null;
+
+    const availableQuestions = calculateAllAvailableQuestions;
+    
+    if (availableQuestions.length === 0) return null;
+
+    return (
+      <div className="mb-12">
+        <h2 className={`text-3xl font-bold ${themeClasses.textPrimary} mb-8 text-center flex items-center justify-center`}>
+          <span className="mr-3">📝</span>
+          Main Assignment{availableQuestions.length > 1 ? 's' : ''}
+        </h2>
+        
+        <div className="space-y-8">
+          {availableQuestions.map((question) => {
+            // Get mini-questions specifically for this question/topic
+            const questionMiniQuestions = miniQuestions.filter(mq => 
+              mq.questionNumber === question.questionNumber
+            );
+            
+            const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => 
+              mq.hasAnswer && !mq.answer?.resubmissionRequested
+            ).length;
+            const totalQuestionMiniQuestions = questionMiniQuestions.length;
+
+            // Check if there are future mini-questions by looking at the backend progress data
+            const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 
+              t.questionNumber === question.questionNumber || t.topicNumber === question.questionNumber
+            );
+            const totalAllMiniQuestions = relatedTopic?.miniQuestionProgress?.totalAll || totalQuestionMiniQuestions;
+            const completedAllMiniQuestions = relatedTopic?.miniQuestionProgress?.completedAll || completedQuestionMiniQuestions;
+
+            // Main assignment is locked if there are any incomplete mini-questions (current or future)
+            // BUT allow access for approved resubmissions regardless of mini-question completion
+            const topicUserAnswer = relatedTopic?.userAnswer;
+            
+            // Check for resubmission approval in both topic answer and progress answers
+            const progressUserAnswer = progress?.answers?.find(answer => 
+              answer.question.id === question.id || 
+              answer.question.questionNumber === question.questionNumber
+            );
+            
+            const isResubmissionApproved = 
+              (topicUserAnswer?.resubmissionRequested && topicUserAnswer?.resubmissionApproved) ||
+              (progressUserAnswer?.resubmissionRequested && progressUserAnswer?.resubmissionApproved);
+              
+            const isMainAssignmentLocked = (totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions) && !isResubmissionApproved;
+
+            const hasAnswered = !!progressUserAnswer;
+
+            return (
+              <div key={question.id} className={`rounded-xl border overflow-hidden ${
+                isMainAssignmentLocked 
+                  ? 'border-orange-300 bg-orange-50' 
+                  : 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50 border-primary-300 shadow-lg'
+              }`}>
+                {isMainAssignmentLocked ? (
+                  <div className="p-8 text-center">
+                    <div className="text-6xl mb-4">🔐</div>
+                    <h3 className="text-xl font-bold text-orange-800">Main Assignment Locked</h3>
+                    <p className="text-orange-700 mt-2">
+                      Complete {totalAllMiniQuestions - completedAllMiniQuestions} more self learning activit{(totalAllMiniQuestions - completedAllMiniQuestions) === 1 ? 'y' : 'ies'} to unlock this assignment
+                    </p>
+                    <div className="mt-4 bg-orange-100 rounded-lg p-4">
+                      <div className="text-sm text-orange-800 font-medium mb-1">Progress</div>
+                      <div className="bg-orange-200 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-orange-500 h-full transition-all duration-500"
+                          style={{ width: `${(completedAllMiniQuestions / totalAllMiniQuestions) * 100}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-orange-700 mt-1">
+                        {completedAllMiniQuestions}/{totalAllMiniQuestions} activities completed
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 bg-gradient-to-br from-white via-accent-25 to-primary-25">
+                    <div className="text-center mb-6">
+                      <div className="text-4xl mb-3">📝</div>
+                      <h3 className={`text-xl font-bold ${themeClasses.accentTextSafe}`}>Main Assignment</h3>
+                      <p className={`${themeClasses.textMuted} mt-1`}>
+                        {hasAnswered ? 'Answer submitted' : 'Ready to submit your answer'}
+                      </p>
+                    </div>
+
+                    <div className="mb-6">
+                      <h4 className={`text-lg font-bold ${themeClasses.textPrimary} mb-2`}>
+                        Question {question.questionNumber}: {question.title}
+                      </h4>
+                      <p className={`${themeClasses.textMuted} mb-4`}>
+                        {question.description || question.content}
+                      </p>
+                    </div>
+
+                    {/* Show previous grade if answered */}
+                    {hasAnswered && progressUserAnswer && (
+                      <div className="mb-6 p-4 bg-gray-100 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Previous Grade:</span>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            progressUserAnswer.grade === 'GOLD' ? 'bg-yellow-100 text-yellow-800' :
+                            progressUserAnswer.grade === 'SILVER' ? 'bg-gray-100 text-gray-800' :
+                            progressUserAnswer.grade === 'COPPER' ? 'bg-orange-100 text-orange-800' :
+                            progressUserAnswer.grade === 'NEEDS_RESUBMISSION' ? 'bg-red-100 text-red-800' :
+                            progressUserAnswer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                            progressUserAnswer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {progressUserAnswer.grade || progressUserAnswer.status}
+                          </span>
+                        </div>
+                        {progressUserAnswer.feedback && (
+                          <p className="text-sm text-gray-600 mt-2 italic">
+                            "{progressUserAnswer.feedback}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {renderAnswerForm(question)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderCurrentQuestion = () => {
+    console.log('renderCurrentQuestion called - progress:', !!progress, 'targetQuestion:', targetQuestion);
     if (!progress || !targetQuestion) return null;
 
     // Get mini-questions specifically for this question/topic
@@ -1438,7 +1996,9 @@ const GameView: React.FC = () => {
       mq.questionNumber === targetQuestion.questionNumber
     );
     
-    const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => mq.hasAnswer).length;
+    const completedQuestionMiniQuestions = questionMiniQuestions.filter(mq => 
+      mq.hasAnswer && !mq.answer?.resubmissionRequested
+    ).length;
     const totalQuestionMiniQuestions = questionMiniQuestions.length;
     // Remove unused variable
     // const questionMiniQuestionsCompleted = totalQuestionMiniQuestions === 0 || completedQuestionMiniQuestions === totalQuestionMiniQuestions;
@@ -1452,7 +2012,20 @@ const GameView: React.FC = () => {
     const completedAllMiniQuestions = relatedTopic?.miniQuestionProgress?.completedAll || completedQuestionMiniQuestions;
 
     // Main assignment is locked if there are any incomplete mini-questions (current or future)
-    const isMainAssignmentLocked = totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions;
+    // BUT allow access for approved resubmissions regardless of mini-question completion
+    const topicUserAnswer = relatedTopic?.userAnswer;
+    
+    // Check for resubmission approval in both topic answer and progress answers
+    const progressUserAnswer = progress?.answers?.find(answer => 
+      answer.question.id === targetQuestion.id || 
+      answer.question.questionNumber === targetQuestion.questionNumber
+    );
+    
+    const isResubmissionApproved = 
+      (topicUserAnswer?.resubmissionRequested && topicUserAnswer?.resubmissionApproved) ||
+      (progressUserAnswer?.resubmissionRequested && progressUserAnswer?.resubmissionApproved);
+      
+    const isMainAssignmentLocked = (totalAllMiniQuestions > 0 && completedAllMiniQuestions < totalAllMiniQuestions) && !isResubmissionApproved;
 
     // Debug logging
     console.log('Main Assignment Debug:', {
@@ -1461,6 +2034,15 @@ const GameView: React.FC = () => {
       completedAllMiniQuestions,
       isMainAssignmentLocked,
       hasFutureMiniQuestions,
+      isResubmissionApproved,
+      topicUserAnswer: topicUserAnswer ? {
+        resubmissionRequested: topicUserAnswer.resubmissionRequested,
+        resubmissionApproved: topicUserAnswer.resubmissionApproved
+      } : null,
+      progressUserAnswer: progressUserAnswer ? {
+        resubmissionRequested: progressUserAnswer.resubmissionRequested,
+        resubmissionApproved: progressUserAnswer.resubmissionApproved
+      } : null,
       relatedTopic: relatedTopic ? {
         id: relatedTopic.id,
         title: relatedTopic.title,
@@ -1494,7 +2076,7 @@ const GameView: React.FC = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg p-4 mb-6 border border-orange-200">
+            <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} rounded-lg p-4 mb-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
               <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
                 Question {targetQuestion.questionNumber}: {targetQuestion.title}
               </h4>
@@ -1529,11 +2111,41 @@ const GameView: React.FC = () => {
       );
     }
 
-    // Check if user has already answered this question
-    const hasAnswered = progress?.answers?.some(answer => 
+    // Check if user has already answered this question and get answer details
+    const userAnswer = progress?.answers?.find(answer => 
       answer.question.id === targetQuestion.id || 
       answer.question.questionNumber === targetQuestion.questionNumber
     );
+    
+    // User can submit/resubmit if:
+    // 1. No answer exists, OR
+    // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
+    // 3. Status is REJECTED (legacy system), OR 
+    // 4. Resubmission was requested and approved
+    const canSubmitAnswer = !userAnswer || 
+      userAnswer.grade === 'NEEDS_RESUBMISSION' || 
+      userAnswer.status === 'REJECTED' ||
+      (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
+    
+    const hasAnswered = !!userAnswer;
+    const isResubmissionAvailable = userAnswer && canSubmitAnswer;
+
+    // Debug logging for resubmission logic
+    console.log('renderMainAssignmentForm Debug:', {
+      targetQuestionNumber: targetQuestion.questionNumber,
+      userAnswer: userAnswer ? {
+        id: userAnswer.id,
+        status: userAnswer.status,
+        grade: userAnswer.grade,
+        resubmissionRequested: userAnswer.resubmissionRequested,
+        resubmissionApproved: userAnswer.resubmissionApproved
+      } : null,
+      hasAnswered,
+      canSubmitAnswer,
+      isResubmissionAvailable,
+      showApprovedSection: hasAnswered && !canSubmitAnswer,
+      showResubmissionForm: hasAnswered && canSubmitAnswer
+    });
 
     return (
       <div className="mb-8">
@@ -1543,17 +2155,20 @@ const GameView: React.FC = () => {
               <span className="text-3xl mr-3">📝</span>
               <div>
                 <h3 className={`text-xl font-bold ${themeClasses.accentTextSafe}`}>Main Assignment</h3>
-                <p className={`${themeClasses.accentTextSafeMedium}`}>Ready to submit your answer</p>
+                <p className={`${themeClasses.accentTextSafeMedium}`}>
+                  {hasAnswered ? 'Answer submitted' : 'Ready to submit your answer'}
+                </p>
               </div>
             </div>
             <div className={`${themeClasses.accentBg} rounded-lg px-3 py-1`}>
               <span className={`${themeClasses.accentTextSafe} font-semibold`}>
-                {hasAnswered ? 'Completed' : 'Available'}
+                {isResubmissionAvailable ? 'Resubmission Available' : 
+                 hasAnswered ? 'Completed' : 'Available'}
               </span>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-4 mb-6 border border-accent-200">
+          <div className={`${themeClasses.cardBg || 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50'} rounded-lg p-4 mb-6 border ${themeClasses.brandBorder || 'border-primary-200'}`}>
             <h4 className={`font-semibold ${themeClasses.textPrimary} mb-2`}>
               Question {targetQuestion.questionNumber}: {targetQuestion.title}
             </h4>
@@ -1565,18 +2180,98 @@ const GameView: React.FC = () => {
             )}
           </div>
 
-          {hasAnswered ? (
-            <div className="bg-green-100 border border-green-200 rounded-lg p-4">
+          {hasAnswered && !canSubmitAnswer ? (
+            <div className={`border rounded-lg p-4 ${
+              userAnswer?.status === 'APPROVED' 
+                ? 'bg-green-100 border-green-200'
+                : userAnswer?.status === 'REJECTED'
+                ? 'bg-red-100 border-red-200'
+                : 'bg-yellow-100 border-yellow-200'
+            }`}>
               <div className="flex items-center">
-                <span className="text-green-600 text-xl mr-3">✅</span>
+                <span className={`text-xl mr-3 ${
+                  userAnswer?.status === 'APPROVED' 
+                    ? 'text-green-600'
+                    : userAnswer?.status === 'REJECTED'
+                    ? 'text-red-600'
+                    : 'text-yellow-600'
+                }`}>
+                  {userAnswer?.status === 'APPROVED' ? '✅' : userAnswer?.status === 'REJECTED' ? '❌' : '⏳'}
+                </span>
                 <div>
-                  <p className="text-green-800 font-medium">Answer Submitted</p>
-                  <p className="text-green-700 text-sm">Your answer has been submitted and is awaiting review.</p>
+                  <p className={`font-medium ${
+                    userAnswer?.status === 'APPROVED' 
+                      ? 'text-green-800'
+                      : userAnswer?.status === 'REJECTED'
+                      ? 'text-red-800'
+                      : 'text-yellow-800'
+                  }`}>
+                    {userAnswer?.status === 'APPROVED' ? 'Answer Approved' 
+                     : userAnswer?.status === 'REJECTED' ? 'Answer Rejected'
+                     : 'Answer Submitted'}
+                  </p>
+                  <p className={`text-sm ${
+                    userAnswer?.status === 'APPROVED' 
+                      ? 'text-green-700'
+                      : userAnswer?.status === 'REJECTED'
+                      ? 'text-red-700'
+                      : 'text-yellow-700'
+                  }`}>
+                    {userAnswer?.status === 'APPROVED' ? 'Your answer has been approved!' 
+                     : userAnswer?.status === 'REJECTED' ? 'Your answer was rejected. Please check the feedback and consider resubmitting.'
+                     : 'Your answer has been submitted and is awaiting review.'}
+                  </p>
+                  {userAnswer?.grade && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Grade:</span>
+                      <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                      <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            // Show submission form for new answers OR approved resubmissions
+            <div className="space-y-4">{
+              // OVERRIDE: If this question has an approved resubmission, show the form regardless
+              userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved ? (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center">
+                    <span className="text-green-600 text-xl mr-3">🎉</span>
+                    <div>
+                      <p className="text-green-800 font-medium">Resubmission Approved!</p>
+                      <p className="text-green-700 text-sm">
+                        Your resubmission request has been approved. You can now submit a new answer below.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : isResubmissionAvailable ? (
+                <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center">
+                    <span className="text-orange-600 text-xl mr-3">🔄</span>
+                    <div>
+                      <p className="text-orange-800 font-medium">Resubmission Available</p>
+                      <p className="text-orange-700 text-sm">
+                        {userAnswer?.grade === 'NEEDS_RESUBMISSION' 
+                          ? 'Admin has requested you to update your answer. Please provide a new submission below.'
+                          : userAnswer?.status === 'REJECTED'
+                          ? 'Your answer was rejected. You can submit a new answer below.'
+                          : 'Your resubmission request has been approved. You can now submit a new answer.'}
+                      </p>
+                      {userAnswer?.grade && (
+                        <div className="mt-2 flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">Previous Grade:</span>
+                          <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
+                          <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              
               <div>
                 <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
                   Link to Your Work *
@@ -1602,7 +2297,7 @@ const GameView: React.FC = () => {
                   </p>
                 )}
                 <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
-                  Share a link to your GitHub repository, deployed app, or other relevant work
+                  Share a link to your work
                 </p>
               </div>
 
@@ -1643,9 +2338,9 @@ const GameView: React.FC = () => {
               </div>
 
               <button
-                onClick={handleMainAnswerSubmit}
+                onClick={() => handleMainAnswerSubmit()}
                 disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
-                className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
+                className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {submitting ? (
                   <div className="flex items-center">
@@ -1670,7 +2365,7 @@ const GameView: React.FC = () => {
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             {themeClasses.leaderboardTitle}
-            <span className="ml-3">{vehicleIcon}</span>
+            <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
           </h3>
           <div className={`text-center ${themeClasses.textMuted}`}>
             Loading leaderboard...
@@ -1685,10 +2380,10 @@ const GameView: React.FC = () => {
           <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
             <span className="mr-3">🏆</span>
             {themeClasses.leaderboardTitle}
-            <span className="ml-3">{vehicleIcon}</span>
+            <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
           </h3>
           <div className={`text-center py-12 bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl shadow-xl border ${themeClasses.primaryBorder}`}>
-            <div className="text-6xl mb-4">{vehicleIcon}</div>
+            <div className="text-6xl mb-4" style={vehicleIconStyle}>{vehicleIcon}</div>
             <h4 className={`text-xl font-semibold mb-2 ${themeClasses.primaryText}`}>All {currentTheme?.name} Are Still at the Station!</h4>
             <p className={`${themeClasses.textSecondary} max-w-md mx-auto`}>
               The journey hasn't begun yet. Be the first to answer questions and start your {themeClasses.pathDescription}!
@@ -1709,12 +2404,12 @@ const GameView: React.FC = () => {
         <h3 className={`text-3xl font-bold mb-8 text-center flex items-center justify-center ${themeClasses.primaryText}`}>
           <span className="mr-3">🏆</span>
           {themeClasses.leaderboardTitle}
-          <span className="ml-3">{vehicleIcon}</span>
+          <span className="ml-3" style={vehicleIconStyle}>{vehicleIcon}</span>
         </h3>
 
         {/* Theme-specific Path Background */}
         <div className={`relative bg-gradient-to-r ${themeClasses.leaderboardBg} rounded-2xl p-8 shadow-xl border ${themeClasses.primaryBorder} overflow-visible`}>
-          <div className="relative h-40 rounded-xl overflow-visible shadow-inner">
+          <div className={themeClasses.trackStyling}>
             {/* Theme-specific track rendering for leaderboard */}
             {(() => {
               switch (currentTheme.id) {
@@ -1879,17 +2574,28 @@ const GameView: React.FC = () => {
             })()}
 
             {/* Station/Checkpoint Markers */}
-            {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => (
-              <div
-                key={step}
-                className="absolute top-8 transform -translate-x-1/2"
-                style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
-              >
-                <div className="bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-gray-300">
-                  <span className={`text-xs font-bold ${themeClasses.textSecondary}`}>{step}</span>
+            {Array.from({ length: totalReleasedQuestions }, (_, i) => i + 1).map((step) => {
+              const stepGrade = getBestGradeForStep(step);
+              const stepMedal = getMedalForGrade(stepGrade);
+              
+              return (
+                <div
+                  key={step}
+                  className="absolute top-8 transform -translate-x-1/2"
+                  style={{ left: `${(step / totalReleasedQuestions) * 100}%` }}
+                >
+                  <div className={`rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 ${
+                    stepMedal ? getMedalStyling(stepGrade) : 'bg-white border-gray-300'
+                  }`}>
+                    {stepMedal ? (
+                      <span className="text-xs">{stepMedal}</span>
+                    ) : (
+                      <span className={`text-xs font-bold ${themeClasses.textSecondary}`}>{step}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* All User Trains */}
             {leaderboard.map((user, index) => {
@@ -1910,15 +2616,15 @@ const GameView: React.FC = () => {
                 >
                   <div className={`relative ${isCurrentUser ? 'animate-bounce' : ''}`}>
                     {/* Vehicle Emoji */}
-                    <span className={`text-2xl ${isCurrentUser ? 'filter drop-shadow-lg' : ''}`}>
+                    <span className={`text-2xl ${isCurrentUser ? 'filter drop-shadow-lg' : ''}`} style={vehicleIconStyle}>
                       {vehicleIcon}
                     </span>
 
                     {/* User Info Tooltip */}
                     <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border border-gray-200 min-w-max z-50">
                       <div className={`text-xs font-bold ${themeClasses.textPrimary}`}>{user.trainName}</div>
-                      <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
-                      <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div>
+                      {/* <div className={`text-xs ${themeClasses.textSecondary}`}>{user.fullName}</div>
+                      <div className={`text-xs font-semibold ${themeClasses.primaryText}`}>Step {user.currentStep}/{totalReleasedQuestions}</div> */}
                     </div>
 
                     {/* Rank Badge */}
@@ -1926,7 +2632,7 @@ const GameView: React.FC = () => {
                       currentTheme.id === 'trains' 
                         ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white' 
                         : `${themeClasses.accentButton} ${themeClasses.buttonText}`
-                    } rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg`}>
+                    } rounded-full w-6 h-6 flex items-center justify-center text-s font-bold shadow-lg`}>
                       {getRankDisplay(index + 1, user)}
                     </div>
 
@@ -1945,7 +2651,7 @@ const GameView: React.FC = () => {
           {/* Leaderboard Table */}
           <div className="mt-8 bg-white rounded-xl shadow-lg overflow-hidden">
             <div className={`${themeClasses.primaryButton} px-6 py-4`}>
-              <h4 className={`text-xl font-bold ${themeClasses.buttonText} flex items-center`}>
+              <h4 className={`text-xl font-bold ${themeClasses.buttonTextLight} flex items-center`}>
                 <span className="mr-2">📊</span>
                 {themeClasses.leaderboardTitle} Rankings
               </h4>
@@ -1992,7 +2698,7 @@ const GameView: React.FC = () => {
                         <div>
                           <div className={`font-semibold flex items-center ${isCurrentUser ? themeClasses.primaryTextDark : themeClasses.textPrimary
                             }`}>
-                            {vehicleIcon} {user.trainName}
+                            <span style={vehicleIconStyle}>{vehicleIcon}</span> {user.trainName}
                             <span className={`ml-2 text-sm ${themeClasses.textMuted}`}>({user.fullName})</span>
                             {isCurrentUser && (
                               <span className={`ml-2 ${
@@ -2094,11 +2800,6 @@ const GameView: React.FC = () => {
                           }`}>
                           {isReleased ? module.description : 'Module not yet released'}
                         </p>
-                        {isReleased && (
-                          <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
-                            Deadline: {new Date(module.deadline).toLocaleDateString()}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center">
@@ -2141,7 +2842,9 @@ const GameView: React.FC = () => {
                             ) || [];
                             
                             const hasMiniQuestions = topicMiniQuestions.length > 0;
-                            const completedMiniQuestions = topicMiniQuestions.filter(mq => mq.hasAnswer).length;
+                            const completedMiniQuestions = topicMiniQuestions.filter(mq => 
+                              mq.hasAnswer && !mq.answer?.resubmissionRequested
+                            ).length;
                             
                             // Check if there are future mini-questions
                             const hasFutureMiniQuestions = topic.miniQuestionProgress?.hasFutureMiniQuestions || false;
@@ -2326,6 +3029,138 @@ const GameView: React.FC = () => {
     );
   };
 
+  const renderResubmissionSection = () => {
+    console.log('🔄 Resubmission Section Debug:', {
+      hasProgress: !!progress,
+      hasAnswers: !!progress?.answers,
+      answersCount: progress?.answers?.length || 0,
+      hasModules: !!modules,
+      modulesCount: modules?.length || 0
+    });
+
+    if (!progress?.answers || !modules) {
+      console.log('🔄 Resubmission Section: Early return - missing data');
+      return null;
+    }
+
+    // Find answers that are approved for resubmission
+    const resubmittableAnswers = progress.answers.filter(answer => 
+      (answer.grade === 'NEEDS_RESUBMISSION') ||
+      (answer.resubmissionRequested && answer.resubmissionApproved)
+    );
+
+    console.log('🔄 Resubmission Section: Filtering results:', {
+      totalAnswers: progress.answers.length,
+      resubmittableCount: resubmittableAnswers.length,
+      resubmittableAnswers: resubmittableAnswers.map(a => ({
+        id: a.id,
+        questionTitle: a.question?.title,
+        grade: a.grade,
+        resubmissionRequested: a.resubmissionRequested,
+        resubmissionApproved: a.resubmissionApproved
+      }))
+    });
+
+    if (resubmittableAnswers.length === 0) {
+      console.log('🔄 Resubmission Section: No resubmittable answers found');
+      return null;
+    }
+
+    return (
+      <div className="mb-12">
+        <h2 className={`text-3xl font-bold ${themeClasses.textPrimary} mb-8 text-center flex items-center justify-center`}>
+          <span className="mr-3">🔄</span>
+          Resubmission Available
+        </h2>
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-lg">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">📝</div>
+            <h3 className="text-xl font-bold text-blue-800 mb-2">
+              You can resubmit the following assignments
+            </h3>
+            <p className="text-blue-600">
+              Your resubmission requests have been approved. Click on any assignment below to submit a new answer.
+            </p>
+          </div>
+          
+          <div className="space-y-4">
+            {resubmittableAnswers.map((answer) => {
+              // Find the related topic from modules
+              const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 
+                t.questionNumber === answer.question.questionNumber || 
+                t.id === answer.question.id
+              );
+
+              const handleResubmit = () => {
+                if (relatedTopic) {
+                  // Update target question to show submission form
+                  setTargetQuestion({
+                    id: relatedTopic.id,
+                    questionNumber: answer.question.questionNumber,
+                    title: answer.question.title,
+                    description: relatedTopic.description || '',
+                    content: relatedTopic.content || '',
+                    releaseDate: relatedTopic.deadline || '',
+                    hasAnswered: false
+                  });
+                  
+                  // Scroll to submission form
+                  document.getElementById('current-question-section')?.scrollIntoView({ 
+                    behavior: 'smooth' 
+                  });
+                }
+              };
+
+              return (
+                <div
+                  key={answer.id}
+                  className="bg-white rounded-lg p-4 border border-blue-200 hover:border-blue-300 transition-all duration-200 hover:shadow-md cursor-pointer"
+                  onClick={handleResubmit}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-gray-800">
+                        {answer.question.title}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Question {answer.question.questionNumber}
+                      </p>
+                      {answer.grade === 'NEEDS_RESUBMISSION' ? (
+                        <span className="inline-block px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded-full border border-orange-200 mt-1">
+                          Resubmission Required
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full border border-green-200 mt-1">
+                          Resubmission Approved
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium">
+                        Resubmit Now
+                      </button>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click to submit new answer
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {answer.feedback && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border-l-4 border-blue-400">
+                      <p className="text-sm text-gray-700">
+                        <strong>Previous Feedback:</strong> {answer.feedback}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAnswerHistory = () => {
     if (!progress?.answers || progress.answers.length === 0) return null;
 
@@ -2374,15 +3209,33 @@ const GameView: React.FC = () => {
                   <div className="text-xs text-gray-500">
                     {new Date(answer.submittedAt).toLocaleDateString()}
                   </div>
-                  {/* Resubmission request button */}
-                  {(answer.status === 'APPROVED' || answer.status === 'REJECTED') && (
+                  {/* Resubmission request button - allow for approved or graded answers */}
+                  {(answer.status === 'APPROVED' || answer.grade) && answer.status !== 'PENDING' && !answer.resubmissionRequested && (
                     <button
                       onClick={() => handleResubmissionRequest(answer.id)}
                       className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 border border-blue-200"
                       title="Request to resubmit this answer"
                     >
-                      Request Resubmission
+                      Request Resubmit
                     </button>
+                  )}
+                  {/* Show resubmission status if requested */}
+                  {answer.resubmissionRequested && (
+                    <span className={`px-2 py-1 text-xs rounded-full border ${
+                      answer.resubmissionApproved === true
+                        ? 'bg-green-100 text-green-700 border-green-200' 
+                        : answer.resubmissionApproved === false
+                        ? 'bg-red-100 text-red-700 border-red-200'
+                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                    }`}>
+                      {answer.grade === 'NEEDS_RESUBMISSION' 
+                        ? 'Resubmission Required' 
+                        : answer.resubmissionApproved === true
+                        ? 'Resubmission Approved - You can submit a new answer above!' 
+                        : answer.resubmissionApproved === false
+                        ? 'Resubmission Request Rejected'
+                        : 'Resubmission Request Pending Admin Approval'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -2407,7 +3260,21 @@ const GameView: React.FC = () => {
                   </div>
                 )}
                 {!answer.linkUrl && !answer.notes && answer.content && (
-                  <p className="text-gray-700 italic">"{answer.content}"</p>
+                  <div>
+                    <strong className="text-gray-700">Answer:</strong>{' '}
+                    {answer.content.startsWith('http://') || answer.content.startsWith('https://') ? (
+                      <a 
+                        href={answer.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline break-all"
+                      >
+                        {answer.content}
+                      </a>
+                    ) : (
+                      <span className="text-gray-700 italic">"{answer.content}"</span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -2439,7 +3306,7 @@ const GameView: React.FC = () => {
       <div className={`min-h-screen bg-gradient-to-br ${themeClasses.cardBg} flex items-center justify-center`}>
         <div className="text-center">
           <div className="relative">
-            <span className="text-8xl animate-bounce">{vehicleIcon}</span>
+            <span className="text-8xl animate-bounce" style={vehicleIconStyle}>{vehicleIcon}</span>
             <div className="absolute -top-2 -right-2 animate-ping">
               <span className="text-4xl">💨</span>
             </div>
@@ -2512,11 +3379,75 @@ const GameView: React.FC = () => {
           </button>
         </div>
 
+        {/* Resubmission Status Notifications */}
+        {progress?.answers?.some(answer => answer.resubmissionRequested) && (
+          <div className="mb-6">
+            {progress.answers
+              .filter(answer => answer.resubmissionRequested)
+              .map(answer => (
+                <div
+                  key={answer.id}
+                  className={`mb-3 p-4 rounded-lg border ${
+                    answer.resubmissionApproved === true
+                      ? 'bg-green-50 border-green-200 text-green-800'
+                      : answer.resubmissionApproved === false
+                      ? 'bg-red-50 border-red-200 text-red-800'
+                      : 'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="text-xl mr-3">
+                        {answer.resubmissionApproved === true
+                          ? '✅'
+                          : answer.resubmissionApproved === false
+                          ? '❌'
+                          : '⏳'
+                        }
+                      </span>
+                      <div>
+                        <p className="font-medium">
+                          Question {answer.question.questionNumber}: {
+                            answer.resubmissionApproved === true
+                              ? 'Resubmission Approved!'
+                              : answer.resubmissionApproved === false
+                              ? 'Resubmission Request Rejected'
+                              : 'Resubmission Request Pending'
+                          }
+                        </p>
+                        <p className="text-sm">
+                          {answer.resubmissionApproved === true
+                            ? 'You can now submit a new answer! Check the Main Assignment section below.'
+                            : answer.resubmissionApproved === false
+                            ? 'Your resubmission request was rejected. Contact admin for more information.'
+                            : 'Your resubmission request is awaiting admin approval.'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    {answer.resubmissionApproved === true && (
+                      <button
+                        onClick={() => document.getElementById('current-question-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200"
+                      >
+                        Submit New Answer →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        )}
+
         {/* Leaderboard - All Users' Train Progress */}
         {renderLeaderboard()}
 
         {/* Released Assignments (Modules) */}
         {renderModules()}
+
+        {/* Resubmission Section */}
+        {renderResubmissionSection()}
 
         {/* Individual Progress */}
         {renderTrailProgress()}
@@ -2531,7 +3462,7 @@ const GameView: React.FC = () => {
 
         {/* Current Question - Hidden until self learning activities completed */}
         <div id="current-question-section">
-          {renderCurrentQuestion()}
+          {renderMainAssignments()}
         </div>
 
         {/* Answer History */}

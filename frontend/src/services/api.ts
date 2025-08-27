@@ -188,6 +188,11 @@ export const adminService = {
     const params = cohortId ? `?cohortId=${cohortId}` : '';
     return api.get(`/admin/pending-answers${params}`);
   },
+
+  getResubmissionRequests: (cohortId?: string) => {
+    const params = cohortId ? `?cohortId=${cohortId}` : '';
+    return api.get(`/admin/resubmission-requests${params}`);
+  },
   
   reviewAnswer: (answerId: number, status: 'approved' | 'rejected', feedback?: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 
@@ -195,7 +200,7 @@ export const adminService = {
       feedback 
     }),
 
-  // New grading system methods
+  // New mastery points system methods
   gradeAnswer: (answerId: number, grade: string, feedback: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 
       grade, 
@@ -210,6 +215,13 @@ export const adminService = {
   // Mini-answer resubmission requests
   requestMiniAnswerResubmission: (miniAnswerId: string, userId: number) =>
     api.post(`/admin/mini-answer/${miniAnswerId}/request-resubmission`, { userId }),
+  
+  // Bulk email functionality
+  sendBulkEmail: (cohortId: string, emailData: {
+    subject: string;
+    message: string;
+    emailType?: string;
+  }) => api.post(`/admin/cohorts/${cohortId}/send-email`, emailData),
   
   getGameStats: (cohortId?: string) => {
     const params = cohortId ? `?cohortId=${cohortId}` : '';

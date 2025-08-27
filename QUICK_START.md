@@ -48,7 +48,7 @@ npm run dev
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:3000
-- **Database**: SQLite file at `backend/prisma/dev.db`
+- **Database**: PostgreSQL database at `localhost:5432`
 
 ## 🔑 Default Login Credentials
 
@@ -60,7 +60,7 @@ npm run dev
 
 ### Backend (.env)
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
 JWT_SECRET="your-secret-key"
 PORT=3000
 ```
@@ -108,7 +108,8 @@ lsof -ti:5173 | xargs kill
 ```bash
 # Reset database
 cd backend
-rm prisma/dev.db
+# Reset database (if needed)
+npx prisma db push --force-reset
 npm run db:migrate
 npm run db:seed
 ```
@@ -134,7 +135,7 @@ npm run install:all
 - The frontend auto-reloads on file changes
 - The backend restarts automatically with ts-node-dev
 - Check browser console and terminal for error messages
-- Database is SQLite for development, easily viewable with DB Browser
+- Database is PostgreSQL for production-ready deployment
 
 ## 🆘 Need Help?
 

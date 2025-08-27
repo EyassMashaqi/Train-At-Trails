@@ -735,4 +735,159 @@ router.delete('/:cohortId', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
+// Export cohort user data as Excel files (admin only)
+router.get('/:cohortId/export', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId } = req.params;
+    console.log('Export request for cohort:', cohortId);
+
+    // Get cohort info
+    const cohort = await (prisma as any).cohort.findUnique({
+      where: { id: cohortId },
+      select: {
+        id: true,
+        name: true,
+        cohortNumber: true,
+        description: true,
+        startDate: true,
+        endDate: true
+      }
+    });
+
+    console.log('Found cohort:', cohort);
+
+    if (!cohort) {
+      return res.status(404).json({ message: 'Cohort not found' });
+    }
+
+    // Get all cohort members with their data
+    const members = await (prisma as any).cohortMember.findMany({
+      where: { 
+        cohortId,
+        user: {
+          isAdmin: false
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true,
+            createdAt: true,
+            currentStep: true
+          }
+        }
+      }
+    });
+
+    console.log('Found members:', members.length);
+
+    // Get detailed user data for each member
+    const userDataPromises = members.map(async (member: any) => {
+      const userId = member.user.id;
+      console.log('Processing user:', userId);
+
+      try {
+        // Get user's answers for this cohort
+        const answers = await (prisma as any).answer.findMany({
+          where: {
+            userId,
+            cohortId
+          },
+          include: {
+            question: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
+                module: {
+                  select: {
+                    title: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            submittedAt: 'asc'
+          }
+        });
+
+        console.log(`Found ${answers.length} answers for user ${userId}`);
+
+        // Get user's mini answers for this cohort
+        const miniAnswers = await (prisma as any).miniAnswer.findMany({
+          where: {
+            userId,
+            cohortId
+          },
+          include: {
+            miniQuestion: {
+              select: {
+                id: true,
+                question: true,
+                title: true
+              }
+            }
+          },
+          orderBy: {
+            submittedAt: 'asc'
+          }
+        });
+
+        console.log(`Found ${miniAnswers.length} mini answers for user ${userId}`);
+
+        // Calculate total points for this user in this cohort
+        const totalPoints = answers.reduce((sum: number, answer: any) => {
+          // Use gradePoints if available, otherwise use pointsAwarded, otherwise 0
+          const points = answer.gradePoints || answer.pointsAwarded || 0;
+          return sum + points;
+        }, 0);
+
+        console.log(`Total points for user ${userId}: ${totalPoints}`);
+
+        return {
+          user: member.user,
+          membershipInfo: {
+            joinedAt: member.joinedAt,
+            status: member.status,
+            isActive: member.isActive
+          },
+          answers,
+          miniAnswers,
+          totalPoints
+        };
+      } catch (userError: any) {
+        console.error(`Error processing user ${userId}:`, userError);
+        return {
+          user: member.user,
+          membershipInfo: {
+            joinedAt: member.joinedAt,
+            status: member.status,
+            isActive: member.isActive
+          },
+          answers: [],
+          miniAnswers: [],
+          error: userError.message
+        };
+      }
+    });
+
+    const userData = await Promise.all(userDataPromises);
+    console.log('Completed processing all users');
+
+    res.json({
+      cohort,
+      userData
+    });
+
+  } catch (error: any) {
+    console.error('Error exporting cohort data:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Failed to export cohort data', error: error.message });
+  }
+});
+
 export default router;

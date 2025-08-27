@@ -88,13 +88,34 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
-    // Get current active question from user's cohort
+    // Get current active question from user's cohort OR questions available for resubmission
     const currentQuestion = await prisma.question.findFirst({
       where: { 
-        isReleased: true,
-        isActive: true,
-        deadline: { gt: new Date() },
-        cohortId: userCohort?.cohortId
+        cohortId: userCohort?.cohortId,
+        OR: [
+          // Normal active questions
+          {
+            isReleased: true,
+            isActive: true,
+            deadline: { gt: new Date() }
+          },
+          // Questions with approved resubmissions
+          {
+            isReleased: true,
+            answers: {
+              some: {
+                userId: userId,
+                OR: [
+                  { grade: 'NEEDS_RESUBMISSION' },
+                  {
+                    resubmissionRequested: true,
+                    resubmissionApproved: true
+                  }
+                ]
+              }
+            }
+          }
+        ]
       },
       include: {
         contents: {
@@ -127,13 +148,24 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Check if user has answered current question
+    // Check if user has answered current question and if resubmission is available
     let hasAnsweredCurrent = false;
     if (currentQuestion) {
       const currentQuestionAnswers = answers.filter(answer => answer.questionId === currentQuestion.id);
       if (currentQuestionAnswers.length > 0) {
         const latestAnswer = currentQuestionAnswers[0];
-        hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
+        
+        // Check if this is a resubmittable question
+        const canResubmit = latestAnswer.grade === 'NEEDS_RESUBMISSION' ||
+                          (latestAnswer.resubmissionRequested && latestAnswer.resubmissionApproved);
+        
+        if (canResubmit) {
+          // If resubmission is available, show as not answered so user can resubmit
+          hasAnsweredCurrent = false;
+        } else {
+          // Normal logic - answered if approved or pending
+          hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
+        }
       }
     }
 
@@ -166,7 +198,25 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     // Ensure minimum of 1 to prevent division by zero and show meaningful progress
     const effectiveTotalSteps = Math.max(1, totalQuestions);
 
-    const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
+    // Return currentQuestion if:
+    // 1. There are no questions organized as modules (legacy mode), OR
+    // 2. The currentQuestion is available for resubmission
+    const shouldReturnCurrentQuestion = questionsWithModules.length === 0 || 
+      (currentQuestion && answers.some(answer => 
+        answer.questionId === currentQuestion.id && 
+        (answer.grade === 'NEEDS_RESUBMISSION' || 
+         (answer.resubmissionRequested && answer.resubmissionApproved))
+      ));
+
+    console.log('🔍 Game Status Debug:', {
+      userId,
+      hasCurrentQuestion: !!currentQuestion,
+      currentQuestionId: currentQuestion?.id,
+      currentQuestionTitle: currentQuestion?.title,
+      questionsWithModulesCount: questionsWithModules.length,
+      shouldReturnCurrentQuestion,
+      hasAnsweredCurrent
+    });
 
     res.json({
       user: {
@@ -202,9 +252,13 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         id: answer.id,
         content: answer.content,
         status: answer.status,
+        grade: answer.grade,
         submittedAt: answer.submittedAt,
         reviewedAt: answer.reviewedAt,
         feedback: answer.feedback,
+        resubmissionRequested: answer.resubmissionRequested,
+        resubmissionApproved: answer.resubmissionApproved,
+        resubmissionRequestedAt: answer.resubmissionRequestedAt,
         question: answer.question
       }))
     });
@@ -298,6 +352,12 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       membership.status === 'ENROLLED'
     );
     
+    // For hasActiveCohort, consider both enrollment and cohort activity
+    // Only ENROLLED users in ACTIVE cohorts are truly "active"
+    const activeEnrolledCohorts = activeCohorts.filter((membership: any) => 
+      membership.cohort.isActive
+    );
+    
     const graduatedCohorts = cohortMemberships.filter((membership: any) => 
       membership.status === 'GRADUATED'
     );
@@ -328,7 +388,8 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
         status: membership.status,
         statusChangedAt: membership.statusChangedAt,
         statusChangedBy: membership.statusChangedBy,
-        isActive: membership.isActive
+        isActive: membership.isActive,
+        cohortIsActive: membership.cohort.isActive // Include cohort activity status
       })),
       graduatedCohorts: graduatedCohorts.map((membership: any) => ({
         id: membership.cohort.id,
@@ -362,7 +423,7 @@ router.get('/cohort-history', authenticateToken, async (req: AuthRequest, res) =
       })),
       removedCohorts,
       suspendedCohorts,
-      hasActiveCohort: activeCohorts.length > 0,
+      hasActiveCohort: activeEnrolledCohorts.length > 0, // Only active cohorts with enrolled users
       hasGraduatedCohorts: graduatedCohorts.length > 0,
       hasHistoryCohorts: historyCohorts.length > 0,
       totalCohorts: cohortMemberships.length
@@ -380,17 +441,8 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     const { link, notes, questionId, topicId } = req.body;
     const attachmentFile = req.file;
 
-    console.log('Submit answer request received:');
-    console.log('  User ID:', userId);
-    console.log('  Link:', link);
-    console.log('  Notes length:', notes?.length || 0);
-    console.log('  Question ID:', questionId);
-    console.log('  Topic ID:', topicId);
-    console.log('  Has attachment:', !!attachmentFile);
-
     // Validate link format
     if (!link || link.trim().length === 0) {
-      console.log('ERROR: No link provided');
       return res.status(400).json({ error: 'Answer link is required' });
     }
 
@@ -412,10 +464,6 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       }
     });
 
-    console.log('User cohort check:');
-    console.log('  User cohort found:', !!userCohort);
-    console.log('  Cohort details:', userCohort ? { id: userCohort.cohortId, name: userCohort.cohort.name } : 'None');
-
     // Check if user is admin - admins don't need cohort membership
     const isAdmin = await prisma.user.findUnique({
       where: { id: userId },
@@ -423,14 +471,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     });
 
     if (!userCohort && !isAdmin?.isAdmin) {
-      console.log('ERROR: User not enrolled in any cohort');
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
     let currentQuestion = null;
     
     if (topicId) {
-      console.log('Looking for question by topicId:', topicId);
       // Topic ID provided - map to corresponding question
       // Since topics are virtual mappings to questions, we need to find the question by topicId
       currentQuestion = await prisma.question.findFirst({
@@ -441,9 +487,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           // Removed isActive: true - a released question should be answerable
         }
       });
-      console.log('Question found by topicId:', !!currentQuestion);
     } else if (questionId) {
-      console.log('Looking for question by questionId:', questionId);
       // Specific question provided
       currentQuestion = await prisma.question.findFirst({
         where: { 
@@ -453,9 +497,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           // Removed isActive: true - a released question should be answerable
         }
       });
-      console.log('Question found by questionId:', !!currentQuestion);
     } else {
-      console.log('Auto-detecting current active question');
       // Auto-detect current active question
       currentQuestion = await prisma.question.findFirst({
         where: { 
@@ -466,13 +508,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         },
         orderBy: { questionNumber: 'asc' }
       });
-      console.log('Question found by auto-detect:', !!currentQuestion);
     }
 
-    console.log('Final question found:', currentQuestion ? { id: currentQuestion.id, title: currentQuestion.title } : 'None');
-
     if (!currentQuestion) {
-      console.log('ERROR: No active question available');
       return res.status(400).json({ error: 'No active question available' });
     }
 
@@ -526,7 +564,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     }
 
     // Check if user already answered with pending status (block only pending submissions)
-    // FIXED: Include cohortId filter to ensure cohort isolation
+    // Allow resubmission for NEEDS_RESUBMISSION grade or when resubmission is approved
     const existingAnswer = await prisma.answer.findFirst({
       where: { 
         userId, 
@@ -536,16 +574,40 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Only block if there's a PENDING answer - allow resubmission for REJECTED or APPROVED answers
-    if (existingAnswer && existingAnswer.status === 'PENDING') {
-      return res.status(400).json({ 
-        error: 'You have already submitted an answer for this question and it is pending review. Please wait for admin review before resubmitting.',
-        existingAnswer: {
-          content: existingAnswer.content,
-          status: existingAnswer.status,
-          submittedAt: existingAnswer.submittedAt
-        }
-      });
+    // Block only if there's a PENDING answer or if resubmission is not allowed
+    if (existingAnswer) {
+      if (existingAnswer.status === 'PENDING') {
+        return res.status(400).json({ 
+          error: 'You have already submitted an answer for this question and it is pending review. Please wait for admin review before resubmitting.',
+          existingAnswer: {
+            content: existingAnswer.content,
+            status: existingAnswer.status,
+            submittedAt: existingAnswer.submittedAt
+          }
+        });
+      }
+
+      // Allow resubmission if:
+      // 1. Grade is NEEDS_RESUBMISSION (new grading system), OR
+      // 2. Status is REJECTED (legacy system), OR  
+      // 3. Resubmission was manually requested and approved
+      const canResubmit = existingAnswer.grade === 'NEEDS_RESUBMISSION' || 
+                         existingAnswer.status === 'REJECTED' ||
+                         (existingAnswer.resubmissionRequested && existingAnswer.resubmissionApproved);
+      
+      if (!canResubmit) {
+        return res.status(400).json({ 
+          error: 'You have already submitted an answer for this question. To resubmit, please request resubmission first and wait for admin approval.',
+          existingAnswer: {
+            content: existingAnswer.content,
+            status: existingAnswer.status,
+            grade: existingAnswer.grade,
+            submittedAt: existingAnswer.submittedAt,
+            resubmissionRequested: existingAnswer.resubmissionRequested,
+            resubmissionApproved: existingAnswer.resubmissionApproved
+          }
+        });
+      }
     }
 
     // Create new answer (this allows for resubmissions while maintaining history)
@@ -565,26 +627,73 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       answerData.attachmentMimeType = attachmentFile.mimetype;
     }
 
-    const answer = await prisma.answer.create({
-      data: answerData,
-      include: {
-        question: {
-          select: {
-            questionNumber: true,
-            title: true
-          }
+    let answer;
+    let isResubmission = false;
+
+    if (existingAnswer) {
+      // This is a resubmission - update the existing answer
+      isResubmission = true;
+      answer = await prisma.answer.update({
+        where: { id: existingAnswer.id },
+        data: {
+          content: link.trim(),
+          notes: notes?.trim() || '',
+          submittedAt: new Date(),
+          status: 'PENDING', // Reset status to pending for review
+          grade: null, // Clear previous grade
+          gradePoints: null,
+          reviewedAt: null,
+          reviewedBy: null,
+          feedback: null,
+          pointsAwarded: null,
+          resubmissionRequested: false, // Clear resubmission flags
+          resubmissionApproved: null,
+          resubmissionRequestedAt: null,
+          // Update attachment info if new file uploaded
+          ...(attachmentFile && {
+            attachmentFileName: attachmentFile.originalname,
+            attachmentFilePath: attachmentFile.path,
+            attachmentFileSize: attachmentFile.size,
+            attachmentMimeType: attachmentFile.mimetype
+          })
         },
-        user: {
-          select: {
-            email: true,
-            fullName: true
+        include: {
+          question: {
+            select: {
+              questionNumber: true,
+              title: true
+            }
+          },
+          user: {
+            select: {
+              email: true,
+              fullName: true
+            }
           }
         }
-      }
-    });
+      });
+    } else {
+      // This is a new answer - create it
+      answer = await prisma.answer.create({
+        data: answerData,
+        include: {
+          question: {
+            select: {
+              questionNumber: true,
+              title: true
+            }
+          },
+          user: {
+            select: {
+              email: true,
+              fullName: true
+            }
+          }
+        }
+      });
+    }
 
-    // Determine if this is a resubmission
-    const isResubmission = !!existingAnswer;
+    // Determine resubmission context
     const resubmissionContext = existingAnswer ? {
       previousStatus: existingAnswer.status,
       previousSubmissionDate: existingAnswer.submittedAt,
@@ -656,9 +765,10 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
       return res.status(403).json({ error: 'You can only request resubmission for your own answers' });
     }
 
-    if (answer.grade !== 'COPPER' && answer.grade !== 'SILVER') {
+    // Allow resubmission requests for any grade (removed COPPER/SILVER restriction)
+    if (!answer.grade) {
       return res.status(400).json({ 
-        error: 'Resubmission can only be requested for COPPER or SILVER grades' 
+        error: 'Answer must be assigned mastery points before requesting resubmission' 
       });
     }
 
@@ -740,7 +850,7 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', authenticateToken
   }
 });
 
-// Get leaderboard (users with progress > 0 from same cohort)
+// Get leaderboard (users sorted by points earned from same cohort)
 router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -760,7 +870,7 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
-    // Get all users from the same cohort with progress > 0
+    // Get all users from the same cohort with their points
     const cohortMembers = await prisma.cohortMember.findMany({
       where: {
         cohortId: userCohort.cohortId,
@@ -780,20 +890,48 @@ router.get('/leaderboard', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
 
-    // Filter and format users (excluding admins) - include all users regardless of progress
-    const users = cohortMembers
-      .filter(member => 
-        !member.user.isAdmin
-      )
-      .map(member => member.user)
+    // Get points for each user
+    const usersWithPoints = await Promise.all(
+      cohortMembers
+        .filter(member => !member.user.isAdmin)
+        .map(async (member) => {
+          // Calculate total points from approved answers with gradePoints
+          const totalPoints = await (prisma as any).answer.aggregate({
+            where: {
+              userId: member.user.id,
+              status: 'APPROVED',
+              gradePoints: { not: null }
+            },
+            _sum: {
+              gradePoints: true
+            }
+          });
+
+          return {
+            ...member.user,
+            totalPoints: totalPoints._sum.gradePoints || 0
+          };
+        })
+    );
+
+    // Sort by total points (desc), then by progress (desc), then by createdAt (asc)
+    const sortedUsers = usersWithPoints
       .sort((a, b) => {
-        // Sort by currentStep desc, then by createdAt asc
+        // Primary sort: total points (descending)
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+        // Secondary sort: current step (descending)
         if (b.currentStep !== a.currentStep) {
           return b.currentStep - a.currentStep;
         }
+        // Tertiary sort: creation date (ascending - earlier users ranked higher)
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       })
       .slice(0, 20); // Take top 20
+
+    // Remove points from response (don't show points in leaderboard)
+    const users = sortedUsers.map(({ totalPoints, ...user }) => user);
 
     res.json({ users });
   } catch (error) {
@@ -972,9 +1110,13 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
             id: true,
             content: true,
             status: true,
+            grade: true,
             submittedAt: true,
             reviewedAt: true,
-            feedback: true
+            feedback: true,
+            resubmissionRequested: true,
+            resubmissionRequestedAt: true,
+            resubmissionApproved: true
           },
           orderBy: { submittedAt: 'desc' },
           take: 1
@@ -1014,14 +1156,32 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           } else if (canSolveMainQuestion && !hasMainAnswer) {
             questionStatus = 'available';
           } else if (hasMainAnswer) {
-            questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+            const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                              question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+                              (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
+            
+            if (canResubmit) {
+              questionStatus = 'available'; // Show as available for resubmission
+            } else {
+              questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            }
           }
         } else {
           // No mini questions
           if (!hasMainAnswer) {
             questionStatus = 'available';
           } else {
-            questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+            const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                              question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+                              (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
+            
+            if (canResubmit) {
+              questionStatus = 'available'; // Show as available for resubmission
+            } else {
+              questionStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+            }
           }
         }
       }
@@ -1265,7 +1425,10 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 status: true,
                 submittedAt: true,
                 reviewedAt: true,
-                feedback: true
+                feedback: true,
+                resubmissionRequested: true,
+                resubmissionApproved: true,
+                resubmissionRequestedAt: true
               },
               orderBy: { submittedAt: 'desc' },
               take: 1
@@ -1361,13 +1524,22 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         let topicStatus = 'locked';
         
         // Check if BOTH module and question are released and active
-        const isQuestionAccessible = question.isReleased && question.isActive && 
-                                    module.isReleased && module.isActive;
+        // OR if the question has approved resubmission (even if not currently active)
+        const hasApprovedResubmission = question.answers.length > 0 && (
+          question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+          (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved)
+        );
+        
+        const isQuestionAccessible = (question.isReleased && question.isActive && 
+                                    module.isReleased && module.isActive) ||
+                                    hasApprovedResubmission;
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,
+          isActive: question.isActive,
           questionNumber: question.questionNumber,
           userCurrentStep: userCohort.currentStep,
+          hasApprovedResubmission,
           isQuestionAccessible,
           totalAllMiniQuestions,
           completedAllMiniQuestions,
@@ -1385,7 +1557,25 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
             } else if (canSolveMainQuestion && !hasMainAnswer) {
               topicStatus = 'available';
             } else if (hasMainAnswer) {
-              topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+              // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+              const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                                question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+                                (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
+              
+              console.log(`🔍 Resubmission check for ${question.title}:`, {
+                hasMainAnswer,
+                mainAnswerStatus,
+                grade: question.answers[0]?.grade,
+                resubmissionRequested: question.answers[0]?.resubmissionRequested,
+                resubmissionApproved: question.answers[0]?.resubmissionApproved,
+                canResubmit
+              });
+              
+              if (canResubmit) {
+                topicStatus = 'available'; // Show as available for resubmission
+              } else {
+                topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+              }
             }
           } else if (totalAllMiniQuestions > 0 && !canSolveMainQuestion) {
             // There are future mini-questions that haven't been completed yet
@@ -1395,7 +1585,16 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
             if (!hasMainAnswer) {
               topicStatus = 'available';
             } else {
-              topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+              // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+              const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                                question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+                                (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
+              
+              if (canResubmit) {
+                topicStatus = 'available'; // Show as available for resubmission
+              } else {
+                topicStatus = mainAnswerStatus === 'APPROVED' ? 'completed' : 'submitted';
+              }
             }
           }
         }

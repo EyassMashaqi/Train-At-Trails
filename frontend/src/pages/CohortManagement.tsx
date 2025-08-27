@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
+import * as XLSX from 'xlsx';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -54,6 +55,7 @@ const CohortManagement: React.FC = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [copyLoading, setCopyLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
   const [copyingCohort, setCopyingCohort] = useState<Cohort | null>(null);
   const [formData, setFormData] = useState<CreateCohortData>({
@@ -292,6 +294,272 @@ const CohortManagement: React.FC = () => {
     }
   };
 
+  const handleExportCohort = async (cohort: Cohort) => {
+    try {
+      setExportLoading(cohort.id);
+      toast.loading('Preparing export data...');
+      
+      const response = await api.get(`/admin/cohorts/${cohort.id}/export`);
+      const { cohort: cohortData, userData } = response.data;
+
+      if (!userData || userData.length === 0) {
+        toast.dismiss();
+        toast.error('No users found in this cohort');
+        return;
+      }
+
+      // Generate Excel files for each user
+      for (const userInfo of userData) {
+        const user = userInfo.user;
+        const answers = userInfo.answers || [];
+        const miniAnswers = userInfo.miniAnswers || [];
+        const membershipInfo = userInfo.membershipInfo;
+
+        // Create filename: UserName_CohortName_C#
+        const cleanUserName = user.fullName.replace(/[^a-zA-Z0-9]/g, '');
+        const cleanCohortName = cohortData.name.replace(/[^a-zA-Z0-9]/g, '');
+        const fileName = `${cleanUserName}_${cleanCohortName}_C${cohortData.cohortNumber}.xlsx`;
+
+        // Prepare user info sheet
+        const userInfoData = [
+          ['User Information', ''],
+          ['Full Name', user.fullName],
+          ['Email', user.email],
+          ['Train Name', user.trainName || 'N/A'],
+          ['User Created', new Date(user.createdAt).toLocaleDateString() + ' ' + new Date(user.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })],
+          ['Joined Cohort', new Date(membershipInfo.joinedAt).toLocaleDateString() + ' ' + new Date(membershipInfo.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })],
+          ['Status', membershipInfo.status],
+          ['Active', membershipInfo.isActive ? 'Yes' : 'No'],
+          ['Current Step', user.currentStep || 0],
+          ['Total Points in Cohort', userInfo.totalPoints || 0],
+          ['', ''],
+          ['Cohort Information', ''],
+          ['Cohort Name', cohortData.name],
+          ['Cohort Number', cohortData.cohortNumber],
+          ['Description', cohortData.description || 'N/A'],
+          ['Start Date', new Date(cohortData.startDate).toLocaleDateString()],
+          ['End Date', cohortData.endDate ? new Date(cohortData.endDate).toLocaleDateString() : 'N/A']
+        ];
+
+        // Prepare assignments/questions data
+        const assignmentsData = [
+          ['Question Title', 'Module/Topic', 'Category', 'Answer', 'Status', 'Mastery Points', 'Points', 'Submitted At', 'Late Submission']
+        ];
+
+        answers.forEach((answer: any) => {
+          const submittedAt = new Date(answer.submittedAt);
+          const isLate = answer.isLateSubmission || false;
+          const points = answer.gradePoints || answer.pointsAwarded || 0;
+          
+          // Format date and time separately (HH:MM format)
+          const dateStr = submittedAt.toLocaleDateString();
+          const timeStr = submittedAt.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+          
+          assignmentsData.push([
+            answer.question.title,
+            answer.question.module?.title || 'Self Learning',
+            answer.question.category || 'General',
+            answer.content || 'N/A',
+            answer.status,
+            answer.grade || 'Not Assigned',
+            points,
+            `${dateStr} ${timeStr}`,
+            isLate ? 'Yes' : 'No'
+          ]);
+        });
+
+        // Prepare self learning data
+        const selfLearningData = [
+          ['Title', 'Question Text', 'Answer', 'Submitted At']
+        ];
+
+        miniAnswers.forEach((miniAnswer: any) => {
+          const submittedAt = new Date(miniAnswer.submittedAt);
+          
+          // Format date and time separately (HH:MM format)
+          const dateStr = submittedAt.toLocaleDateString();
+          const timeStr = submittedAt.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+          
+          selfLearningData.push([
+            miniAnswer.miniQuestion.title || 'N/A',
+            miniAnswer.miniQuestion.question,
+            miniAnswer.linkUrl || 'N/A',
+            `${dateStr} ${timeStr}`
+          ]);
+        });
+
+        // Create workbook with multiple sheets
+        const workbook = XLSX.utils.book_new();
+        
+        // Add user info sheet with styling
+        const userInfoSheet = XLSX.utils.aoa_to_sheet(userInfoData);
+        
+        // Style the user info sheet
+        const userInfoRange = XLSX.utils.decode_range(userInfoSheet['!ref'] || 'A1');
+        for (let row = userInfoRange.s.r; row <= userInfoRange.e.r; row++) {
+          for (let col = userInfoRange.s.c; col <= userInfoRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (!userInfoSheet[cellRef]) continue;
+            
+            // Style header rows (User Information, Cohort Information)
+            if (userInfoData[row] && (userInfoData[row][0] === 'User Information' || userInfoData[row][0] === 'Cohort Information')) {
+              userInfoSheet[cellRef].s = {
+                font: { bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "0F3460" } },
+                alignment: { horizontal: "center" }
+              };
+            }
+            // Style data labels (left column)
+            else if (col === 0 && userInfoData[row] && userInfoData[row][0] && userInfoData[row][0] !== '') {
+              userInfoSheet[cellRef].s = {
+                font: { bold: true },
+                fill: { fgColor: { rgb: "F8F8F8" } }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for user info
+        userInfoSheet['!cols'] = [
+          { width: 20 },  // Labels column
+          { width: 30 }   // Values column
+        ];
+        
+        XLSX.utils.book_append_sheet(workbook, userInfoSheet, 'User Info');
+
+        // Add assignments sheet with table styling
+        const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
+        
+        // Style the assignments header row
+        const assignmentsRange = XLSX.utils.decode_range(assignmentsSheet['!ref'] || 'A1');
+        for (let col = assignmentsRange.s.c; col <= assignmentsRange.e.c; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+          if (assignmentsSheet[cellRef]) {
+            assignmentsSheet[cellRef].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "0F3460" } },
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+              }
+            };
+          }
+        }
+        
+        // Style data rows with alternating colors
+        for (let row = 1; row <= assignmentsRange.e.r; row++) {
+          const isEvenRow = row % 2 === 0;
+          for (let col = assignmentsRange.s.c; col <= assignmentsRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (assignmentsSheet[cellRef]) {
+              assignmentsSheet[cellRef].s = {
+                fill: { fgColor: { rgb: isEvenRow ? "F8F8F8" : "FFFFFF" } },
+                border: {
+                  top: { style: "thin", color: { rgb: "CCCCCC" } },
+                  bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                  left: { style: "thin", color: { rgb: "CCCCCC" } },
+                  right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                alignment: { vertical: "top", wrapText: true }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for assignments
+        assignmentsSheet['!cols'] = [
+          { width: 30 },  // Question Title
+          { width: 20 },  // Module/Topic
+          { width: 15 },  // Category
+          { width: 40 },  // Answer
+          { width: 12 },  // Status
+          { width: 15 },  // Grade
+          { width: 10 },  // Points
+          { width: 18 },  // Submitted At
+          { width: 12 }   // Late Submission
+        ];
+        
+        XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments & Questions');
+
+        // Add self learning sheet with table styling
+        const selfLearningSheet = XLSX.utils.aoa_to_sheet(selfLearningData);
+        
+        // Style the self learning header row
+        const selfLearningRange = XLSX.utils.decode_range(selfLearningSheet['!ref'] || 'A1');
+        for (let col = selfLearningRange.s.c; col <= selfLearningRange.e.c; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+          if (selfLearningSheet[cellRef]) {
+            selfLearningSheet[cellRef].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "FFC107" } },
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+              }
+            };
+          }
+        }
+        
+        // Style data rows with alternating colors
+        for (let row = 1; row <= selfLearningRange.e.r; row++) {
+          const isEvenRow = row % 2 === 0;
+          for (let col = selfLearningRange.s.c; col <= selfLearningRange.e.c; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            if (selfLearningSheet[cellRef]) {
+              selfLearningSheet[cellRef].s = {
+                fill: { fgColor: { rgb: isEvenRow ? "FFF8E1" : "FFFFFF" } },
+                border: {
+                  top: { style: "thin", color: { rgb: "CCCCCC" } },
+                  bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                  left: { style: "thin", color: { rgb: "CCCCCC" } },
+                  right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                alignment: { vertical: "top", wrapText: true }
+              };
+            }
+          }
+        }
+        
+        // Set column widths for self learning
+        selfLearningSheet['!cols'] = [
+          { width: 25 },  // Title
+          { width: 40 },  // Question Text
+          { width: 40 },  // Answer
+          { width: 18 }   // Submitted At
+        ];
+        
+        XLSX.utils.book_append_sheet(workbook, selfLearningSheet, 'Self Learning');
+
+        // Download the file
+        XLSX.writeFile(workbook, fileName);
+      }
+
+      toast.dismiss();
+      toast.success(`Exported ${userData.length} user file(s) successfully`);
+
+    } catch (error: any) {
+      toast.dismiss();
+      const errorMessage = error.response?.data?.message || 'Failed to export cohort data';
+      toast.error(errorMessage);
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
   // Filter and sort cohorts
   const filteredCohorts = React.useMemo(() => {
     let filtered = cohorts.filter(cohort => {
@@ -513,16 +781,16 @@ const CohortManagement: React.FC = () => {
               >
                 <div className="p-6">
                   {/* Cohort Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
+                  <div className="mb-4">
+                    <div className="flex items-center space-x-3 mb-3">
                       <span className="text-3xl">
                         {cohort.isActive ? '🏫' : '🚫'}
                       </span>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-800 leading-tight">
                           <span className="text-sm text-gray-500 font-medium">#{cohort.cohortNumber}</span> {cohort.name}
                         </h3>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        <span className={`inline-block text-xs px-2 py-1 rounded-full font-medium mt-1 ${
                           cohort.isActive 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-600'
@@ -531,7 +799,20 @@ const CohortManagement: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center justify-center space-x-1 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportCohort(cohort);
+                        }}
+                        disabled={exportLoading === cohort.id}
+                        className="p-2 rounded-full text-green-600 hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Export User Data"
+                      >
+                        {exportLoading === cohort.id ? '⏳' : '⬇️'}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

@@ -1,5 +1,6 @@
 import * as cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
+import emailService from './emailService';
 
 const prisma = new PrismaClient();
 
@@ -79,6 +80,43 @@ export const startQuestionScheduler = () => {
             });
 
             console.log(`🎯 Released question ${nextQuestionNumber}: ${questionToRelease.title}`);
+
+            // Send email notifications to all cohort users
+            try {
+              // Get all enrolled users in the cohort
+              const cohortUsers = await prisma.cohortMember.findMany({
+                where: {
+                  cohortId: defaultCohort.id,
+                  status: 'ENROLLED'
+                },
+                include: {
+                  user: {
+                    select: {
+                      email: true,
+                      fullName: true
+                    }
+                  }
+                }
+              });
+
+              // Send emails to all enrolled users
+              for (const member of cohortUsers) {
+                try {
+                  await emailService.sendNewQuestionEmail(
+                    member.user.email,
+                    member.user.fullName,
+                    questionToRelease.title,
+                    questionToRelease.questionNumber
+                  );
+                } catch (emailError) {
+                  console.error(`❌ Failed to send new question email to ${member.user.email}:`, emailError);
+                }
+              }
+              
+              console.log(`📧 Sent new question notifications to ${cohortUsers.length} users in cohort for Question ${nextQuestionNumber}`);
+            } catch (emailError) {
+              console.error('❌ Failed to send new question emails:', emailError);
+            }
           } else if (!questionToRelease) {
             console.log(`⚠️ Question ${nextQuestionNumber} not found in database`);
           } else {

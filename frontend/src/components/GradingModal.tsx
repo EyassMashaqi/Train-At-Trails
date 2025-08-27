@@ -123,9 +123,9 @@ const GradingModal: React.FC<GradingModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit}>
-            {/* Grade Selection */}
+            {/* Mastery Points Selection */}
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Select Grade</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Select Mastery Points</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {grades.map((grade) => (
                   <label
@@ -148,7 +148,7 @@ const GradingModal: React.FC<GradingModalProps> = ({
                       {grade.name}
                     </div>
                     <p className="text-sm text-gray-600 mb-1">{grade.description}</p>
-                    <p className="text-sm font-medium text-gray-900">Points: {grade.points}/100</p>
+                    <p className="text-sm font-medium text-gray-900">Mastery Points: {grade.points}/100</p>
                   </label>
                 ))}
               </div>
@@ -185,7 +185,7 @@ const GradingModal: React.FC<GradingModalProps> = ({
                 disabled={!selectedGrade || !feedback.trim() || isLoading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Grading...' : 'Submit Grade'}
+                {isLoading ? 'Assigning Points...' : 'Submit Mastery Points'}
               </button>
             </div>
           </form>

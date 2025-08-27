@@ -97,7 +97,7 @@ The main project uses npm workspaces to manage both frontend and backend depende
 ## Database Requirements
 
 ### Database Engine
-- **SQLite**: Used for development (included with Prisma)
+- **PostgreSQL**: Production database
 - **PostgreSQL**: Recommended for production deployment
 
 ### ORM
@@ -123,7 +123,7 @@ Create environment files:
 #### Backend Environment (`.env` in `/backend` folder)
 ```env
 # Database
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
 
 # JWT Secret
 JWT_SECRET="your-super-secret-jwt-key-here"

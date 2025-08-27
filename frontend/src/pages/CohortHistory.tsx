@@ -22,6 +22,7 @@ interface CohortInfo {
   statusChangedAt: string;
   statusChangedBy?: string;
   isActive?: boolean;
+  cohortIsActive?: boolean; // Add cohort activity status
   // Legacy fields for backward compatibility
   graduatedAt?: string;
   graduatedBy?: string;
@@ -90,9 +91,13 @@ const CohortHistory: React.FC = () => {
     }
   };
 
-  const getStatusMessage = (status: string) => {
+  const getStatusMessage = (status: string, cohortIsActive?: boolean) => {
     switch (status) {
-      case 'ENROLLED': return 'You are currently enrolled and can access training materials.';
+      case 'ENROLLED': 
+        if (cohortIsActive === false) {
+          return 'Your cohort has been deactivated. You cannot access training materials at this time.';
+        }
+        return 'You are currently enrolled and can access training materials.';
       case 'GRADUATED': return 'You have successfully completed this training program.';
       case 'REMOVED': return 'You are no longer participating in this cohort.';
       case 'SUSPENDED': return 'Your participation is temporarily suspended.';
@@ -261,8 +266,8 @@ const CohortHistory: React.FC = () => {
         </div>
 
         <div className="grid gap-8">
-          {/* Active Cohorts */}
-          {cohortHistory?.hasActiveCohort && (
+          {/* Active Cohorts - Show if user has any ENROLLED status, regardless of cohort activity */}
+          {cohortHistory?.activeCohorts && cohortHistory.activeCohorts.length > 0 && (
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                 <span className="text-2xl mr-3">🎯</span>
@@ -272,22 +277,42 @@ const CohortHistory: React.FC = () => {
                 {cohortHistory.activeCohorts?.map((cohort) => (
                   <div
                     key={cohort.id}
-                    className="border border-green-200 bg-green-50 rounded-lg p-6 hover:border-green-300 transition-colors cursor-pointer"
-                    onClick={() => navigate('/dashboard')}
+                    className={`border rounded-lg p-6 transition-colors ${
+                      cohort.cohortIsActive === false && cohort.status === 'ENROLLED'
+                        ? 'border-yellow-200 bg-yellow-50 hover:border-yellow-300' 
+                        : 'border-green-200 bg-green-50 hover:border-green-300 cursor-pointer'
+                    }`}
+                    onClick={() => {
+                      // Only allow navigation for ENROLLED users in active cohorts
+                      if (cohort.status === 'ENROLLED' && cohort.cohortIsActive !== false) {
+                        navigate('/dashboard');
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <h3 className="text-xl font-semibold text-gray-900">{cohort.name}</h3>
                       <span className="text-lg font-medium text-gray-600">
                         #{cohort.cohortNumber}
                       </span>
+                      {/* Only show deactivated badge for ENROLLED users */}
+                      {cohort.cohortIsActive === false && cohort.status === 'ENROLLED' && (
+                        <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                          Deactivated
+                        </span>
+                      )}
                     </div>
 
                     {cohort.description && (
                       <p className="text-gray-600 mb-4">{cohort.description}</p>
                     )}
                     <div className="bg-white rounded-lg p-4 mb-4">
-                      <p className="text-sm text-green-800 mb-2">
-                        <strong>{getStatusMessage(cohort.status)}</strong>
+                      <p className={`text-sm mb-2 ${
+                        cohort.cohortIsActive === false && cohort.status === 'ENROLLED' 
+                          ? 'text-yellow-800' 
+                          : 'text-green-800'
+                      }`}>
+                        {/* Only pass cohortIsActive for ENROLLED users */}
+                        <strong>{getStatusMessage(cohort.status, cohort.status === 'ENROLLED' ? cohort.cohortIsActive : undefined)}</strong>
                       </p>
                       <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                         <div>
@@ -304,8 +329,28 @@ const CohortHistory: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">
-                      📚 Continue Training
+                    <button 
+                      className={`w-full py-2 px-4 rounded-lg transition-colors ${
+                        cohort.status === 'ENROLLED' && cohort.cohortIsActive === false
+                          ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                          : cohort.status === 'ENROLLED'
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      }`}
+                      disabled={cohort.status !== 'ENROLLED' || cohort.cohortIsActive === false}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (cohort.status === 'ENROLLED' && cohort.cohortIsActive !== false) {
+                          navigate('/dashboard');
+                        }
+                      }}
+                    >
+                      {cohort.status === 'ENROLLED' && cohort.cohortIsActive === false 
+                        ? '🚫 Training Unavailable' 
+                        : cohort.status === 'ENROLLED'
+                        ? '📚 Continue Training'
+                        : '✅ Completed'
+                      }
                     </button>
                   </div>
                 ))}
@@ -381,6 +426,24 @@ const CohortHistory: React.FC = () => {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* No cohorts fallback message */}
+          {(!cohortHistory?.activeCohorts || cohortHistory.activeCohorts.length === 0) && 
+           (!cohortHistory?.hasHistoryCohorts) && (
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
+              <div className="text-6xl mb-4">🎓</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">No Training Cohorts Yet</h2>
+              <p className="text-gray-600 mb-6">
+                You haven't been assigned to any training cohorts yet. 
+                Please contact your administrator to get enrolled in a training program.
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 text-sm">
+                  <strong>Next steps:</strong> Once you're enrolled, you'll see your training materials and progress here.
+                </p>
               </div>
             </div>
           )}
