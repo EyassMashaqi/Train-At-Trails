@@ -1836,7 +1836,7 @@ const GameView: React.FC = () => {
             <button
               onClick={() => handleMainAnswerSubmit(question)}
               disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
-              className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
+              className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
               {submitting ? (
                 <div className="flex items-center">
@@ -1907,10 +1907,10 @@ const GameView: React.FC = () => {
             const hasAnswered = !!progressUserAnswer;
 
             return (
-              <div key={question.id} className={`rounded-xl border-2 overflow-hidden ${
+              <div key={question.id} className={`rounded-xl border overflow-hidden ${
                 isMainAssignmentLocked 
                   ? 'border-orange-300 bg-orange-50' 
-                  : `${themeClasses.primaryBorder} ${themeClasses.primaryBg}`
+                  : 'bg-gradient-to-br from-accent-50 via-accent-100 to-primary-50 border-primary-300 shadow-lg'
               }`}>
                 {isMainAssignmentLocked ? (
                   <div className="p-8 text-center">
@@ -1933,7 +1933,7 @@ const GameView: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className={`p-8 ${themeClasses.primaryBg}`}>
+                  <div className="p-6 bg-gradient-to-br from-white via-accent-25 to-primary-25">
                     <div className="text-center mb-6">
                       <div className="text-4xl mb-3">📝</div>
                       <h3 className={`text-xl font-bold ${themeClasses.accentTextSafe}`}>Main Assignment</h3>
@@ -2340,7 +2340,7 @@ const GameView: React.FC = () => {
               <button
                 onClick={() => handleMainAnswerSubmit()}
                 disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
-                className={`${themeClasses.accentButton} ${themeClasses.buttonText} px-6 py-3 rounded-lg ${themeClasses.accentButtonHover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium`}
+                className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {submitting ? (
                   <div className="flex items-center">
