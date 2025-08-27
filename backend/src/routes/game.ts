@@ -88,13 +88,34 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is not enrolled in any active cohort' });
     }
 
-    // Get current active question from user's cohort
+    // Get current active question from user's cohort OR questions available for resubmission
     const currentQuestion = await prisma.question.findFirst({
       where: { 
-        isReleased: true,
-        isActive: true,
-        deadline: { gt: new Date() },
-        cohortId: userCohort?.cohortId
+        cohortId: userCohort?.cohortId,
+        OR: [
+          // Normal active questions
+          {
+            isReleased: true,
+            isActive: true,
+            deadline: { gt: new Date() }
+          },
+          // Questions with approved resubmissions
+          {
+            isReleased: true,
+            answers: {
+              some: {
+                userId: userId,
+                OR: [
+                  { grade: 'NEEDS_RESUBMISSION' },
+                  {
+                    resubmissionRequested: true,
+                    resubmissionApproved: true
+                  }
+                ]
+              }
+            }
+          }
+        ]
       },
       include: {
         contents: {
@@ -127,13 +148,24 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Check if user has answered current question
+    // Check if user has answered current question and if resubmission is available
     let hasAnsweredCurrent = false;
     if (currentQuestion) {
       const currentQuestionAnswers = answers.filter(answer => answer.questionId === currentQuestion.id);
       if (currentQuestionAnswers.length > 0) {
         const latestAnswer = currentQuestionAnswers[0];
-        hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
+        
+        // Check if this is a resubmittable question
+        const canResubmit = latestAnswer.grade === 'NEEDS_RESUBMISSION' ||
+                          (latestAnswer.resubmissionRequested && latestAnswer.resubmissionApproved);
+        
+        if (canResubmit) {
+          // If resubmission is available, show as not answered so user can resubmit
+          hasAnsweredCurrent = false;
+        } else {
+          // Normal logic - answered if approved or pending
+          hasAnsweredCurrent = latestAnswer.status === 'APPROVED' || latestAnswer.status === 'PENDING';
+        }
       }
     }
 
@@ -166,7 +198,25 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     // Ensure minimum of 1 to prevent division by zero and show meaningful progress
     const effectiveTotalSteps = Math.max(1, totalQuestions);
 
-    const shouldReturnCurrentQuestion = questionsWithModules.length === 0;
+    // Return currentQuestion if:
+    // 1. There are no questions organized as modules (legacy mode), OR
+    // 2. The currentQuestion is available for resubmission
+    const shouldReturnCurrentQuestion = questionsWithModules.length === 0 || 
+      (currentQuestion && answers.some(answer => 
+        answer.questionId === currentQuestion.id && 
+        (answer.grade === 'NEEDS_RESUBMISSION' || 
+         (answer.resubmissionRequested && answer.resubmissionApproved))
+      ));
+
+    console.log('🔍 Game Status Debug:', {
+      userId,
+      hasCurrentQuestion: !!currentQuestion,
+      currentQuestionId: currentQuestion?.id,
+      currentQuestionTitle: currentQuestion?.title,
+      questionsWithModulesCount: questionsWithModules.length,
+      shouldReturnCurrentQuestion,
+      hasAnsweredCurrent
+    });
 
     res.json({
       user: {
@@ -202,9 +252,13 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         id: answer.id,
         content: answer.content,
         status: answer.status,
+        grade: answer.grade,
         submittedAt: answer.submittedAt,
         reviewedAt: answer.reviewedAt,
         feedback: answer.feedback,
+        resubmissionRequested: answer.resubmissionRequested,
+        resubmissionApproved: answer.resubmissionApproved,
+        resubmissionRequestedAt: answer.resubmissionRequestedAt,
         question: answer.question
       }))
     });
@@ -1470,13 +1524,22 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         let topicStatus = 'locked';
         
         // Check if BOTH module and question are released and active
-        const isQuestionAccessible = question.isReleased && question.isActive && 
-                                    module.isReleased && module.isActive;
+        // OR if the question has approved resubmission (even if not currently active)
+        const hasApprovedResubmission = question.answers.length > 0 && (
+          question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
+          (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved)
+        );
+        
+        const isQuestionAccessible = (question.isReleased && question.isActive && 
+                                    module.isReleased && module.isActive) ||
+                                    hasApprovedResubmission;
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,
+          isActive: question.isActive,
           questionNumber: question.questionNumber,
           userCurrentStep: userCohort.currentStep,
+          hasApprovedResubmission,
           isQuestionAccessible,
           totalAllMiniQuestions,
           completedAllMiniQuestions,
@@ -1498,6 +1561,15 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
               const canResubmit = mainAnswerStatus === 'REJECTED' || 
                                 question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
                                 (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
+              
+              console.log(`🔍 Resubmission check for ${question.title}:`, {
+                hasMainAnswer,
+                mainAnswerStatus,
+                grade: question.answers[0]?.grade,
+                resubmissionRequested: question.answers[0]?.resubmissionRequested,
+                resubmissionApproved: question.answers[0]?.resubmissionApproved,
+                canResubmit
+              });
               
               if (canResubmit) {
                 topicStatus = 'available'; // Show as available for resubmission

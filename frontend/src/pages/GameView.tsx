@@ -2633,6 +2633,138 @@ const GameView: React.FC = () => {
     );
   };
 
+  const renderResubmissionSection = () => {
+    console.log('🔄 Resubmission Section Debug:', {
+      hasProgress: !!progress,
+      hasAnswers: !!progress?.answers,
+      answersCount: progress?.answers?.length || 0,
+      hasModules: !!modules,
+      modulesCount: modules?.length || 0
+    });
+
+    if (!progress?.answers || !modules) {
+      console.log('🔄 Resubmission Section: Early return - missing data');
+      return null;
+    }
+
+    // Find answers that are approved for resubmission
+    const resubmittableAnswers = progress.answers.filter(answer => 
+      (answer.grade === 'NEEDS_RESUBMISSION') ||
+      (answer.resubmissionRequested && answer.resubmissionApproved)
+    );
+
+    console.log('🔄 Resubmission Section: Filtering results:', {
+      totalAnswers: progress.answers.length,
+      resubmittableCount: resubmittableAnswers.length,
+      resubmittableAnswers: resubmittableAnswers.map(a => ({
+        id: a.id,
+        questionTitle: a.question?.title,
+        grade: a.grade,
+        resubmissionRequested: a.resubmissionRequested,
+        resubmissionApproved: a.resubmissionApproved
+      }))
+    });
+
+    if (resubmittableAnswers.length === 0) {
+      console.log('🔄 Resubmission Section: No resubmittable answers found');
+      return null;
+    }
+
+    return (
+      <div className="mb-12">
+        <h2 className={`text-3xl font-bold ${themeClasses.textPrimary} mb-8 text-center flex items-center justify-center`}>
+          <span className="mr-3">🔄</span>
+          Resubmission Available
+        </h2>
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-lg">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">📝</div>
+            <h3 className="text-xl font-bold text-blue-800 mb-2">
+              You can resubmit the following assignments
+            </h3>
+            <p className="text-blue-600">
+              Your resubmission requests have been approved. Click on any assignment below to submit a new answer.
+            </p>
+          </div>
+          
+          <div className="space-y-4">
+            {resubmittableAnswers.map((answer) => {
+              // Find the related topic from modules
+              const relatedTopic = modules?.flatMap(m => m.topics)?.find(t => 
+                t.questionNumber === answer.question.questionNumber || 
+                t.id === answer.question.id
+              );
+
+              const handleResubmit = () => {
+                if (relatedTopic) {
+                  // Update target question to show submission form
+                  setTargetQuestion({
+                    id: relatedTopic.id,
+                    questionNumber: answer.question.questionNumber,
+                    title: answer.question.title,
+                    description: relatedTopic.description || '',
+                    content: relatedTopic.content || '',
+                    releaseDate: relatedTopic.deadline || '',
+                    hasAnswered: false
+                  });
+                  
+                  // Scroll to submission form
+                  document.getElementById('current-question-section')?.scrollIntoView({ 
+                    behavior: 'smooth' 
+                  });
+                }
+              };
+
+              return (
+                <div
+                  key={answer.id}
+                  className="bg-white rounded-lg p-4 border border-blue-200 hover:border-blue-300 transition-all duration-200 hover:shadow-md cursor-pointer"
+                  onClick={handleResubmit}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-gray-800">
+                        {answer.question.title}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Question {answer.question.questionNumber}
+                      </p>
+                      {answer.grade === 'NEEDS_RESUBMISSION' ? (
+                        <span className="inline-block px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded-full border border-orange-200 mt-1">
+                          Resubmission Required
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full border border-green-200 mt-1">
+                          Resubmission Approved
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium">
+                        Resubmit Now
+                      </button>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click to submit new answer
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {answer.feedback && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border-l-4 border-blue-400">
+                      <p className="text-sm text-gray-700">
+                        <strong>Previous Feedback:</strong> {answer.feedback}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAnswerHistory = () => {
     if (!progress?.answers || progress.answers.length === 0) return null;
 
@@ -2903,6 +3035,9 @@ const GameView: React.FC = () => {
 
         {/* Released Assignments (Modules) */}
         {renderModules()}
+
+        {/* Resubmission Section */}
+        {renderResubmissionSection()}
 
         {/* Individual Progress */}
         {renderTrailProgress()}
