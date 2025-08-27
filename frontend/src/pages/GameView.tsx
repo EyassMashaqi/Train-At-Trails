@@ -2399,11 +2399,6 @@ const GameView: React.FC = () => {
                           }`}>
                           {isReleased ? module.description : 'Module not yet released'}
                         </p>
-                        {isReleased && (
-                          <p className={`text-xs ${themeClasses.textMuted} mt-1`}>
-                            Deadline: {new Date(module.deadline).toLocaleDateString()}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center">
@@ -2864,7 +2859,21 @@ const GameView: React.FC = () => {
                   </div>
                 )}
                 {!answer.linkUrl && !answer.notes && answer.content && (
-                  <p className="text-gray-700 italic">"{answer.content}"</p>
+                  <div>
+                    <strong className="text-gray-700">Answer:</strong>{' '}
+                    {answer.content.startsWith('http://') || answer.content.startsWith('https://') ? (
+                      <a 
+                        href={answer.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline break-all"
+                      >
+                        {answer.content}
+                      </a>
+                    ) : (
+                      <span className="text-gray-700 italic">"{answer.content}"</span>
+                    )}
+                  </div>
                 )}
               </div>
 
