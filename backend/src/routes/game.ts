@@ -1146,8 +1146,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       let questionStatus = 'locked';
       
       // Check if BOTH module and question are released and active
+      // Handle cases where question might not have a module (legacy questions)
       const isQuestionAccessible = question.isReleased && question.isActive && 
-                                  question.module.isReleased && question.module.isActive;
+                                  (question.module ? (question.module.isReleased && question.module.isActive) : true);
       
       if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
