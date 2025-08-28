@@ -22,10 +22,16 @@ async function main() {
 
   // Create or find default cohort
   const defaultCohort = await prisma.cohort.upsert({
-    where: { name: 'Default Cohort' },
+    where: { 
+      name_cohortNumber: {
+        name: 'Default Cohort',
+        cohortNumber: 1
+      }
+    },
     update: {},
     create: {
       name: 'Default Cohort',
+      cohortNumber: 1,
       description: 'Default cohort for new users and general training',
       startDate: new Date(),
       endDate: null,
