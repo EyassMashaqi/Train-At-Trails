@@ -418,7 +418,7 @@ router.post('/validate-reset-token', async (req, res) => {
         id: true,
         email: true,
         resetTokenExpiry: true
-      }
+      } as any // Type assertion for resetTokenExpiry field
     });
 
     if (!user) {
@@ -429,8 +429,8 @@ router.post('/validate-reset-token', async (req, res) => {
     }
 
     // Calculate time remaining
-    const timeRemaining = user.resetTokenExpiry ? 
-      Math.max(0, Math.floor((user.resetTokenExpiry.getTime() - Date.now()) / 1000 / 60)) : 0;
+    const timeRemaining = (user as any).resetTokenExpiry ? 
+      Math.max(0, Math.floor(((user as any).resetTokenExpiry.getTime() - Date.now()) / 1000 / 60)) : 0;
 
     res.json({
       valid: true,
