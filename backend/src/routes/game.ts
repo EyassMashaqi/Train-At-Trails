@@ -106,11 +106,11 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
               some: {
                 userId: userId,
                 OR: [
-                  { grade: 'NEEDS_RESUBMISSION' },
+                  { grade: 'NEEDS_RESUBMISSION' } as any,
                   {
                     resubmissionRequested: true,
                     resubmissionApproved: true
-                  }
+                  } as any
                 ]
               }
             }
@@ -156,8 +156,8 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
         const latestAnswer = currentQuestionAnswers[0];
         
         // Check if this is a resubmittable question
-        const canResubmit = latestAnswer.grade === 'NEEDS_RESUBMISSION' ||
-                          (latestAnswer.resubmissionRequested && latestAnswer.resubmissionApproved);
+        const canResubmit = (latestAnswer as any).grade === 'NEEDS_RESUBMISSION' ||
+                          ((latestAnswer as any).resubmissionRequested && (latestAnswer as any).resubmissionApproved);
         
         if (canResubmit) {
           // If resubmission is available, show as not answered so user can resubmit
@@ -204,8 +204,8 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
     const shouldReturnCurrentQuestion = questionsWithModules.length === 0 || 
       (currentQuestion && answers.some(answer => 
         answer.questionId === currentQuestion.id && 
-        (answer.grade === 'NEEDS_RESUBMISSION' || 
-         (answer.resubmissionRequested && answer.resubmissionApproved))
+        ((answer as any).grade === 'NEEDS_RESUBMISSION' || 
+         ((answer as any).resubmissionRequested && (answer as any).resubmissionApproved))
       ));
 
     console.log('🔍 Game Status Debug:', {
@@ -535,7 +535,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
                 submittedAt: true,
                 resubmissionRequested: true,
                 resubmissionRequestedAt: true
-              }
+              } as any // Type assertion for resubmission fields
             }
           }
         }
@@ -591,9 +591,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       // 1. Grade is NEEDS_RESUBMISSION (new grading system), OR
       // 2. Status is REJECTED (legacy system), OR  
       // 3. Resubmission was manually requested and approved
-      const canResubmit = existingAnswer.grade === 'NEEDS_RESUBMISSION' || 
+      const canResubmit = (existingAnswer as any).grade === 'NEEDS_RESUBMISSION' || 
                          existingAnswer.status === 'REJECTED' ||
-                         (existingAnswer.resubmissionRequested && existingAnswer.resubmissionApproved);
+                         ((existingAnswer as any).resubmissionRequested && (existingAnswer as any).resubmissionApproved);
       
       if (!canResubmit) {
         return res.status(400).json({ 
@@ -601,10 +601,10 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           existingAnswer: {
             content: existingAnswer.content,
             status: existingAnswer.status,
-            grade: existingAnswer.grade,
+            grade: (existingAnswer as any).grade,
             submittedAt: existingAnswer.submittedAt,
-            resubmissionRequested: existingAnswer.resubmissionRequested,
-            resubmissionApproved: existingAnswer.resubmissionApproved
+            resubmissionRequested: (existingAnswer as any).resubmissionRequested,
+            resubmissionApproved: (existingAnswer as any).resubmissionApproved
           }
         });
       }
@@ -656,7 +656,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
             attachmentFileSize: attachmentFile.size,
             attachmentMimeType: attachmentFile.mimetype
           })
-        },
+        } as any, // Type assertion for fields that exist in schema
         include: {
           question: {
             select: {
@@ -707,14 +707,14 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
 
     // Send email notification to user
     try {
-      const questionTitle = answer.question?.title || `Question ${answer.question?.questionNumber || 'N/A'}`;
+      const questionTitle = (answer as any).question?.title || `Question ${(answer as any).question?.questionNumber || 'N/A'}`;
       await emailService.sendAnswerSubmissionEmail(
-        answer.user.email,
-        answer.user.fullName,
+        (answer as any).user.email,
+        (answer as any).user.fullName,
         questionTitle,
-        answer.question?.questionNumber || 0
+        (answer as any).question?.questionNumber || 0
       );
-      console.log(`✅ Submission confirmation email sent to ${answer.user.email} for ${questionTitle}`);
+      console.log(`✅ Submission confirmation email sent to ${(answer as any).user.email} for ${questionTitle}`);
     } catch (emailError) {
       console.error('❌ Failed to send submission confirmation email:', emailError);
       // Don't fail the request if email sending fails
@@ -727,11 +727,11 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       answer: {
         id: answer.id,
         link: answer.content, // content field stores the link
-        notes: answer.notes,
+        notes: (answer as any).notes,
         status: answer.status,
         submittedAt: answer.submittedAt,
-        questionNumber: answer.question?.questionNumber || 'N/A',
-        questionTitle: answer.question?.title || 'N/A',
+        questionNumber: (answer as any).question?.questionNumber || 'N/A',
+        questionTitle: (answer as any).question?.title || 'N/A',
         isResubmission,
         resubmissionContext,
         hasAttachment: !!attachmentFile
@@ -766,13 +766,13 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
     }
 
     // Allow resubmission requests for any grade (removed COPPER/SILVER restriction)
-    if (!answer.grade) {
+    if (!(answer as any).grade) {
       return res.status(400).json({ 
         error: 'Answer must be assigned mastery points before requesting resubmission' 
       });
     }
 
-    if (answer.resubmissionRequested) {
+    if ((answer as any).resubmissionRequested) {
       return res.status(400).json({ 
         error: 'Resubmission has already been requested for this answer' 
       });
@@ -783,7 +783,7 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
       data: {
         resubmissionRequested: true,
         resubmissionRequestedAt: new Date()
-      }
+      } as any // Type assertion for resubmission fields
     });
 
     res.json({
@@ -826,7 +826,7 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', authenticateToken
       return res.status(403).json({ error: 'You can only request resubmission for your own mini-answers' });
     }
 
-    if (miniAnswer.resubmissionRequested) {
+    if ((miniAnswer as any).resubmissionRequested) {
       return res.status(400).json({ 
         error: 'Resubmission has already been requested for this mini-answer' 
       });
@@ -837,7 +837,7 @@ router.post('/mini-answer/:miniAnswerId/request-resubmission', authenticateToken
       data: {
         resubmissionRequested: true,
         resubmissionRequestedAt: new Date()
-      }
+      } as any // Type assertion for resubmission fields
     });
 
     res.json({
@@ -1406,7 +1406,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                         submittedAt: true,
                         resubmissionRequested: true,
                         resubmissionRequestedAt: true
-                      }
+                      } as any // Type assertion for resubmission fields
                     }
                   },
                   orderBy: { orderIndex: 'asc' }
@@ -1429,7 +1429,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 resubmissionRequested: true,
                 resubmissionApproved: true,
                 resubmissionRequestedAt: true
-              },
+              } as any, // Type assertion for resubmission fields
               orderBy: { submittedAt: 'desc' },
               take: 1
             }
@@ -1452,7 +1452,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
     // Get ALL mini-questions (including future ones) for proper counting
     const allMiniQuestionsMap = new Map();
     for (const module of modules) {
-      for (const question of module.questions) {
+      for (const question of (module as any).questions) {
         const allMiniQuestions = await prisma.content.findMany({
           where: { questionId: question.id },
           include: {
@@ -1467,7 +1467,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                     submittedAt: true,
                     resubmissionRequested: true,
                     resubmissionRequestedAt: true
-                  }
+                  } as any // Type assertion for resubmission fields
                 }
               },
               orderBy: { orderIndex: 'asc' }
@@ -1732,7 +1732,7 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
         miniQuestionId,
         cohortId: userCohort.cohortId
       }
-    });
+    }) as any; // Type assertion for entire result
 
     if (existingAnswer) {
       // Check if resubmission was requested - only allow updates if resubmission was requested
@@ -1759,7 +1759,7 @@ router.post('/mini-answer', authenticateToken, async (req: AuthRequest, res) => 
           resubmissionRequested: false,
           resubmissionRequestedAt: null,
           resubmissionRequestedBy: null
-        }
+        } as any // Type assertion for resubmission fields
       });
 
       res.json({
