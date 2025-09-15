@@ -137,3 +137,6 @@ dist/
 build/
 *.tgz
 *.tar.gz
+
+# Specific compiled file
+backend/dist/src/index.js
