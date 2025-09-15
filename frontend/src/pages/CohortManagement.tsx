@@ -46,7 +46,7 @@ interface CopyCohortData {
 
 const CohortManagement: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -667,6 +667,13 @@ const CohortManagement: React.FC = () => {
             >
               <span className="text-xl">👥</span>
               <span>Manage Participants</span>
+            </button>
+            <button
+              onClick={logout}
+              className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">🚪</span>
+              <span>Logout</span>
             </button>
           </div>
         </div>
