@@ -111,6 +111,35 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
       }
     });
 
+    // Copy global email templates to new cohort
+    try {
+      const globalTemplates = await prisma.globalEmailTemplate.findMany();
+      
+      if (globalTemplates.length > 0) {
+        await prisma.cohortEmailConfig.createMany({
+          data: globalTemplates.map(template => ({
+            cohortId: cohort.id,
+            emailType: template.emailType,
+            name: template.name,
+            description: template.description,
+            subject: template.subject,
+            htmlContent: template.htmlContent,
+            textContent: template.textContent,
+            primaryColor: template.primaryColor,
+            secondaryColor: template.secondaryColor,
+            backgroundColor: template.backgroundColor,
+            textColor: template.textColor,
+            buttonColor: template.buttonColor,
+            isActive: template.isActive
+          }))
+        });
+        console.log(`📧 Copied ${globalTemplates.length} email templates to cohort ${cohort.name}`);
+      }
+    } catch (emailError) {
+      console.error('Warning: Failed to copy email templates to new cohort:', emailError);
+      // Don't fail cohort creation if email template copying fails
+    }
+
     res.status(201).json({ cohort });
   } catch (error) {
     console.error('Error creating cohort:', error);

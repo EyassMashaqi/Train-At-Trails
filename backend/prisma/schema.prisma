@@ -172,23 +172,24 @@ model GameConfig {
 }
 
 model Cohort {
-  id            String            @id @default(cuid())
-  cohortNumber  Int
-  name          String
-  description   String?
-  startDate     DateTime
-  endDate       DateTime?
-  defaultTheme  String            @default("trains")
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  answers       Answer[]
-  gameConfig    CohortGameConfig?
-  cohortMembers CohortMember[]
-  miniAnswers   MiniAnswer[]
-  modules       Module[]
-  questions     Question[]
-  currentUsers  User[]            @relation("CurrentCohort")
+  id               String              @id @default(cuid())
+  cohortNumber     Int
+  name             String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime?
+  defaultTheme     String              @default("trains")
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  answers          Answer[]
+  gameConfig       CohortGameConfig?
+  cohortMembers    CohortMember[]
+  miniAnswers      MiniAnswer[]
+  modules          Module[]
+  questions        Question[]
+  currentUsers     User[]              @relation("CurrentCohort")
+  emailConfigs     CohortEmailConfig[]
 
   @@unique([name, cohortNumber])
   @@map("cohorts")
@@ -224,4 +225,61 @@ model CohortGameConfig {
   cohort                       Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
   @@map("cohort_game_configs")
+}
+
+enum EmailType {
+  WELCOME
+  PASSWORD_RESET
+  ANSWER_SUBMISSION
+  ANSWER_FEEDBACK
+  NEW_QUESTION
+  MINI_QUESTION_RELEASE
+  MINI_ANSWER_RESUBMISSION
+  RESUBMISSION_APPROVAL
+}
+
+model GlobalEmailTemplate {
+  id              String    @id @default(cuid())
+  emailType       EmailType @unique @map("email_type")
+  name            String
+  description     String?
+  subject         String
+  htmlContent     String    @map("html_content")
+  textContent     String?   @map("text_content")
+  primaryColor    String    @default("#3B82F6") @map("primary_color")
+  secondaryColor  String    @default("#1E40AF") @map("secondary_color")
+  backgroundColor String    @default("#F8FAFC") @map("background_color")
+  textColor       String    @default("#1F2937") @map("text_color")
+  buttonColor     String    @default("#3B82F6") @map("button_color")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([emailType])
+  @@map("global_email_templates")
+}
+
+model CohortEmailConfig {
+  id              String    @id @default(cuid())
+  cohortId        String    @map("cohort_id")
+  emailType       EmailType @map("email_type")
+  name            String
+  description     String?
+  subject         String
+  htmlContent     String    @map("html_content")
+  textContent     String?   @map("text_content")
+  primaryColor    String    @default("#3B82F6") @map("primary_color")
+  secondaryColor  String    @default("#1E40AF") @map("secondary_color")
+  backgroundColor String    @default("#F8FAFC") @map("background_color")
+  textColor       String    @default("#1F2937") @map("text_color")
+  buttonColor     String    @default("#3B82F6") @map("button_color")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  cohort          Cohort    @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, emailType])
+  @@index([cohortId])
+  @@index([emailType])
+  @@map("cohort_email_configs")
 }

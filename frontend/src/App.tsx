@@ -18,6 +18,8 @@ import NotFound from './pages/NotFound';
 import CohortManagement from './pages/CohortManagement';
 import UserManagement from './pages/UserManagement';
 import CohortHistory from './pages/CohortHistory';
+import EmailSetupGlobal from './pages/EmailSetupGlobal';
+import EmailSetupCohort from './pages/EmailSetupCohort';
 
 function App() {
   return (
@@ -98,6 +100,22 @@ function App() {
               element={
                 <AdminRoute>
                   <QuestionManagement />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/email-setup/global" 
+              element={
+                <AdminRoute>
+                  <EmailSetupGlobal />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/admin/email-setup/cohort/:cohortId" 
+              element={
+                <AdminRoute>
+                  <EmailSetupCohort />
                 </AdminRoute>
               } 
             />

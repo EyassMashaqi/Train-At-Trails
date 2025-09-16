@@ -1613,6 +1613,29 @@ const AdminDashboard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Email Configuration */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-6">
+            <div className="text-2xl mr-3">📧</div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Email Configuration</h3>
+              <p className="text-sm text-gray-600">
+                Customize email templates and settings for this cohort.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={() => navigate(`/admin/email-setup/cohort/${selectedCohortId}`)}
+              className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">📧</span>
+              <span>Configure Email Templates</span>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }, [selectedCohortId, currentCohort, modules, availableThemes, handleDefaultThemeFromModule, handleModuleThemeUpdate]);
