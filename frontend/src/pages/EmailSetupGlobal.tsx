@@ -111,7 +111,13 @@ const EmailSetupGlobal: React.FC = () => {
 
     try {
       setSaveLoading(emailType);
-      await api.put(`/admin/email-setup/global-templates/${emailType}`, formData);
+      // Include emailType in the request body as required by backend validation
+      const requestData = {
+        ...formData,
+        emailType: emailType
+      };
+      
+      await api.put(`/admin/email-setup/global-templates/${emailType}`, requestData);
       toast.success('Template updated successfully');
       setEditingTemplate(null);
       await loadTemplates();
@@ -485,7 +491,7 @@ const EmailSetupGlobal: React.FC = () => {
                                 dangerouslySetInnerHTML={{ 
                                   __html: formData.htmlContent
                                     .replace(/{{userName}}/g, 'John Doe')
-                                    .replace(/{{companyName}}/g, 'Your Company')
+                                    .replace(/{{companyName}}/g, 'BVisionRY Lighthouse')
                                     .replace(/{{primaryColor}}/g, formData.primaryColor)
                                     .replace(/{{secondaryColor}}/g, formData.secondaryColor)
                                     .replace(/{{textColor}}/g, formData.textColor)
