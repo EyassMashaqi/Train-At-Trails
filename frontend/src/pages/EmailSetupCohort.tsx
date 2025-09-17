@@ -68,6 +68,8 @@ const EmailSetupCohort: React.FC = () => {
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [configs, setConfigs] = useState<EmailConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCopyGlobalConfirmation, setShowCopyGlobalConfirmation] = useState(false);
+  const [copyingGlobalTemplates, setCopyingGlobalTemplates] = useState(false);
   const [activeTab, setActiveTab] = useState<'theme' | 'email-templates' | 'cohort-settings'>('email-templates');
   const [expandedConfig, setExpandedConfig] = useState<string | null>(null);
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
@@ -273,6 +275,30 @@ const EmailSetupCohort: React.FC = () => {
     }
   };
 
+  const handleCopyGlobalTemplates = async () => {
+    if (!cohortId) return;
+    
+    try {
+      setCopyingGlobalTemplates(true);
+      
+      // Copy global templates to this cohort with overwrite flag
+      const response = await api.post(`/admin/email-setup/cohorts/${cohortId}/copy-global-templates`, {
+        overwrite: true
+      });
+      
+      toast.success(`Global templates copied successfully! ${response.data.count} templates added.`);
+      setShowCopyGlobalConfirmation(false);
+      
+      // Reload the configs
+      await loadEmailConfigs();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to copy global templates';
+      toast.error(errorMessage);
+    } finally {
+      setCopyingGlobalTemplates(false);
+    }
+  };
+
   const getConfigIcon = (emailType: string) => {
     const icons: Record<string, string> = {
       WELCOME: '👋',
@@ -472,12 +498,21 @@ const EmailSetupCohort: React.FC = () => {
                     <p className="text-gray-600">End: {new Date(cohort.endDate).toLocaleDateString()}</p>
                   )}
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Email Templates</h3>
-                  <p className="text-gray-600">{configs.length} configurations available</p>
-                  <p className="text-gray-600">
-                    Active: {configs.filter(c => c.isActive).length} / {configs.length}
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Email Templates</h3>
+                    <p className="text-gray-600">{configs.length} configurations available</p>
+                    <p className="text-gray-600">
+                      Active: {configs.filter(c => c.isActive).length} / {configs.length}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCopyGlobalConfirmation(true)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 ml-4"
+                  >
+                    <span>🌐</span>
+                    <span>Copy Global Templates</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -950,6 +985,66 @@ const EmailSetupCohort: React.FC = () => {
                 className="border border-gray-200 rounded-lg overflow-auto"
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy Global Templates Confirmation Modal */}
+      {showCopyGlobalConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                  <span className="text-2xl">🌐</span>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Copy Global Email Templates
+                </h3>
+                <div className="text-sm text-gray-500 mb-4">
+                  {configs.length > 0 ? (
+                    <>
+                      <p className="mb-2">This will:</p>
+                      <ul className="text-left space-y-1">
+                        <li>• Delete all existing email configurations ({configs.length} templates)</li>
+                        <li>• Copy all global templates to this cohort</li>
+                        <li>• Replace current settings with global defaults</li>
+                      </ul>
+                      <p className="mt-3 font-medium text-amber-600">
+                        ⚠️ This action cannot be undone!
+                      </p>
+                    </>
+                  ) : (
+                    <p>This will copy all global email templates to this cohort.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowCopyGlobalConfirmation(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={copyingGlobalTemplates}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyGlobalTemplates}
+                  disabled={copyingGlobalTemplates}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {copyingGlobalTemplates ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Copying...</span>
+                    </>
+                  ) : (
+                    <span>{configs.length > 0 ? 'Replace Templates' : 'Copy Templates'}</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

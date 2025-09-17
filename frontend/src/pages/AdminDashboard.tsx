@@ -273,6 +273,8 @@ const AdminDashboard: React.FC = () => {
   const [expandedEmailConfig, setExpandedEmailConfig] = useState<string | null>(null);
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [previewEmailConfig, setPreviewEmailConfig] = useState<any | null>(null);
+  const [showCopyGlobalConfirmation, setShowCopyGlobalConfirmation] = useState(false);
+  const [copyingGlobalTemplates, setCopyingGlobalTemplates] = useState(false);
   const [emailFormData, setEmailFormData] = useState({
     name: '',
     description: '',
@@ -1614,6 +1616,31 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Copy global templates function
+  const handleCopyGlobalTemplates = async () => {
+    if (!selectedCohortId) return;
+    
+    try {
+      setCopyingGlobalTemplates(true);
+      
+      // Copy global templates to this cohort with overwrite flag
+      const response = await api.post(`/admin/email-setup/cohorts/${selectedCohortId}/copy-global-templates`, {
+        overwrite: true
+      });
+      
+      toast.success(`Global templates copied successfully! ${response.data.count} templates added.`);
+      setShowCopyGlobalConfirmation(false);
+      
+      // Reload the data
+      loadAdminData();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to copy global templates';
+      toast.error(errorMessage);
+    } finally {
+      setCopyingGlobalTemplates(false);
+    }
+  };
+
   // Cohort management functions (from EmailSetupCohort)
   const handleUpdateCohort = async () => {
     if (!selectedCohort || !selectedCohortId) return;
@@ -1867,14 +1894,23 @@ const AdminDashboard: React.FC = () => {
         <div className="space-y-6">
           {/* Email Configuration Header */}
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center mb-4">
-              <div className="text-2xl mr-3">📧</div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Email Templates</h3>
-                <p className="text-sm text-gray-600">
-                  Configure email templates for this cohort. Click on any template to customize it.
-                </p>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div className="text-2xl mr-3">📧</div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Email Templates</h3>
+                  <p className="text-sm text-gray-600">
+                    Configure email templates for this cohort. Click on any template to customize it.
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => setShowCopyGlobalConfirmation(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🌐</span>
+                <span>Copy Global Templates</span>
+              </button>
             </div>
           </div>
 
@@ -1885,14 +1921,9 @@ const AdminDashboard: React.FC = () => {
                 <div className="text-6xl mb-4">📧</div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Email Configurations</h3>
                 <p className="text-gray-600 mb-6">
-                  Email configurations should be automatically created when you create a cohort.
+                  You can copy global templates to create email configurations for this cohort.
                 </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  Refresh
-                </button>
+
               </div>
             ) : (
               emailConfigs.map((config: any) => (
@@ -3688,6 +3719,66 @@ const AdminDashboard: React.FC = () => {
           backgroundColor: previewEmailConfig?.backgroundColor || '#F8FAFC'
         }}
       />
+
+      {/* Copy Global Templates Confirmation Modal */}
+      {showCopyGlobalConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                  <span className="text-2xl">🌐</span>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Copy Global Email Templates
+                </h3>
+                <div className="text-sm text-gray-500 mb-4">
+                  {emailConfigs.length > 0 ? (
+                    <>
+                      <p className="mb-2">This will:</p>
+                      <ul className="text-left space-y-1">
+                        <li>• Delete all existing email configurations ({emailConfigs.length} templates)</li>
+                        <li>• Copy all global templates to this cohort</li>
+                        <li>• Replace current settings with global defaults</li>
+                      </ul>
+                      <p className="mt-3 font-medium text-amber-600">
+                        ⚠️ This action cannot be undone!
+                      </p>
+                    </>
+                  ) : (
+                    <p>This will copy all global email templates to this cohort.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowCopyGlobalConfirmation(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={copyingGlobalTemplates}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyGlobalTemplates}
+                  disabled={copyingGlobalTemplates}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {copyingGlobalTemplates ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Copying...</span>
+                    </>
+                  ) : (
+                    <span>{emailConfigs.length > 0 ? 'Replace Templates' : 'Copy Templates'}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

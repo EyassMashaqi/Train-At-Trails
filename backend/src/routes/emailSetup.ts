@@ -196,6 +196,7 @@ router.put('/cohorts/:cohortId/email-configs/:emailType', authenticateToken, req
 router.post('/cohorts/:cohortId/copy-global-templates', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { cohortId } = req.params;
+    const { overwrite = false } = req.body;
     
     // Verify cohort exists
     const cohort = await prisma.cohort.findUnique({
@@ -211,8 +212,15 @@ router.post('/cohorts/:cohortId/copy-global-templates', authenticateToken, requi
       where: { cohortId }
     });
     
-    if (existingConfigs.length > 0) {
+    if (existingConfigs.length > 0 && !overwrite) {
       return res.status(400).json({ error: 'Email configs already exist for this cohort' });
+    }
+    
+    // If overwrite is true, delete existing configs first
+    if (overwrite && existingConfigs.length > 0) {
+      await prisma.cohortEmailConfig.deleteMany({
+        where: { cohortId }
+      });
     }
     
     // Get all global templates
@@ -238,7 +246,7 @@ router.post('/cohorts/:cohortId/copy-global-templates', authenticateToken, requi
     });
     
     res.json({ 
-      message: 'Global templates copied to cohort successfully',
+      message: overwrite ? 'Global templates copied and existing configs replaced successfully' : 'Global templates copied to cohort successfully',
       count: configs.count 
     });
   } catch (error) {
