@@ -18,7 +18,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Welcome {{userName}}! Welcome to BVisionRY Lighthouse training program!'
+    textContent: 'Welcome {{userName}}! Welcome to BVisionRY Lighthouse training program! We are excited to have you on board. Get ready for an amazing learning journey! Go to Dashboard: {{dashboardUrl}}'
   },
   {
     emailType: 'PASSWORD_RESET',
@@ -36,7 +36,7 @@ const defaultEmailTemplates = [
     <p style="color: {{textColor}}; font-size: 14px;">If you did not request this, please ignore this email.</p>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, Reset your password: {{resetUrl}}'
+    textContent: 'Hello {{userName}}, We received a request to reset your password. Click the link to reset it: {{resetUrl}}. If you did not request this, please ignore this email.'
   },
   {
     emailType: 'ANSWER_SUBMISSION',
@@ -54,7 +54,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, Your answer for {{questionTitle}} has been submitted.'
+    textContent: 'Hello {{userName}}, Your answer for {{questionTitle}} has been successfully submitted. We will review your submission and provide feedback soon. View Dashboard: {{dashboardUrl}}'
   },
   {
     emailType: 'ANSWER_FEEDBACK',
@@ -76,7 +76,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, Your answer for {{questionTitle}} has been graded: {{grade}}. Feedback: {{feedback}}'
+    textContent: 'Hello {{userName}}, Your answer for {{questionTitle}} has been reviewed. Grade: {{grade}}. Feedback: {{feedback}}. View Dashboard: {{dashboardUrl}}'
   },
   {
     emailType: 'NEW_QUESTION',
@@ -94,7 +94,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, New question available: {{questionTitle}}'
+    textContent: 'Hello {{userName}}, A new question is now available: {{questionTitle}}. Get ready to continue your learning journey! Answer Now: {{dashboardUrl}}'
   },
   {
     emailType: 'MINI_QUESTION_RELEASE',
@@ -116,7 +116,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, New activity: {{miniQuestionTitle}} in {{contentTitle}} for {{questionTitle}}'
+    textContent: 'Hello {{userName}}, A new self-learning activity is available: {{miniQuestionTitle}}. Content: {{contentTitle}}. Question: {{questionTitle}}. Start Activity: {{dashboardUrl}}'
   },
   {
     emailType: 'MINI_ANSWER_RESUBMISSION',
@@ -135,7 +135,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, Please resubmit: {{miniQuestionTitle}}'
+    textContent: 'Hello {{userName}}, Please resubmit your answer for: {{miniQuestionTitle}}. Content: {{contentTitle}}. Question: {{questionTitle}}. Resubmit Now: {{dashboardUrl}}'
   },
   {
     emailType: 'RESUBMISSION_APPROVAL',
@@ -153,7 +153,7 @@ const defaultEmailTemplates = [
     </div>
   </div>
 </div>`,
-    textContent: 'Hello {{userName}}, Resubmission approved for: {{questionTitle}}'
+    textContent: 'Hello {{userName}}, Your resubmission for {{questionTitle}} has been approved! Congratulations on your persistence and improvement! View Dashboard: {{dashboardUrl}}'
   }
 ];
 
@@ -162,31 +162,32 @@ async function seedEmailTemplates() {
   
   try {
     for (const template of defaultEmailTemplates) {
-      const existing = await prisma.globalEmailTemplate.findUnique({
-        where: { emailType: template.emailType as any }
+      await prisma.globalEmailTemplate.upsert({
+        where: { emailType: template.emailType as any },
+        update: {
+          name: template.name,
+          description: template.description,
+          subject: template.subject,
+          htmlContent: template.htmlContent,
+          textContent: template.textContent,
+          // Keep existing colors and active status, only update content
+        },
+        create: {
+          emailType: template.emailType as any,
+          name: template.name,
+          description: template.description,
+          subject: template.subject,
+          htmlContent: template.htmlContent,
+          textContent: template.textContent,
+          primaryColor: '#3B82F6',
+          secondaryColor: '#1E40AF',
+          backgroundColor: '#F8FAFC',
+          textColor: '#1F2937',
+          buttonColor: '#3B82F6',
+          isActive: true
+        }
       });
-
-      if (!existing) {
-        await prisma.globalEmailTemplate.create({
-          data: {
-            emailType: template.emailType as any,
-            name: template.name,
-            description: template.description,
-            subject: template.subject,
-            htmlContent: template.htmlContent,
-            textContent: template.textContent,
-            primaryColor: '#3B82F6',
-            secondaryColor: '#1E40AF',
-            backgroundColor: '#F8FAFC',
-            textColor: '#1F2937',
-            buttonColor: '#3B82F6',
-            isActive: true
-          }
-        });
-        console.log(`✅ Created template: ${template.name}`);
-      } else {
-        console.log(`⏭️ Template already exists: ${template.name}`);
-      }
+      console.log(`✅ Updated/Created template: ${template.name}`);
     }
     
     console.log('🎉 Email templates seeding completed!');

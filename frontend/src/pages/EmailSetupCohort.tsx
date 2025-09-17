@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
+import RichTextEditor from '../components/RichTextEditor';
+import { defaultEmailTemplates } from '../utils/defaultEmailTemplates';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -66,7 +68,7 @@ const EmailSetupCohort: React.FC = () => {
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [configs, setConfigs] = useState<EmailConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'emails' | 'management'>('emails');
+  const [activeTab, setActiveTab] = useState<'theme' | 'email-templates' | 'cohort-settings'>('email-templates');
   const [expandedConfig, setExpandedConfig] = useState<string | null>(null);
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
   const [formData, setFormData] = useState<EmailFormData>({
@@ -256,6 +258,21 @@ const EmailSetupCohort: React.FC = () => {
     }
   };
 
+  const loadDefaultTemplate = (templateType: keyof typeof defaultEmailTemplates) => {
+    const template = defaultEmailTemplates[templateType];
+    if (template) {
+      setFormData(prev => ({
+        ...prev,
+        name: template.name,
+        description: template.description,
+        subject: template.subject,
+        htmlContent: template.htmlContent,
+        textContent: template.textContent
+      }));
+      toast.success(`Loaded ${template.name} template`);
+    }
+  };
+
   const getConfigIcon = (emailType: string) => {
     const icons: Record<string, string> = {
       WELCOME: '👋',
@@ -377,9 +394,22 @@ const EmailSetupCohort: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg mb-8">
           <div className="flex border-b border-gray-200">
             <button
-              onClick={() => setActiveTab('emails')}
+              onClick={() => setActiveTab('theme')}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-                activeTab === 'emails'
+                activeTab === 'theme'
+                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-xl">🎨</span>
+                <span>Theme</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('email-templates')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+                activeTab === 'email-templates'
                   ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
@@ -390,9 +420,9 @@ const EmailSetupCohort: React.FC = () => {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('management')}
+              onClick={() => setActiveTab('cohort-settings')}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-                activeTab === 'management'
+                activeTab === 'cohort-settings'
                   ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
@@ -406,7 +436,21 @@ const EmailSetupCohort: React.FC = () => {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'emails' ? (
+        {activeTab === 'theme' ? (
+          <>
+            {/* Theme Configuration - Placeholder for future implementation */}
+            <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+              <div className="text-6xl mb-4">🎨</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Theme Configuration</h3>
+              <p className="text-gray-600 mb-6">
+                Theme customization features will be available soon.
+              </p>
+              <p className="text-sm text-gray-500">
+                This will include color schemes, branding, and visual customization options for this cohort.
+              </p>
+            </div>
+          </>
+        ) : activeTab === 'email-templates' ? (
           <>
             {/* Cohort Info */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
@@ -549,24 +593,45 @@ const EmailSetupCohort: React.FC = () => {
                               />
                             </div>
 
+                            {/* Default Template Selector */}
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                              <h4 className="text-md font-semibold text-blue-900 mb-3">🎨 Quick Start Templates</h4>
+                              <p className="text-sm text-blue-700 mb-3">Choose a professionally designed template to get started quickly:</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {Object.entries(defaultEmailTemplates).map(([key, template]) => (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => loadDefaultTemplate(key as keyof typeof defaultEmailTemplates)}
+                                    className="text-left p-3 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                                  >
+                                    <div className="font-medium text-blue-900 text-sm">{template.name}</div>
+                                    <div className="text-xs text-blue-600 mt-1">{template.description}</div>
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-xs text-blue-600 mt-3">
+                                💡 Templates include professional styling and variable placeholders. You can customize them further using the rich text editor.
+                              </p>
+                            </div>
+
                             {/* Color Customization */}
-                            <div className="bg-white p-6 rounded-lg border border-gray-200">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-4">Color Customization</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                              <h4 className="text-md font-semibold text-gray-900 mb-3">Email Colors</h4>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {[
-                                  { key: 'primaryColor', label: 'Primary Color', description: 'Main brand color' },
-                                  { key: 'secondaryColor', label: 'Secondary Color', description: 'Accent color' },
-                                  { key: 'backgroundColor', label: 'Background Color', description: 'Page background' },
-                                  { key: 'textColor', label: 'Text Color', description: 'Main text color' },
-                                  { key: 'buttonColor', label: 'Button Color', description: 'CTA button color' }
+                                  { key: 'primaryColor', label: 'Primary', description: 'Main brand color' },
+                                  { key: 'secondaryColor', label: 'Secondary', description: 'Accent color' },
+                                  { key: 'textColor', label: 'Text', description: 'Main text color' },
+                                  { key: 'buttonColor', label: 'Button', description: 'CTA button color' }
                                 ].map(({ key, label, description }) => (
                                   <div key={key} className="text-center">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
                                     <input
                                       type="color"
                                       value={formData[key as keyof EmailFormData] as string}
                                       onChange={(e) => setFormData(prev => ({ ...prev, [key]: e.target.value }))}
-                                      className="w-16 h-16 mx-auto rounded-lg border border-gray-300 cursor-pointer"
+                                      className="w-12 h-12 mx-auto rounded border border-gray-300 cursor-pointer"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">{description}</p>
                                   </div>
@@ -574,29 +639,61 @@ const EmailSetupCohort: React.FC = () => {
                               </div>
                             </div>
 
+                            {/* Email Content Editor with Live Preview */}
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">HTML Content *</label>
-                              <textarea
-                                value={formData.htmlContent}
-                                onChange={(e) => setFormData(prev => ({ ...prev, htmlContent: e.target.value }))}
-                                rows={10}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
-                                required
-                              />
-                              <p className="text-sm text-gray-500 mt-1">
-                                Use variables like {'{'}{'{'}{'}'}userName{'{'}{'}'}{'}'}{'}'}, {'{'}{'{'}{'}'}dashboardUrl{'{'}{'}'}{'}'}{'}'}, {'{'}{'{'}{'}'}primaryColor{'{'}{'}'}{'}'}{'}'}, etc.
-                              </p>
-                            </div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Email Content *</label>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {/* Editor */}
+                                <div>
+                                  <RichTextEditor
+                                    value={formData.htmlContent}
+                                    onChange={(value) => setFormData(prev => ({ ...prev, htmlContent: value }))}
+                                    placeholder="Enter your email content here..."
+                                    colors={{
+                                      primaryColor: formData.primaryColor,
+                                      secondaryColor: formData.secondaryColor,
+                                      textColor: formData.textColor,
+                                      buttonColor: formData.buttonColor,
+                                      backgroundColor: formData.backgroundColor
+                                    }}
+                                  />Live Preview
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Text Content</label>
-                              <textarea
-                                value={formData.textContent}
-                                onChange={(e) => setFormData(prev => ({ ...prev, textContent: e.target.value }))}
-                                rows={4}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                placeholder="Plain text version of the email..."
-                              />
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Use the toolbar to format your text and insert variables like userName, dashboardUrl, etc.
+                                  </p>
+                                </div>
+                                
+                                {/* Live Preview */}
+                                <div>
+                                  <div className="border border-gray-300 rounded-lg">
+                                    <div className="bg-gray-50 px-3 py-2 border-b border-gray-300 text-sm font-medium text-gray-700">
+                                      Live Preview
+                                    </div>
+                                    <div 
+                                      className="p-4 min-h-[400px] bg-white overflow-auto"
+                                      style={{ backgroundColor: formData.backgroundColor }}
+                                    >
+                                      <div 
+                                        className="max-w-full"
+                                        dangerouslySetInnerHTML={{ 
+                                          __html: formData.htmlContent
+                                            .replace(/\{\{userName\}\}/g, 'John Doe')
+                                            .replace(/\{\{dashboardUrl\}\}/g, '#')
+                                            .replace(/\{\{questionTitle\}\}/g, 'Sample Question')
+                                            .replace(/\{\{questionNumber\}\}/g, '1')
+                                            .replace(/\{\{grade\}\}/g, 'Excellent')
+                                            .replace(/\{\{feedback\}\}/g, 'Great work!')
+                                            .replace(/\{\{primaryColor\}\}/g, formData.primaryColor)
+                                            .replace(/\{\{secondaryColor\}\}/g, formData.secondaryColor)
+                                            .replace(/\{\{backgroundColor\}\}/g, formData.backgroundColor)
+                                            .replace(/\{\{textColor\}\}/g, formData.textColor)
+                                            .replace(/\{\{buttonColor\}\}/g, formData.buttonColor)
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
 
                             <div className="flex items-center">
@@ -695,7 +792,7 @@ const EmailSetupCohort: React.FC = () => {
               )}
             </div>
           </>
-        ) : (
+        ) : activeTab === 'cohort-settings' ? (
           <>
             {/* Cohort Management Form */}
             <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
@@ -830,7 +927,7 @@ const EmailSetupCohort: React.FC = () => {
               </div>
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
       {/* Preview Modal */}

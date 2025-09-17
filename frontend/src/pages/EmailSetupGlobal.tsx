@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
+import RichTextEditor from '../components/RichTextEditor';
+import { defaultEmailTemplates } from '../utils/defaultEmailTemplates';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -160,6 +162,21 @@ const EmailSetupGlobal: React.FC = () => {
       setShowPreview(template.emailType);
     } catch (error) {
       toast.error('Failed to generate preview');
+    }
+  };
+
+  const loadDefaultTemplate = (templateType: keyof typeof defaultEmailTemplates) => {
+    const template = defaultEmailTemplates[templateType];
+    if (template) {
+      setFormData(prev => ({
+        ...prev,
+        name: template.name,
+        description: template.description,
+        subject: template.subject,
+        htmlContent: template.htmlContent,
+        textContent: template.textContent
+      }));
+      toast.success(`Loaded ${template.name} template`);
     }
   };
 
@@ -350,6 +367,28 @@ const EmailSetupGlobal: React.FC = () => {
                             />
                           </div>
 
+                          {/* Default Template Selector */}
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <h4 className="text-md font-semibold text-blue-900 mb-3">🎨 Quick Start Templates</h4>
+                            <p className="text-sm text-blue-700 mb-3">Choose a professionally designed template to get started quickly:</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {Object.entries(defaultEmailTemplates).map(([key, template]) => (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => loadDefaultTemplate(key as keyof typeof defaultEmailTemplates)}
+                                  className="text-left p-3 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                                >
+                                  <div className="font-medium text-blue-900 text-sm">{template.name}</div>
+                                  <div className="text-xs text-blue-600 mt-1">{template.description}</div>
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-blue-600 mt-3">
+                              💡 Templates include professional styling and variable placeholders. You can customize them further using the rich text editor.
+                            </p>
+                          </div>
+
                           <div className="flex items-center">
                             <input
                               type="checkbox"
@@ -365,125 +404,98 @@ const EmailSetupGlobal: React.FC = () => {
                         </div>
 
                         {/* Color Settings */}
-                        <div className="space-y-4">
-                          <h4 className="text-lg font-semibold text-gray-900">Color Settings</h4>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="text-md font-semibold text-gray-900 mb-3">Email Colors</h4>
                           
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={formData.primaryColor}
-                                  onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
-                                  className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
-                                />
-                                <input
-                                  type="text"
-                                  value={formData.primaryColor}
-                                  onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                />
-                              </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="text-center">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Primary</label>
+                              <input
+                                type="color"
+                                value={formData.primaryColor}
+                                onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
+                                className="w-12 h-12 mx-auto rounded border border-gray-300 cursor-pointer"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Main brand color</p>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={formData.secondaryColor}
-                                  onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
-                                  className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
-                                />
-                                <input
-                                  type="text"
-                                  value={formData.secondaryColor}
-                                  onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                />
-                              </div>
+                            <div className="text-center">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Secondary</label>
+                              <input
+                                type="color"
+                                value={formData.secondaryColor}
+                                onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
+                                className="w-12 h-12 mx-auto rounded border border-gray-300 cursor-pointer"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Accent color</p>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={formData.backgroundColor}
-                                  onChange={(e) => setFormData({ ...formData, backgroundColor: e.target.value })}
-                                  className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
-                                />
-                                <input
-                                  type="text"
-                                  value={formData.backgroundColor}
-                                  onChange={(e) => setFormData({ ...formData, backgroundColor: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                />
-                              </div>
+                            <div className="text-center">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Text</label>
+                              <input
+                                type="color"
+                                value={formData.textColor}
+                                onChange={(e) => setFormData({ ...formData, textColor: e.target.value })}
+                                className="w-12 h-12 mx-auto rounded border border-gray-300 cursor-pointer"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Main text color</p>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Text Color</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={formData.textColor}
-                                  onChange={(e) => setFormData({ ...formData, textColor: e.target.value })}
-                                  className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
-                                />
-                                <input
-                                  type="text"
-                                  value={formData.textColor}
-                                  onChange={(e) => setFormData({ ...formData, textColor: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="col-span-2">
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Button Color</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={formData.buttonColor}
-                                  onChange={(e) => setFormData({ ...formData, buttonColor: e.target.value })}
-                                  className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
-                                />
-                                <input
-                                  type="text"
-                                  value={formData.buttonColor}
-                                  onChange={(e) => setFormData({ ...formData, buttonColor: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                />
-                              </div>
+                            <div className="text-center">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Button</label>
+                              <input
+                                type="color"
+                                value={formData.buttonColor}
+                                onChange={(e) => setFormData({ ...formData, buttonColor: e.target.value })}
+                                className="w-12 h-12 mx-auto rounded border border-gray-300 cursor-pointer"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">CTA button color</p>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* HTML Content */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">HTML Content</label>
-                        <textarea
-                          value={formData.htmlContent}
-                          onChange={(e) => setFormData({ ...formData, htmlContent: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono text-sm"
-                          rows={10}
-                          placeholder="HTML email content with template variables like {{userName}}, {{primaryColor}}, etc."
-                        />
-                      </div>
+                      {/* Email Content */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Content Editor */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Email Content</label>
+                          <RichTextEditor
+                            value={formData.htmlContent}
+                            onChange={(value) => setFormData({ ...formData, htmlContent: value })}
+                            colors={{
+                              primaryColor: formData.primaryColor,
+                              secondaryColor: formData.secondaryColor,
+                              textColor: formData.textColor,
+                              buttonColor: formData.buttonColor,
+                              backgroundColor: formData.backgroundColor
+                            }}
+                          />
+                        </div>
 
-                      {/* Text Content */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Text Content (Optional)</label>
-                        <textarea
-                          value={formData.textContent}
-                          onChange={(e) => setFormData({ ...formData, textContent: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                          rows={4}
-                          placeholder="Plain text version of the email"
-                        />
+                        {/* Live Preview */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Live Preview</label>
+                          <div className="border border-gray-300 rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 p-3 border-b border-gray-300 text-sm font-medium text-gray-700">
+                              Live Preview
+                            </div>
+                            <div className="p-4 min-h-[200px] bg-white overflow-auto">
+                              <div
+                                dangerouslySetInnerHTML={{ 
+                                  __html: formData.htmlContent
+                                    .replace(/{{userName}}/g, 'John Doe')
+                                    .replace(/{{companyName}}/g, 'Your Company')
+                                    .replace(/{{primaryColor}}/g, formData.primaryColor)
+                                    .replace(/{{secondaryColor}}/g, formData.secondaryColor)
+                                    .replace(/{{textColor}}/g, formData.textColor)
+                                    .replace(/{{buttonColor}}/g, formData.buttonColor)
+                                    .replace(/{{backgroundColor}}/g, formData.backgroundColor)
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Action Buttons */}
@@ -496,7 +508,7 @@ const EmailSetupGlobal: React.FC = () => {
                           <span>Preview</span>
                         </button>
                         
-                        <div className="space-x-4">
+                        <div className="flex items-center space-x-4">
                           <button
                             onClick={handleCancelEdit}
                             className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200 font-medium"
