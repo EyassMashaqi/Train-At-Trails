@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -25,17 +26,44 @@ interface EmailConfig {
 }
 
 class EmailService {
+  private transporter: nodemailer.Transporter;
   private fromEmail: string;
   private fromName: string;
 
   constructor() {
-    this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'noreply@bvisionrytrainings.com';
+    // Get email configuration from environment variables
+    const emailConfig = {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '', // Gmail App Password
+      },
+    };
+
+    this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || '';
     this.fromName = process.env.SMTP_FROM_NAME || 'BVisionRY Lighthouse';
 
-    console.log('📧 Email Service initialized (Mock Mode)');
+    // Create transporter
+    this.transporter = nodemailer.createTransport(emailConfig);
+
+    // Verify connection configuration
+    this.verifyConnection();
   }
 
-  // Send a generic email (mock implementation)
+  private async verifyConnection(): Promise<void> {
+    try {
+      await this.transporter.verify();
+      console.log('✅ Email service is ready to send emails');
+    } catch (error) {
+      console.error('❌ Email service configuration error:', error);
+      console.log('💡 Make sure SMTP environment variables are configured:');
+      console.log('   - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS');
+    }
+  }
+
+  // Send a generic email
   async sendEmail(
     to: string | string[],
     subject: string,
@@ -43,24 +71,75 @@ class EmailService {
     text?: string
   ): Promise<boolean> {
     try {
-      console.log('📧 [MOCK] Email would be sent:');
-      console.log(`   To: ${Array.isArray(to) ? to.join(', ') : to}`);
-      console.log(`   Subject: ${subject}`);
-      console.log(`   From: "${this.fromName}" <${this.fromEmail}>`);
+      const mailOptions = {
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject,
+        html,
+        text: text || this.htmlToText(html),
+      };
+
+      console.log(`📧 Sending email to: ${Array.isArray(to) ? to.join(', ') : to}`);
+      console.log(`📧 Subject: ${subject}`);
       
-      // Simulate email delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully:', info.messageId);
       
       return true;
     } catch (error) {
-      console.error('❌ Mock email service error:', error);
+      console.error('❌ Error sending email:', error);
       return false;
+    }
+  }
+
+  // Convert HTML to plain text (basic implementation)
+  private htmlToText(html: string): string {
+    return html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+  }
+
+  // Helper method to get user's current cohort
+  private async getUserCohortId(userEmail: string): Promise<string | null> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: userEmail },
+        include: {
+          cohortMembers: {
+            where: {
+              status: 'ENROLLED',
+              cohort: {
+                isActive: true
+              }
+            },
+            include: {
+              cohort: true
+            },
+            orderBy: {
+              joinedAt: 'desc'
+            },
+            take: 1
+          }
+        }
+      });
+
+      if (user?.cohortMembers?.[0]) {
+        return user.cohortMembers[0].cohortId;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error getting user cohort:', error);
+      return null;
     }
   }
 
   // Send welcome email to new users
   async sendWelcomeEmail(userEmail: string, userName: string, cohortId?: string): Promise<boolean> {
-    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard` }, cohortId);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard` }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -71,8 +150,10 @@ class EmailService {
     resetToken: string,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5177'}/reset-password?token=${resetToken}`;
-    const template = await this.getEmailTemplate('PASSWORD_RESET', { userName, resetUrl }, cohortId);
+    const template = await this.getEmailTemplate('PASSWORD_RESET', { userName, resetUrl }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -84,12 +165,14 @@ class EmailService {
     questionNumber: number,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('ANSWER_SUBMISSION', { 
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -103,6 +186,8 @@ class EmailService {
     feedback: string,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('ANSWER_FEEDBACK', { 
       userName, 
       questionTitle, 
@@ -110,7 +195,7 @@ class EmailService {
       grade, 
       feedback,
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -122,12 +207,14 @@ class EmailService {
     questionNumber: number,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('NEW_QUESTION', { 
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -140,13 +227,15 @@ class EmailService {
     questionTitle: string,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('MINI_QUESTION_RELEASE', { 
       userName, 
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -159,13 +248,15 @@ class EmailService {
     questionTitle: string,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('MINI_ANSWER_RESUBMISSION', { 
       userName, 
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -176,11 +267,13 @@ class EmailService {
     questionTitle: string,
     cohortId?: string
   ): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
     const template = await this.getEmailTemplate('RESUBMISSION_APPROVAL', { 
       userName, 
       questionTitle,
       dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
-    }, cohortId);
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
