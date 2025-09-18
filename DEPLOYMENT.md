@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This guide covers deploying the Train at Trails application to a production server with PostgreSQL.
+This guide covers deploying the BVisionRY Lighthouse application to a production server with PostgreSQL.
 
 ## Prerequisites
 
@@ -345,4 +345,4 @@ Configure log rotation for application logs and Nginx logs.
 3. **Disaster Recovery**: Document recovery procedures
 4. **Testing**: Regularly test backup restoration
 
-This deployment guide should provide a solid foundation for deploying your Train at Trails application to production with PostgreSQL.
+This deployment guide should provide a solid foundation for deploying your BVisionRY Lighthouse application to production with PostgreSQL.

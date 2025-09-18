@@ -2826,7 +2826,27 @@ const AdminDashboard: React.FC = () => {
                           <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="datetime-local"
-                              value={miniQuestion.releaseDate || ''}
+                              value={(() => {
+                                if (!miniQuestion.releaseDate) return '';
+                                
+                                // If it's already in datetime-local format (YYYY-MM-DDTHH:MM), use as-is
+                                if (typeof miniQuestion.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(miniQuestion.releaseDate)) {
+                                  return miniQuestion.releaseDate;
+                                }
+                                
+                                // Convert from ISO string or Date to datetime-local format
+                                const date = new Date(miniQuestion.releaseDate);
+                                if (isNaN(date.getTime())) return '';
+                                
+                                // Format for datetime-local input (local time)
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              })()}
                               onChange={(e) => {
                                 const updatedContents = [...topicForm.contents];
                                 updatedContents[0].miniQuestions[index] = {
@@ -3414,7 +3434,27 @@ const AdminDashboard: React.FC = () => {
                           <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="datetime-local"
-                              value={contentItem.releaseDate || ''}
+                              value={(() => {
+                                if (!contentItem.releaseDate) return '';
+                                
+                                // If it's already in datetime-local format (YYYY-MM-DDTHH:MM), use as-is
+                                if (typeof contentItem.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(contentItem.releaseDate)) {
+                                  return contentItem.releaseDate;
+                                }
+                                
+                                // Convert from ISO string or Date to datetime-local format
+                                const date = new Date(contentItem.releaseDate);
+                                if (isNaN(date.getTime())) return '';
+                                
+                                // Format for datetime-local input (local time)
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              })()}
                               onChange={(e) => {
                                 const newContents = [...(selectedTopic.contents || [])];
                                 newContents[index] = { ...newContents[index], releaseDate: e.target.value };
@@ -3525,7 +3565,17 @@ const AdminDashboard: React.FC = () => {
                           material: item.content,
                           question: item.description,
                           resourceUrl: item.resourceUrl,
-                          releaseDate: item.releaseDate
+                          releaseDate: item.releaseDate ? (() => {
+                            // Handle datetime-local format (YYYY-MM-DDTHH:MM)
+                            if (typeof item.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.releaseDate)) {
+                              // Create a Date object from the datetime-local string
+                              // This treats it as local time and will send the ISO string to backend
+                              const localDate = new Date(item.releaseDate);
+                              return localDate.toISOString();
+                            }
+                            // If it's already an ISO string or other format, pass it through
+                            return item.releaseDate;
+                          })() : undefined
                         }))
                       : [];
 

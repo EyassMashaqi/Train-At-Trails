@@ -450,7 +450,10 @@ export const adminService = {
     title?: string;
     question?: string;
     description?: string;
+    resourceUrl?: string;
+    releaseDate?: string;
     isActive?: boolean;
+    isReleased?: boolean;
   }) => api.put(`/admin/mini-questions/${miniQuestionId}`, miniQuestionData),
   
   deleteMiniQuestion: (miniQuestionId: string) => api.delete(`/admin/mini-questions/${miniQuestionId}`),

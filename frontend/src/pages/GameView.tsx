@@ -665,7 +665,7 @@ const GameView: React.FC = () => {
 
   // Poll for resubmission approvals every 30 seconds
   useEffect(() => {
-    let pollInterval: number;
+    let pollInterval: NodeJS.Timeout | undefined;
 
     const pollForResubmissionApprovals = async () => {
       try {

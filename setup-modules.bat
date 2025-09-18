@@ -1,5 +1,5 @@
 @echo off
-echo 🚂 Train at Trails - Module System Setup
+echo 🚂 BVisionRY Lighthouse - Module System Setup
 echo ========================================
 
 cd backend

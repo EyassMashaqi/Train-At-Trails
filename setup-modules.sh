@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚂 Train at Trails - Module System Setup"
+echo "🚂 BVisionRY Lighthouse - Module System Setup"
 echo "========================================"
 
 # Navigate to backend directory

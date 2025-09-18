@@ -924,12 +924,93 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
                     actualReleaseDate: new Date()
                   }
                 });
+                
+                // Send email notifications for immediately released mini-questions
+                try {
+                  const cohortId = questionWithContents.cohortId;
+                  if (cohortId) {
+                    // Get all enrolled users in the cohort
+                    const cohortUsers = await prisma.cohortMember.findMany({
+                      where: {
+                        cohortId: cohortId,
+                        status: 'ENROLLED'
+                      },
+                      include: {
+                        user: {
+                          select: {
+                            email: true,
+                            fullName: true
+                          }
+                        }
+                      }
+                    });
+
+                    // Send emails to all enrolled users
+                    for (const member of cohortUsers) {
+                      try {
+                        await emailService.sendMiniQuestionReleaseEmail(
+                          member.user.email,
+                          member.user.fullName,
+                          miniQuestion.title,
+                          content.title,
+                          questionWithContents.title
+                        );
+                      } catch (emailError) {
+                        console.error(`❌ Failed to send mini-question release email to ${member.user.email}:`, emailError);
+                      }
+                    }
+                    
+                    console.log(`📧 Sent learning activity notifications to ${cohortUsers.length} users for "${miniQuestion.title}"`);
+                  }
+                } catch (emailError) {
+                  console.error('❌ Failed to send learning activity release emails:', emailError);
+                }
               }
               // Note: Future releases will be handled by the scheduler
             }
           }
         }
       }
+    }
+
+    // Send email notifications to all cohort users for the main question release
+    try {
+      const cohortId = questionWithContents.cohortId;
+      if (cohortId) {
+        // Get all enrolled users in the cohort
+        const cohortUsers = await prisma.cohortMember.findMany({
+          where: {
+            cohortId: cohortId,
+            status: 'ENROLLED'
+          },
+          include: {
+            user: {
+              select: {
+                email: true,
+                fullName: true
+              }
+            }
+          }
+        });
+
+        // Send emails to all enrolled users
+        for (const member of cohortUsers) {
+          try {
+            await emailService.sendNewQuestionEmail(
+              member.user.email,
+              member.user.fullName,
+              questionWithContents.title,
+              questionWithContents.questionNumber
+            );
+          } catch (emailError) {
+            console.error(`❌ Failed to send new question email to ${member.user.email}:`, emailError);
+          }
+        }
+        
+        console.log(`📧 Sent new question notifications to ${cohortUsers.length} users for Question ${questionWithContents.questionNumber}`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send new question emails:', emailError);
     }
 
     res.json({ question });
@@ -1016,8 +1097,32 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
       if (deadline !== undefined) updateData.deadline = new Date(deadline);
       if (points !== undefined) updateData.points = parseInt(points);
       if (bonusPoints !== undefined) updateData.bonusPoints = parseInt(bonusPoints);
-      if (moduleNumber !== undefined) updateData.moduleNumber = parseInt(moduleNumber);
       if (topicNumber !== undefined) updateData.topicNumber = parseInt(topicNumber);
+      
+      // Handle module assignment - convert moduleNumber to moduleId
+      if (moduleNumber !== undefined) {
+        if (moduleNumber === null || moduleNumber === '') {
+          // Remove module assignment
+          updateData.moduleId = null;
+        } else {
+          // Find the module by moduleNumber in the same cohort
+          const module = await (prisma as any).module.findFirst({
+            where: { 
+              moduleNumber: parseInt(moduleNumber),
+              cohortId: question.cohortId
+            }
+          });
+          
+          if (!module) {
+            return res.status(400).json({ 
+              error: `Module ${moduleNumber} not found in this cohort` 
+            });
+          }
+          
+          updateData.moduleId = module.id;
+        }
+      }
+      
       if (typeof isReleased === 'boolean') {
         updateData.isReleased = isReleased;
         if (isReleased && !question.isReleased) {
@@ -1196,6 +1301,99 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
       return updated;
     });
 
+    // Send email notifications if question was just released
+    if (isReleased && !question.isReleased) {
+      console.log(`📧 Question "${title || question.title}" was just released - sending email notifications...`);
+      
+      try {
+        const cohortId = question.cohortId;
+        if (cohortId) {
+          // Get all enrolled users in the cohort
+          const cohortUsers = await prisma.cohortMember.findMany({
+            where: {
+              cohortId: cohortId,
+              status: 'ENROLLED'
+            },
+            include: {
+              user: {
+                select: {
+                  email: true,
+                  fullName: true
+                }
+              }
+            }
+          });
+
+          // Send emails to all enrolled users
+          for (const member of cohortUsers) {
+            try {
+              await emailService.sendNewQuestionEmail(
+                member.user.email,
+                member.user.fullName,
+                title || question.title,
+                questionNumber || question.questionNumber
+              );
+            } catch (emailError) {
+              console.error(`❌ Failed to send question release email to ${member.user.email}:`, emailError);
+            }
+          }
+          
+          console.log(`📧 Sent question release notifications to ${cohortUsers.length} users for Question ${questionNumber || question.questionNumber}`);
+          
+          // Also send mini-question release emails for immediately available mini-questions
+          const completeQuestionWithContents = await prisma.question.findUnique({
+            where: { id: questionId },
+            include: {
+              contents: {
+                include: {
+                  miniQuestions: true
+                }
+              }
+            }
+          });
+          
+          if (completeQuestionWithContents?.contents) {
+            const now = new Date();
+            for (const content of completeQuestionWithContents.contents) {
+              if (content.miniQuestions) {
+                for (const miniQuestion of content.miniQuestions) {
+                  if (miniQuestion.releaseDate && miniQuestion.releaseDate <= now && !miniQuestion.isReleased) {
+                    // Release immediately available mini-questions
+                    await (prisma as any).miniQuestion.update({
+                      where: { id: miniQuestion.id },
+                      data: { 
+                        isReleased: true,
+                        actualReleaseDate: new Date()
+                      }
+                    });
+                    
+                    // Send mini-question release emails
+                    for (const member of cohortUsers) {
+                      try {
+                        await emailService.sendMiniQuestionReleaseEmail(
+                          member.user.email,
+                          member.user.fullName,
+                          miniQuestion.title,
+                          content.title,
+                          title || question.title
+                        );
+                      } catch (emailError) {
+                        console.error(`❌ Failed to send mini-question release email to ${member.user.email}:`, emailError);
+                      }
+                    }
+                    
+                    console.log(`📧 Sent mini-question release notifications for "${miniQuestion.title}"`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ Failed to send question release emails:', emailError);
+      }
+    }
+
     // Fetch the complete updated question with content sections
     const completeQuestion = await prisma.question.findUnique({
       where: { id: questionId },
@@ -1308,7 +1506,16 @@ router.get('/modules', async (req: AuthRequest, res) => {
             content: miniQ.title,
             description: miniQ.question,
             resourceUrl: miniQ.resourceUrl,
-            releaseDate: miniQ.releaseDate ? miniQ.releaseDate.toISOString().slice(0, 16) : null
+            releaseDate: miniQ.releaseDate ? (() => {
+              // Convert UTC date to local datetime-local format
+              const date = new Date(miniQ.releaseDate);
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              const hours = String(date.getHours()).padStart(2, '0');
+              const minutes = String(date.getMinutes()).padStart(2, '0');
+              return `${year}-${month}-${day}T${hours}:${minutes}`;
+            })() : undefined
           }));
           return acc.concat(contentItems);
         }, []) || []
@@ -2599,19 +2806,87 @@ router.post('/contents/:contentId/mini-questions', async (req: AuthRequest, res)
 router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
   try {
     const miniQuestionId = req.params.miniQuestionId;
-    const { title, question, description, resourceUrl, isActive } = req.body;
+    const { title, question, description, resourceUrl, releaseDate, isActive, isReleased } = req.body;
+
+    // Get the existing mini-question first to check if it's being released
+    const existingMiniQuestion = await (prisma as any).miniQuestion.findUnique({
+      where: { id: miniQuestionId },
+      include: {
+        content: {
+          include: {
+            question: true
+          }
+        }
+      }
+    });
+
+    if (!existingMiniQuestion) {
+      return res.status(404).json({ error: 'Mini-question not found' });
+    }
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (question !== undefined) updateData.question = question;
     if (description !== undefined) updateData.description = description;
     if (resourceUrl !== undefined) updateData.resourceUrl = resourceUrl;
+    if (releaseDate !== undefined) updateData.releaseDate = releaseDate ? new Date(releaseDate) : null;
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
+    if (typeof isReleased === 'boolean') {
+      updateData.isReleased = isReleased;
+      if (isReleased && !existingMiniQuestion.isReleased) {
+        updateData.actualReleaseDate = new Date();
+      }
+    }
 
     const updatedMiniQuestion = await (prisma as any).miniQuestion.update({
       where: { id: miniQuestionId },
       data: updateData
     });
+
+    // Send email notifications if mini-question was just released
+    if (isReleased && !existingMiniQuestion.isReleased) {
+      console.log(`📧 Mini-question "${updatedMiniQuestion.title}" was just released - sending email notifications...`);
+      
+      try {
+        const cohortId = existingMiniQuestion.content.question.cohortId;
+        if (cohortId) {
+          // Get all enrolled users in the cohort
+          const cohortUsers = await prisma.cohortMember.findMany({
+            where: {
+              cohortId: cohortId,
+              status: 'ENROLLED'
+            },
+            include: {
+              user: {
+                select: {
+                  email: true,
+                  fullName: true
+                }
+              }
+            }
+          });
+
+          // Send emails to all enrolled users
+          for (const member of cohortUsers) {
+            try {
+              await emailService.sendMiniQuestionReleaseEmail(
+                member.user.email,
+                member.user.fullName,
+                updatedMiniQuestion.title,
+                existingMiniQuestion.content.title,
+                existingMiniQuestion.content.question.title
+              );
+            } catch (emailError) {
+              console.error(`❌ Failed to send mini-question release email to ${member.user.email}:`, emailError);
+            }
+          }
+          
+          console.log(`📧 Sent mini-question release notifications to ${cohortUsers.length} users for "${updatedMiniQuestion.title}"`);
+        }
+      } catch (emailError) {
+        console.error('❌ Failed to send mini-question release emails:', emailError);
+      }
+    }
 
     res.json({ miniQuestion: updatedMiniQuestion });
   } catch (error) {
