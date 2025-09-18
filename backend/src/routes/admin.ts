@@ -2808,6 +2808,12 @@ router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
     const miniQuestionId = req.params.miniQuestionId;
     const { title, question, description, resourceUrl, releaseDate, isActive, isReleased } = req.body;
 
+    console.log(`🔍 Mini-question update request:`, {
+      miniQuestionId,
+      isReleased,
+      typeOfIsReleased: typeof isReleased
+    });
+
     // Get the existing mini-question first to check if it's being released
     const existingMiniQuestion = await (prisma as any).miniQuestion.findUnique({
       where: { id: miniQuestionId },
