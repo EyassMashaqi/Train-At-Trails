@@ -319,8 +319,8 @@ const EmailSetupCohort: React.FC = () => {
       PASSWORD_RESET: 'Password Reset',
       ANSWER_SUBMISSION: 'Answer Submission',
       ANSWER_FEEDBACK: 'Answer Feedback',
-      NEW_QUESTION: 'New Question Release',
-      MINI_QUESTION_RELEASE: 'Mini Question Release',
+      NEW_QUESTION: 'New Assignment Release',
+      MINI_QUESTION_RELEASE: 'Self-Learning Release',
       MINI_ANSWER_RESUBMISSION: 'Resubmission Request',
       RESUBMISSION_APPROVAL: 'Resubmission Approval'
     };

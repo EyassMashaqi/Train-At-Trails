@@ -98,7 +98,7 @@ const defaultEmailTemplates = [
   },
   {
     emailType: 'MINI_QUESTION_RELEASE',
-    name: 'Mini Question Release Email',
+    name: 'Self-Learning Release Email',
     description: 'Sent when self-learning activities are released',
     subject: 'New Self-Learning Activity Available 📚',
     htmlContent: `<div style="background-color: {{backgroundColor}}; padding: 20px; font-family: Arial, sans-serif;">

@@ -80,7 +80,7 @@ SMTP_SECURE=false
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-gmail-app-password
 SMTP_FROM_EMAIL=your-email@gmail.com
-SMTP_FROM_NAME="Train at Trails"
+SMTP_FROM_NAME="BVisionRY Lighthouse"
 
 # Password Reset Configuration
 RESET_TOKEN_EXPIRY_MINUTES=60

@@ -519,7 +519,7 @@ const AdminDashboard: React.FC = () => {
             if (!firstConflictMessage) {
               const formattedReleaseDate = releaseDate.toLocaleDateString();
               const formattedDeadline = assignmentDeadline.toLocaleDateString();
-              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`;
+              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the self-learning release dates.`;
             }
           }
         }
@@ -1532,8 +1532,8 @@ const AdminDashboard: React.FC = () => {
       PASSWORD_RESET: 'Password Reset',
       ANSWER_SUBMISSION: 'Answer Submission',
       ANSWER_FEEDBACK: 'Answer Feedback',
-      NEW_QUESTION: 'New Question Release',
-      MINI_QUESTION_RELEASE: 'Mini Question Release',
+      NEW_QUESTION: 'New Assignment Release',
+      MINI_QUESTION_RELEASE: 'Self-Learning Release',
       MINI_ANSWER_RESUBMISSION: 'Resubmission Request',
       RESUBMISSION_APPROVAL: 'Resubmission Approval'
     };
