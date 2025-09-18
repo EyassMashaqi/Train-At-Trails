@@ -82,7 +82,7 @@ const defaultEmailTemplates = [
     emailType: 'NEW_QUESTION',
     name: 'New Question Email',
     description: 'Sent when new questions are released',
-    subject: 'New Question Available - Question {{questionNumber}} 🆕',
+    subject: 'New Question Available 🆕',
     htmlContent: `<div style="background-color: {{backgroundColor}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primaryColor}}; text-align: center;">New Question Available! 🆕</h1>

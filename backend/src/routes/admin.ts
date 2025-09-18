@@ -2844,6 +2844,7 @@ router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
     });
 
     // Send email notifications if mini-question was just released
+    console.log(`🔍 Email check: isReleased=${isReleased}, existingMiniQuestion.isReleased=${existingMiniQuestion.isReleased}`);
     if (isReleased && !existingMiniQuestion.isReleased) {
       console.log(`📧 Mini-question "${updatedMiniQuestion.title}" was just released - sending email notifications...`);
       

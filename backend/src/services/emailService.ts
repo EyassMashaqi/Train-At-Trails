@@ -432,7 +432,7 @@ class EmailService {
         };
       case 'NEW_QUESTION':
         return {
-          subject: `New Question Available - Question ${variables.questionNumber || ''} 🆕`,
+          subject: `New Question Available 🆕`,
           html: `<div>Hello ${variables.userName || 'there'}, new question available: ${variables.questionTitle || ''}</div>`,
         };
       case 'MINI_QUESTION_RELEASE':

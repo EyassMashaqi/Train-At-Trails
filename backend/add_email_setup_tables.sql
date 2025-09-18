@@ -129,7 +129,7 @@ INSERT INTO "global_email_templates" ("id", "email_type", "name", "description",
 </div>',
 'Hello {{userName}}, Your answer for {{questionTitle}} has been graded: {{grade}}. Feedback: {{feedback}}'),
 
-('tpl_new_question_001', 'NEW_QUESTION', 'New Question Email', 'Sent when new questions are released', 'New Question Available - Question {{questionNumber}} 🆕',
+('tpl_new_question_001', 'NEW_QUESTION', 'New Question Email', 'Sent when new questions are released', 'New Question Available 🆕',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">New Question Available! 🆕</h1>
