@@ -615,13 +615,29 @@ router.put('/answer/:answerId/resubmission-request', async (req: AuthRequest, re
       return res.status(400).json({ error: 'Resubmission request has already been reviewed' });
     }
 
+    // Prepare update data
+    const updateData: any = {
+      resubmissionApproved: approve,
+      reviewedAt: new Date(),
+      reviewedBy: adminId
+    };
+
+    // If resubmission is approved, set it up for resubmission with a specific status
+    if (approve) {
+      // Use a dedicated status for approved resubmissions to differentiate from regular PENDING
+      updateData.status = 'AWAITING_RESUBMISSION'; // New status specifically for approved resubmissions
+      updateData.grade = 'NEEDS_RESUBMISSION'; // Allow resubmission
+      updateData.gradePoints = 0; // Reset points for new submission
+      updateData.feedback = updateData.feedback || 'Resubmission approved - please submit your updated answer';
+      updateData.pointsAwarded = 0; // Reset points
+      updateData.resubmissionRequested = true; // Mark as requested
+      updateData.resubmissionApproved = true; // Mark as approved
+      updateData.resubmissionRequestedAt = new Date(); // Track timing
+    }
+
     const updatedAnswer = await prisma.answer.update({
       where: { id: answerId },
-      data: {
-        resubmissionApproved: approve,
-        reviewedAt: new Date(),
-        reviewedBy: adminId
-      } as any // Type assertion for fields that exist in schema but may not be in generated types
+      data: updateData
     });
 
     // Send email notification to user when resubmission is approved

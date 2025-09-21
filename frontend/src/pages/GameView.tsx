@@ -482,10 +482,11 @@ const GameView: React.FC = () => {
             // 1. No answer exists, OR
             // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
             // 3. Status is REJECTED (legacy system), OR 
-            // 4. Resubmission was requested and approved
+            // 4. Resubmission was requested and approved (AWAITING_RESUBMISSION status)
             const canSubmitAnswer = !userAnswer || 
               userAnswer.grade === 'NEEDS_RESUBMISSION' || 
               userAnswer.status === 'REJECTED' ||
+              userAnswer.status === 'AWAITING_RESUBMISSION' ||
               (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
             
             console.log(`Topic ${topicNumber} (${topic.title}):`, {
@@ -600,10 +601,11 @@ const GameView: React.FC = () => {
               // 1. No answer exists, OR
               // 2. Mastery Points is NEEDS_RESUBMISSION (new mastery points system), OR
               // 3. Status is REJECTED (legacy system), OR 
-              // 4. Resubmission was requested and approved
+              // 4. Resubmission was requested and approved (AWAITING_RESUBMISSION status)
               const canSubmitAnswer = !userAnswer || 
                 userAnswer.grade === 'NEEDS_RESUBMISSION' || 
                 userAnswer.status === 'REJECTED' ||
+                userAnswer.status === 'AWAITING_RESUBMISSION' ||
                 (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
               
               console.log(`Topic ${topicNumber} (${topic.title}):`, {
@@ -1715,6 +1717,7 @@ const GameView: React.FC = () => {
     const isResubmissionAvailable = userAnswer && (
       userAnswer.grade === 'NEEDS_RESUBMISSION' || 
       userAnswer.status === 'REJECTED' ||
+      userAnswer.status === 'AWAITING_RESUBMISSION' ||
       (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved)
     );
 
@@ -1960,12 +1963,18 @@ const GameView: React.FC = () => {
                             progressUserAnswer.grade === 'GOLD' ? 'bg-yellow-100 text-yellow-800' :
                             progressUserAnswer.grade === 'SILVER' ? 'bg-gray-100 text-gray-800' :
                             progressUserAnswer.grade === 'COPPER' ? 'bg-orange-100 text-orange-800' :
+                            progressUserAnswer.status === 'AWAITING_RESUBMISSION' ? 'bg-blue-100 text-blue-800' :
+                            progressUserAnswer.grade === 'NEEDS_RESUBMISSION' && progressUserAnswer.resubmissionApproved ? 'bg-blue-100 text-blue-800' :
                             progressUserAnswer.grade === 'NEEDS_RESUBMISSION' ? 'bg-red-100 text-red-800' :
                             progressUserAnswer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                             progressUserAnswer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
                             'bg-yellow-100 text-yellow-800'
                           }`}>
-                            {progressUserAnswer.grade || progressUserAnswer.status}
+                            {progressUserAnswer.status === 'AWAITING_RESUBMISSION'
+                              ? 'RESUBMISSION APPROVED'
+                              : progressUserAnswer.resubmissionRequested && progressUserAnswer.resubmissionApproved 
+                                ? 'RESUBMISSION APPROVED' 
+                                : progressUserAnswer.grade || progressUserAnswer.status}
                           </span>
                         </div>
                         {progressUserAnswer.feedback && (
@@ -2498,7 +2507,24 @@ const GameView: React.FC = () => {
                                 answer.question.questionNumber === topic.questionNumber ||
                                 answer.question.topicNumber === topic.topicNumber
                               );
-                              if (userAnswer?.status === 'APPROVED') {
+                              
+                              // Check if this question has approved resubmission
+                              const hasApprovedResubmission = userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved;
+                              
+                              console.log(`🔍 RESUBMISSION DEBUG - ${topic.title}:`, {
+                                hasAnswered,
+                                userAnswerStatus: userAnswer?.status,
+                                resubmissionRequested: userAnswer?.resubmissionRequested,
+                                resubmissionApproved: userAnswer?.resubmissionApproved,
+                                hasApprovedResubmission,
+                                currentTopicStatus: topicStatus
+                              });
+                              
+                              if (hasApprovedResubmission) {
+                                // If resubmission is approved, show as available for re-answering
+                                topicStatus = 'available';
+                                console.log(`✅ Setting ${topic.title} to AVAILABLE due to approved resubmission`);
+                              } else if (userAnswer?.status === 'APPROVED') {
                                 topicStatus = 'completed';
                               } else {
                                 topicStatus = 'submitted';
@@ -2805,15 +2831,25 @@ const GameView: React.FC = () => {
               key={answer.id}
               className={`rounded-xl p-6 shadow-lg border transition-all duration-200 hover:shadow-xl ${answer.status === 'APPROVED'
                   ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
-                  : answer.status === 'REJECTED'
-                    ? 'bg-gradient-to-r from-red-50 to-pink-50 border-red-200'
+                  : answer.status === 'AWAITING_RESUBMISSION'
+                    ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'  // Blue for approved resubmission
+                  : (answer.status === 'REJECTED' || answer.grade === 'NEEDS_RESUBMISSION')
+                    ? (answer.resubmissionRequested && answer.resubmissionApproved)
+                      ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'  // Approved resubmission - blue
+                      : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-200'   // Rejected - red
                     : 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200'
                 }`}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
                   <span className="text-2xl mr-3">
-                    {answer.status === 'APPROVED' ? '✅' : answer.status === 'REJECTED' ? '❌' : '⏳'}
+                    {answer.status === 'APPROVED' 
+                      ? '✅' 
+                      : answer.status === 'AWAITING_RESUBMISSION'
+                        ? '🔄'
+                      : answer.status === 'REJECTED' || answer.grade === 'NEEDS_RESUBMISSION'
+                        ? '🔄' 
+                        : '⏳'}
                   </span>
                   <div>
                     <h4 className="font-semibold text-gray-800">
@@ -2821,7 +2857,15 @@ const GameView: React.FC = () => {
                     </h4>
                     <div className="flex items-center space-x-2">
                       <p className="text-sm text-gray-600 capitalize">
-                        Status: {answer.status}
+                        Status: {
+                          answer.status === 'AWAITING_RESUBMISSION'
+                            ? 'RESUBMISSION APPROVED'
+                            : answer.resubmissionRequested && answer.resubmissionApproved 
+                              ? 'RESUBMISSION APPROVED'
+                              : answer.status === 'REJECTED' || answer.grade === 'NEEDS_RESUBMISSION'
+                                ? 'NEEDS RESUBMISSION'
+                                : answer.status
+                        }
                       </p>
                       {/* Show grade medal */}
                       {answer.grade && (
@@ -2839,7 +2883,10 @@ const GameView: React.FC = () => {
                     {new Date(answer.submittedAt).toLocaleDateString()}
                   </div>
                   {/* Resubmission request button - allow for approved or graded answers */}
-                  {(answer.status === 'APPROVED' || answer.grade) && answer.status !== 'PENDING' && !answer.resubmissionRequested && (
+                  {(answer.status === 'APPROVED' || answer.grade) && 
+                   answer.status !== 'PENDING' && 
+                   !answer.resubmissionRequested && 
+                   !answer.resubmissionRequestedAt && (
                     <button
                       onClick={() => handleResubmissionRequest(answer.id)}
                       className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 border border-blue-200"
