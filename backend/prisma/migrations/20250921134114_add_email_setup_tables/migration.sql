@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS "cohort_email_configs_email_type_idx" ON "cohort_emai
 -- Insert default email templates only if table is empty
 INSERT INTO "global_email_templates" ("id", "email_type", "name", "description", "subject", "html_content", "text_content", "updated_at")
 SELECT * FROM (VALUES
-('tpl_welcome_001', 'WELCOME', 'Welcome Email', 'Sent to new users when they register', 'Welcome to BVisionRY Lighthouse! 🚂', 
+('tpl_welcome_001', 'WELCOME'::"EmailType", 'Welcome Email', 'Sent to new users when they register', 'Welcome to BVisionRY Lighthouse! 🚂', 
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Welcome {{userName}}! 🚂</h1>
@@ -99,7 +99,7 @@ SELECT * FROM (VALUES
 </div>',
 'Welcome {{userName}}! Welcome to BVisionRY Lighthouse training program!', CURRENT_TIMESTAMP),
 
-('tpl_password_reset_001', 'PASSWORD_RESET', 'Password Reset Email', 'Sent when users request password reset', 'Reset Your Password - BVisionRY Lighthouse',
+('tpl_password_reset_001', 'PASSWORD_RESET':"EmailType", 'Password Reset Email', 'Sent when users request password reset', 'Reset Your Password - BVisionRY Lighthouse',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Password Reset Request</h1>
@@ -113,7 +113,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, Reset your password: {{resetUrl}}', CURRENT_TIMESTAMP),
 
-('tpl_answer_submission_001', 'ANSWER_SUBMISSION', 'Answer Submission Email', 'Sent when users submit answers', 'Answer Submitted - Question {{questionNumber}} 📝',
+('tpl_answer_submission_001', 'ANSWER_SUBMISSION':"EmailType", 'Answer Submission Email', 'Sent when users submit answers', 'Answer Submitted - Question {{questionNumber}} 📝',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Answer Submitted! 📝</h1>
@@ -127,7 +127,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, Your answer for {{questionTitle}} has been submitted.', CURRENT_TIMESTAMP),
 
-('tpl_answer_feedback_001', 'ANSWER_FEEDBACK', 'Answer Feedback Email', 'Sent when answers are graded', 'Feedback for Question {{questionNumber}} - {{grade}}',
+('tpl_answer_feedback_001', 'ANSWER_FEEDBACK':"EmailType", 'Answer Feedback Email', 'Sent when answers are graded', 'Feedback for Question {{questionNumber}} - {{grade}}',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Answer Feedback</h1>
@@ -145,7 +145,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, Your answer for {{questionTitle}} has been graded: {{grade}}. Feedback: {{feedback}}', CURRENT_TIMESTAMP),
 
-('tpl_new_question_001', 'NEW_QUESTION', 'New Question Email', 'Sent when new questions are released', 'New Question Available 🆕',
+('tpl_new_question_001', 'NEW_QUESTION':"EmailType", 'New Question Email', 'Sent when new questions are released', 'New Question Available 🆕',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">New Question Available! 🆕</h1>
@@ -159,7 +159,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, New question available: {{questionTitle}}', CURRENT_TIMESTAMP),
 
-('tpl_mini_question_release_001', 'MINI_QUESTION_RELEASE', 'Mini Question Release Email', 'Sent when self-learning activities are released', 'New Self-Learning Activity Available 📚',
+('tpl_mini_question_release_001', 'MINI_QUESTION_RELEASE':"EmailType", 'Mini Question Release Email', 'Sent when self-learning activities are released', 'New Self-Learning Activity Available 📚',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">New Self-Learning Activity! 📚</h1>
@@ -177,7 +177,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, New activity: {{miniQuestionTitle}} in {{contentTitle}} for {{questionTitle}}', CURRENT_TIMESTAMP),
 
-('tpl_mini_answer_resubmission_001', 'MINI_ANSWER_RESUBMISSION', 'Mini Answer Resubmission Email', 'Sent when resubmission is requested', 'Resubmission Requested - {{miniQuestionTitle}} 🔄',
+('tpl_mini_answer_resubmission_001', 'MINI_ANSWER_RESUBMISSION':"EmailType", 'Mini Answer Resubmission Email', 'Sent when resubmission is requested', 'Resubmission Requested - {{miniQuestionTitle}} 🔄',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Resubmission Requested 🔄</h1>
@@ -192,7 +192,7 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, Please resubmit: {{miniQuestionTitle}}', CURRENT_TIMESTAMP),
 
-('tpl_resubmission_approval_001', 'RESUBMISSION_APPROVAL', 'Resubmission Approval Email', 'Sent when resubmissions are approved', 'Resubmission Approved - {{questionTitle}} ✅',
+('tpl_resubmission_approval_001', 'RESUBMISSION_APPROVAL':"EmailType", 'Resubmission Approval Email', 'Sent when resubmissions are approved', 'Resubmission Approved - {{questionTitle}} ✅',
 '<div style="background-color: {{background_color}}; padding: 20px; font-family: Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px;">
     <h1 style="color: {{primary_color}}; text-align: center;">Resubmission Approved! ✅</h1>
@@ -206,4 +206,4 @@ SELECT * FROM (VALUES
 </div>',
 'Hello {{userName}}, Resubmission approved for: {{questionTitle}}', CURRENT_TIMESTAMP)
 ) AS new_templates(id, email_type, name, description, subject, html_content, text_content, updated_at)
-WHERE NOT EXISTS (SELECT 1 FROM "global_email_templates" WHERE "email_type" = new_templates.email_type);
+WHERE NOT EXISTS (SELECT 1 FROM "global_email_templates" WHERE "email_type" = new_templates.email_type::"EmailType");
