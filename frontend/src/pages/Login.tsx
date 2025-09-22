@@ -29,7 +29,7 @@ const Login: React.FC = () => {
     setErrors(prev => ({ ...prev, general: '' })); // Clear previous errors
     
     try {
-      const success = await login('admin@traintrails.com', 'admin123');
+      const success = await login('admin@trainattrails.com', 'admin123');
       if (success) {
         setErrors({ email: '', password: '', general: '' }); // Clear all errors
         navigate('/cohorts');
@@ -255,7 +255,7 @@ const Login: React.FC = () => {
           <div className="mt-6 border-t border-gray-200 pt-6">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
             <div className="space-y-2 text-xs text-gray-600">
-              <p><strong>Admin:</strong> admin@traintrails.com / admin123</p>
+              <p><strong>Admin:</strong> admin@trainattrails.com / admin123</p>
               <p><strong>User:</strong> alice@traintrails.com / password123</p>
               <p><strong>User:</strong> bob@traintrails.com / password123</p>
               <p><strong>User:</strong> test@traintrails.com / test123</p>
