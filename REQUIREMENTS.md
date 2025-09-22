@@ -1,4 +1,4 @@
-# Train at Trails - Requirements & Setup Guide
+# BVisionRY Lighthouse - Requirements & Setup Guide
 
 ## System Requirements
 

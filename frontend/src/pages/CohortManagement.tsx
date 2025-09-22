@@ -46,7 +46,7 @@ interface CopyCohortData {
 
 const CohortManagement: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -668,6 +668,20 @@ const CohortManagement: React.FC = () => {
               <span className="text-xl">👥</span>
               <span>Manage Participants</span>
             </button>
+            <button
+              onClick={() => navigate('/admin/email-setup/global')}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">📧</span>
+              <span>Email Setup</span>
+            </button>
+            <button
+              onClick={logout}
+              className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg flex items-center space-x-2"
+            >
+              <span className="text-xl">🚪</span>
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
@@ -816,6 +830,16 @@ const CohortManagement: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          navigate(`/admin/email-setup/cohort/${cohort.id}`);
+                        }}
+                        className="p-2 rounded-full text-purple-600 hover:bg-purple-100 transition-colors"
+                        title="Email Setup"
+                      >
+                        📧
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleEditCohort(cohort);
                         }}
                         className="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition-colors"
@@ -828,7 +852,7 @@ const CohortManagement: React.FC = () => {
                           e.stopPropagation();
                           handleCopyCohort(cohort);
                         }}
-                        className="p-2 rounded-full text-purple-600 hover:bg-purple-100 transition-colors"
+                        className="p-2 rounded-full text-orange-600 hover:bg-orange-100 transition-colors"
                         title="Copy Cohort"
                       >
                         📋

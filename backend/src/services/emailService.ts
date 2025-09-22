@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -9,18 +10,60 @@ interface EmailTemplate {
   text?: string;
 }
 
+interface EmailConfig {
+  id: string;
+  emailType: string;
+  name: string;
+  subject: string;
+  htmlContent: string;
+  textContent?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  backgroundColor: string;
+  textColor: string;
+  buttonColor: string;
+  isActive: boolean;
+}
+
 class EmailService {
+  private transporter: nodemailer.Transporter;
   private fromEmail: string;
   private fromName: string;
 
   constructor() {
-    this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'noreply@bvisionrytrainings.com';
+    // Get email configuration from environment variables
+    const emailConfig = {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '', // Gmail App Password
+      },
+    };
+
+    this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || '';
     this.fromName = process.env.SMTP_FROM_NAME || 'BVisionRY Lighthouse';
 
-    console.log('📧 Email Service initialized (Mock Mode)');
+    // Create transporter
+    this.transporter = nodemailer.createTransport(emailConfig);
+
+    // Verify connection configuration
+    this.verifyConnection();
   }
 
-  // Send a generic email (mock implementation)
+  private async verifyConnection(): Promise<void> {
+    try {
+      await this.transporter.verify();
+      console.log('✅ Email service is ready to send emails');
+    } catch (error) {
+      console.error('❌ Email service configuration error:', error);
+      console.log('💡 Make sure SMTP environment variables are configured:');
+      console.log('   - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS');
+    }
+  }
+
+  // Send a generic email
   async sendEmail(
     to: string | string[],
     subject: string,
@@ -28,24 +71,75 @@ class EmailService {
     text?: string
   ): Promise<boolean> {
     try {
-      console.log('📧 [MOCK] Email would be sent:');
-      console.log(`   To: ${Array.isArray(to) ? to.join(', ') : to}`);
-      console.log(`   Subject: ${subject}`);
-      console.log(`   From: "${this.fromName}" <${this.fromEmail}>`);
+      const mailOptions = {
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject,
+        html,
+        text: text || this.htmlToText(html),
+      };
+
+      console.log(`📧 Sending email to: ${Array.isArray(to) ? to.join(', ') : to}`);
+      console.log(`📧 Subject: ${subject}`);
       
-      // Simulate email delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully:', info.messageId);
       
       return true;
     } catch (error) {
-      console.error('❌ Mock email service error:', error);
+      console.error('❌ Error sending email:', error);
       return false;
     }
   }
 
+  // Convert HTML to plain text (basic implementation)
+  private htmlToText(html: string): string {
+    return html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+  }
+
+  // Helper method to get user's current cohort
+  private async getUserCohortId(userEmail: string): Promise<string | null> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: userEmail },
+        include: {
+          cohortMembers: {
+            where: {
+              status: 'ENROLLED',
+              cohort: {
+                isActive: true
+              }
+            },
+            include: {
+              cohort: true
+            },
+            orderBy: {
+              joinedAt: 'desc'
+            },
+            take: 1
+          }
+        }
+      });
+
+      if (user?.cohortMembers?.[0]) {
+        return user.cohortMembers[0].cohortId;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error getting user cohort:', error);
+      return null;
+    }
+  }
+
   // Send welcome email to new users
-  async sendWelcomeEmail(userEmail: string, userName: string): Promise<boolean> {
-    const template = this.getWelcomeTemplate(userName);
+  async sendWelcomeEmail(userEmail: string, userName: string, cohortId?: string): Promise<boolean> {
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard` }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -53,9 +147,13 @@ class EmailService {
   async sendPasswordResetEmail(
     userEmail: string,
     userName: string,
-    resetToken: string
+    resetToken: string,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getPasswordResetTemplate(userName, resetToken);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5177'}/reset-password?token=${resetToken}`;
+    const template = await this.getEmailTemplate('PASSWORD_RESET', { userName, resetUrl }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -64,9 +162,17 @@ class EmailService {
     userEmail: string,
     userName: string,
     questionTitle: string,
-    questionNumber: number
+    questionNumber: number,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getAnswerSubmissionTemplate(userName, questionTitle, questionNumber);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('ANSWER_SUBMISSION', { 
+      userName, 
+      questionTitle, 
+      questionNumber: questionNumber.toString(),
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -77,9 +183,19 @@ class EmailService {
     questionTitle: string,
     questionNumber: number,
     grade: string,
-    feedback: string
+    feedback: string,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getAnswerFeedbackTemplate(userName, questionTitle, questionNumber, grade, feedback);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('ANSWER_FEEDBACK', { 
+      userName, 
+      questionTitle, 
+      questionNumber: questionNumber.toString(), 
+      grade, 
+      feedback,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -88,9 +204,17 @@ class EmailService {
     userEmail: string,
     userName: string,
     questionTitle: string,
-    questionNumber: number
+    questionNumber: number,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getNewQuestionTemplate(userName, questionTitle, questionNumber);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('NEW_QUESTION', { 
+      userName, 
+      questionTitle, 
+      questionNumber: questionNumber.toString(),
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -100,9 +224,18 @@ class EmailService {
     userName: string,
     miniQuestionTitle: string,
     contentTitle: string,
-    questionTitle: string
+    questionTitle: string,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getMiniQuestionReleaseTemplate(userName, miniQuestionTitle, contentTitle, questionTitle);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('MINI_QUESTION_RELEASE', { 
+      userName, 
+      miniQuestionTitle, 
+      contentTitle, 
+      questionTitle,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -112,9 +245,18 @@ class EmailService {
     userName: string,
     miniQuestionTitle: string,
     contentTitle: string,
-    questionTitle: string
+    questionTitle: string,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getMiniAnswerResubmissionTemplate(userName, miniQuestionTitle, contentTitle, questionTitle);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('MINI_ANSWER_RESUBMISSION', { 
+      userName, 
+      miniQuestionTitle, 
+      contentTitle, 
+      questionTitle,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -122,9 +264,16 @@ class EmailService {
   async sendResubmissionApprovalEmail(
     userEmail: string,
     userName: string,
-    questionTitle: string
+    questionTitle: string,
+    cohortId?: string
   ): Promise<boolean> {
-    const template = this.getResubmissionApprovalTemplate(userName, questionTitle);
+    // Auto-determine cohort if not provided
+    const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const template = await this.getEmailTemplate('RESUBMISSION_APPROVAL', { 
+      userName, 
+      questionTitle,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -161,78 +310,152 @@ class EmailService {
     return { success, failed };
   }
 
-  // Email Templates
-  private getWelcomeTemplate(userName: string): EmailTemplate {
-    return {
-      subject: 'Welcome to BVisionRY Lighthouse! 🚂',
-      html: `<div>Welcome ${userName}!</div>`,
-    };
+  // Get email template from cohort-specific config or fallback to global template
+  private async getEmailTemplate(emailType: string, variables: Record<string, string>, cohortId?: string): Promise<EmailTemplate> {
+    try {
+      let config: EmailConfig | null = null;
+
+      // Try to get cohort-specific config first
+      if (cohortId) {
+        const cohortConfig = await prisma.cohortEmailConfig.findUnique({
+          where: {
+            cohortId_emailType: {
+              cohortId,
+              emailType: emailType as any
+            }
+          }
+        });
+
+        if (cohortConfig) {
+          config = {
+            id: cohortConfig.id,
+            emailType: cohortConfig.emailType,
+            name: cohortConfig.name,
+            subject: cohortConfig.subject,
+            htmlContent: cohortConfig.htmlContent,
+            textContent: cohortConfig.textContent || undefined,
+            primaryColor: cohortConfig.primaryColor,
+            secondaryColor: cohortConfig.secondaryColor,
+            backgroundColor: cohortConfig.backgroundColor,
+            textColor: cohortConfig.textColor,
+            buttonColor: cohortConfig.buttonColor,
+            isActive: cohortConfig.isActive
+          };
+        }
+      }
+
+      // Fallback to global template if no cohort-specific config found
+      if (!config) {
+        const globalTemplate = await prisma.globalEmailTemplate.findUnique({
+          where: { emailType: emailType as any }
+        });
+
+        if (globalTemplate) {
+          config = {
+            id: globalTemplate.id,
+            emailType: globalTemplate.emailType,
+            name: globalTemplate.name,
+            subject: globalTemplate.subject,
+            htmlContent: globalTemplate.htmlContent,
+            textContent: globalTemplate.textContent || undefined,
+            primaryColor: globalTemplate.primaryColor,
+            secondaryColor: globalTemplate.secondaryColor,
+            backgroundColor: globalTemplate.backgroundColor,
+            textColor: globalTemplate.textColor,
+            buttonColor: globalTemplate.buttonColor,
+            isActive: globalTemplate.isActive
+          };
+        }
+      }
+
+      // If still no config found, use fallback template
+      if (!config) {
+        console.warn(`No email configuration found for type ${emailType}, using fallback`);
+        return this.getFallbackTemplate(emailType, variables);
+      }
+
+      // Process template with variables and colors
+      const processedSubject = this.processTemplate(config.subject, variables);
+      const processedHtml = this.processTemplate(config.htmlContent, {
+        ...variables,
+        primaryColor: config.primaryColor,
+        secondaryColor: config.secondaryColor,
+        backgroundColor: config.backgroundColor,
+        textColor: config.textColor,
+        buttonColor: config.buttonColor
+      });
+      const processedText = config.textContent ? this.processTemplate(config.textContent, variables) : undefined;
+
+      return {
+        subject: processedSubject,
+        html: processedHtml,
+        text: processedText
+      };
+    } catch (error) {
+      console.error(`Error getting email template for ${emailType}:`, error);
+      return this.getFallbackTemplate(emailType, variables);
+    }
   }
 
-  private getPasswordResetTemplate(userName: string, resetToken: string): EmailTemplate {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5177'}/reset-password?token=${resetToken}`;
-    return {
-      subject: 'Reset Your Password - BVisionRY Lighthouse',
-      html: `<div>Hello ${userName}, <a href="${resetUrl}">Reset your password</a></div>`,
-    };
+  // Process template string with variables
+  private processTemplate(template: string, variables: Record<string, string>): string {
+    let processed = template;
+    Object.entries(variables).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      processed = processed.replace(regex, value);
+    });
+    return processed;
   }
 
-  private getAnswerSubmissionTemplate(userName: string, questionTitle: string, questionNumber: number): EmailTemplate {
-    return {
-      subject: `Answer Submitted - Question ${questionNumber} 📝`,
-      html: `<div>Hello ${userName}, your answer for ${questionTitle} has been submitted.</div>`,
-    };
-  }
-
-  private getAnswerFeedbackTemplate(
-    userName: string,
-    questionTitle: string,
-    questionNumber: number,
-    grade: string,
-    feedback: string
-  ): EmailTemplate {
-    return {
-      subject: `Feedback for Question ${questionNumber} - ${grade}`,
-      html: `<div>Hello ${userName}, your answer for ${questionTitle} has been graded: ${grade}. Feedback: ${feedback}</div>`,
-    };
-  }
-
-  private getNewQuestionTemplate(userName: string, questionTitle: string, questionNumber: number): EmailTemplate {
-    return {
-      subject: `New Question Available - Question ${questionNumber} 🆕`,
-      html: `<div>Hello ${userName}, new question available: ${questionTitle}</div>`,
-    };
-  }
-
-  private getMiniQuestionReleaseTemplate(
-    userName: string,
-    miniQuestionTitle: string,
-    contentTitle: string,
-    questionTitle: string
-  ): EmailTemplate {
-    return {
-      subject: `New Self-Learning Activity Available 📚`,
-      html: `<div>Hello ${userName}, new activity: ${miniQuestionTitle} in ${contentTitle} for ${questionTitle}</div>`,
-    };
-  }
-
-  private getMiniAnswerResubmissionTemplate(
-    userName: string,
-    miniQuestionTitle: string,
-    contentTitle: string,
-    questionTitle: string
-  ): EmailTemplate {
-    return {
-      subject: `Resubmission Requested - ${miniQuestionTitle} 🔄`,
-      html: `<div>Hello ${userName}, please resubmit: ${miniQuestionTitle}</div>`,
-    };
-  }
-
-  private getResubmissionApprovalTemplate(userName: string, questionTitle: string): EmailTemplate {
-    return {
-      subject: `Resubmission Approved - ${questionTitle} ✅`,
-      html: `<div>Hello ${userName}, resubmission approved for: ${questionTitle}</div>`,
-    };
+  // Fallback templates (simplified versions of the old templates)
+  private getFallbackTemplate(emailType: string, variables: Record<string, string>): EmailTemplate {
+    switch (emailType) {
+      case 'WELCOME':
+        return {
+          subject: 'Welcome to BVisionRY Lighthouse! 🚂',
+          html: `<div>Welcome ${variables.userName || 'there'}!</div>`,
+        };
+      case 'PASSWORD_RESET':
+        return {
+          subject: 'Reset Your Password - BVisionRY Lighthouse',
+          html: `<div>Hello ${variables.userName || 'there'}, <a href="${variables.resetUrl || '#'}">Reset your password</a></div>`,
+        };
+      case 'ANSWER_SUBMISSION':
+        return {
+          subject: `Answer Submitted - Question ${variables.questionNumber || ''} 📝`,
+          html: `<div>Hello ${variables.userName || 'there'}, your answer for ${variables.questionTitle || 'the question'} has been submitted.</div>`,
+        };
+      case 'ANSWER_FEEDBACK':
+        return {
+          subject: `Feedback for Question ${variables.questionNumber || ''} - ${variables.grade || ''}`,
+          html: `<div>Hello ${variables.userName || 'there'}, your answer for ${variables.questionTitle || 'the question'} has been graded: ${variables.grade || ''}. Feedback: ${variables.feedback || ''}</div>`,
+        };
+      case 'NEW_QUESTION':
+        return {
+          subject: `New Question Available 🆕`,
+          html: `<div>Hello ${variables.userName || 'there'}, new question available: ${variables.questionTitle || ''}</div>`,
+        };
+      case 'MINI_QUESTION_RELEASE':
+        return {
+          subject: `New Self-Learning Activity Available 📚`,
+          html: `<div>Hello ${variables.userName || 'there'}, new activity: ${variables.miniQuestionTitle || ''} in ${variables.contentTitle || ''} for ${variables.questionTitle || ''}</div>`,
+        };
+      case 'MINI_ANSWER_RESUBMISSION':
+        return {
+          subject: `Resubmission Requested - ${variables.miniQuestionTitle || ''} 🔄`,
+          html: `<div>Hello ${variables.userName || 'there'}, please resubmit: ${variables.miniQuestionTitle || ''}</div>`,
+        };
+      case 'RESUBMISSION_APPROVAL':
+        return {
+          subject: `Resubmission Approved - ${variables.questionTitle || ''} ✅`,
+          html: `<div>Hello ${variables.userName || 'there'}, resubmission approved for: ${variables.questionTitle || ''}</div>`,
+        };
+      default:
+        return {
+          subject: 'Notification from BVisionRY Lighthouse',
+          html: `<div>Hello ${variables.userName || 'there'}, you have a new notification.</div>`,
+        };
+    }
   }
 }
 

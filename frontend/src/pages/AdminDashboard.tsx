@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { adminService, gameService } from '../services/api';
+import { adminService, gameService, api } from '../services/api';
 import toast from 'react-hot-toast';
 import MiniAnswersView from '../components/MiniAnswersView';
 import MasteryPointsModal from '../components/GradingModal';
+import RichTextEditor from '../components/RichTextEditor';
+import HtmlEditorModal from '../components/HtmlEditorModal';
+import { defaultEmailTemplates } from '../utils/defaultEmailTemplates';
 
 // Import the dashboard icon
 import DashboardIcon from '../assets/dashboard-icon.png';
@@ -263,6 +266,38 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [totalSteps, setTotalSteps] = useState(12); // Dynamic total steps from database
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'answers' | 'modules' | 'mini-questions' | 'cohort-config'>('overview');
+  const [cohortConfigTab, setCohortConfigTab] = useState<'theme' | 'email-templates' | 'cohort-settings'>('theme');
+  
+  // Email configuration state (from EmailSetupCohort)
+  const [emailConfigs, setEmailConfigs] = useState<any[]>([]);
+  const [expandedEmailConfig, setExpandedEmailConfig] = useState<string | null>(null);
+  const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
+  const [previewEmailConfig, setPreviewEmailConfig] = useState<any | null>(null);
+  const [showCopyGlobalConfirmation, setShowCopyGlobalConfirmation] = useState(false);
+  const [copyingGlobalTemplates, setCopyingGlobalTemplates] = useState(false);
+  const [emailFormData, setEmailFormData] = useState({
+    name: '',
+    description: '',
+    subject: '',
+    htmlContent: '',
+    textContent: '',
+    primaryColor: '#3B82F6',
+    secondaryColor: '#1E40AF',
+    backgroundColor: '#F8FAFC',
+    textColor: '#1F2937',
+    buttonColor: '#3B82F6',
+    isActive: true
+  });
+  
+  // Cohort management state (from EmailSetupCohort)
+  const [editingCohort, setEditingCohort] = useState(false);
+  const [cohortFormData, setCohortFormData] = useState({
+    cohortNumber: '',
+    name: '',
+    description: '',
+    startDate: '',
+    endDate: ''
+  });
   
   // User status filtering
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -346,6 +381,17 @@ const AdminDashboard: React.FC = () => {
       if (selectedCohortId) {
         currentCohort = cohortsResponse.data.cohorts?.find((c: any) => c.id === selectedCohortId);
         setSelectedCohort(currentCohort);
+        
+        // Set cohort form data when cohort is loaded
+        if (currentCohort) {
+          setCohortFormData({
+            cohortNumber: currentCohort.cohortNumber.toString(),
+            name: currentCohort.name,
+            description: currentCohort.description || '',
+            startDate: currentCohort.startDate ? currentCohort.startDate.split('T')[0] : '',
+            endDate: currentCohort.endDate ? currentCohort.endDate.split('T')[0] : ''
+          });
+        }
       }
 
       // Load data based on whether a cohort is selected
@@ -408,6 +454,19 @@ const AdminDashboard: React.FC = () => {
         setTotalSteps(progressResponse.data.totalSteps);
       }
 
+      // Load email configurations if a cohort is selected
+      if (selectedCohortId) {
+        try {
+          const emailResponse = await api.get(`/admin/email-setup/cohorts/${selectedCohortId}/email-configs`);
+          setEmailConfigs(emailResponse.data.configs || []);
+        } catch (emailError) {
+          console.warn('Failed to load email configurations:', emailError);
+          setEmailConfigs([]);
+        }
+      } else {
+        setEmailConfigs([]);
+      }
+
     } catch (error: unknown) {
       let errorMessage = 'Failed to load admin data';
       if (
@@ -460,7 +519,7 @@ const AdminDashboard: React.FC = () => {
             if (!firstConflictMessage) {
               const formattedReleaseDate = releaseDate.toLocaleDateString();
               const formattedDeadline = assignmentDeadline.toLocaleDateString();
-              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the mini question release dates.`;
+              firstConflictMessage = `Assignment deadline (${formattedDeadline}) cannot be before mini question release date (${formattedReleaseDate}). Please adjust the deadline or the self-learning release dates.`;
             }
           }
         }
@@ -1452,7 +1511,176 @@ const AdminDashboard: React.FC = () => {
     }
   }, [modules, currentCohort, selectedCohortId]);
 
-  const renderCohortConfig = useCallback(() => {
+  // Helper functions for email configurations (from EmailSetupCohort)
+  const getConfigIcon = (emailType: string) => {
+    const icons: Record<string, string> = {
+      WELCOME: '👋',
+      PASSWORD_RESET: '🔑',
+      ANSWER_SUBMISSION: '📝',
+      ANSWER_FEEDBACK: '📊',
+      NEW_QUESTION: '🆕',
+      MINI_QUESTION_RELEASE: '📚',
+      MINI_ANSWER_RESUBMISSION: '🔄',
+      RESUBMISSION_APPROVAL: '✅'
+    };
+    return icons[emailType] || '📧';
+  };
+
+  const getConfigDisplayName = (emailType: string) => {
+    const names: Record<string, string> = {
+      WELCOME: 'Welcome Email',
+      PASSWORD_RESET: 'Password Reset',
+      ANSWER_SUBMISSION: 'Answer Submission',
+      ANSWER_FEEDBACK: 'Answer Feedback',
+      NEW_QUESTION: 'New Assignment Release',
+      MINI_QUESTION_RELEASE: 'Self-Learning Release',
+      MINI_ANSWER_RESUBMISSION: 'Resubmission Request',
+      RESUBMISSION_APPROVAL: 'Resubmission Approval'
+    };
+    return names[emailType] || emailType;
+  };
+
+  // Email configuration functions (from EmailSetupCohort)
+  const handleEditEmailConfig = (config: any) => {
+    setEditingEmailId(config.id);
+    setEmailFormData({
+      name: config.name,
+      description: config.description || '',
+      subject: config.subject,
+      htmlContent: config.htmlContent,
+      textContent: config.textContent || '',
+      primaryColor: config.primaryColor,
+      secondaryColor: config.secondaryColor,
+      backgroundColor: config.backgroundColor,
+      textColor: config.textColor,
+      buttonColor: config.buttonColor,
+      isActive: config.isActive
+    });
+  };
+
+  const handleSaveEmailConfig = async (config: any) => {
+    if (!emailFormData.name.trim() || !emailFormData.subject.trim() || !emailFormData.htmlContent.trim()) {
+      toast.error('Name, subject, and HTML content are required');
+      return;
+    }
+
+    if (!selectedCohortId) return;
+
+    try {
+      // Include emailType in the request body as required by backend validation
+      const requestData = {
+        ...emailFormData,
+        emailType: config.emailType
+      };
+      
+      await api.put(`/admin/email-setup/cohorts/${selectedCohortId}/email-configs/${config.emailType}`, requestData);
+      toast.success('Email configuration updated successfully');
+      setEditingEmailId(null);
+      loadAdminData(); // Reload data
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to update email configuration';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleCancelEmailEdit = () => {
+    setEditingEmailId(null);
+    setEmailFormData({
+      name: '',
+      description: '',
+      subject: '',
+      htmlContent: '',
+      textContent: '',
+      primaryColor: '#3B82F6',
+      secondaryColor: '#1E40AF',
+      backgroundColor: '#F8FAFC',
+      textColor: '#1F2937',
+      buttonColor: '#3B82F6',
+      isActive: true
+    });
+  };
+
+  // Load default template function (from EmailSetupCohort)
+  const loadDefaultTemplate = (templateType: keyof typeof defaultEmailTemplates) => {
+    const template = defaultEmailTemplates[templateType];
+    if (template) {
+      setEmailFormData(prev => ({
+        ...prev,
+        name: template.name,
+        description: template.description,
+        subject: template.subject,
+        htmlContent: template.htmlContent,
+        textContent: template.textContent
+      }));
+      toast.success(`Loaded ${template.name} template`);
+    }
+  };
+
+  // Copy global templates function
+  const handleCopyGlobalTemplates = async () => {
+    if (!selectedCohortId) return;
+    
+    try {
+      setCopyingGlobalTemplates(true);
+      
+      // Copy global templates to this cohort with overwrite flag
+      const response = await api.post(`/admin/email-setup/cohorts/${selectedCohortId}/copy-global-templates`, {
+        overwrite: true
+      });
+      
+      toast.success(`Global templates copied successfully! ${response.data.count} templates added.`);
+      setShowCopyGlobalConfirmation(false);
+      
+      // Reload the data
+      loadAdminData();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to copy global templates';
+      toast.error(errorMessage);
+    } finally {
+      setCopyingGlobalTemplates(false);
+    }
+  };
+
+  // Cohort management functions (from EmailSetupCohort)
+  const handleUpdateCohort = async () => {
+    if (!selectedCohort || !selectedCohortId) return;
+
+    try {
+      const payload: any = {
+        name: cohortFormData.name.trim(),
+        description: cohortFormData.description.trim(),
+        startDate: cohortFormData.startDate,
+        endDate: cohortFormData.endDate || null
+      };
+
+      if (cohortFormData.cohortNumber.trim()) {
+        payload.cohortNumber = parseInt(cohortFormData.cohortNumber.trim());
+      }
+
+      await api.patch(`/admin/cohorts/${selectedCohortId}`, payload);
+      toast.success('Cohort updated successfully');
+      setEditingCohort(false);
+      loadAdminData(); // Reload data
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to update cohort';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleToggleCohortStatus = async (cohortId: string, newStatus: boolean) => {
+    if (!cohortId) return;
+
+    try {
+      await api.patch(`/admin/cohorts/${cohortId}/toggle-status`);
+      toast.success(`Cohort ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      loadAdminData(); // Reload data
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to update cohort status';
+      toast.error(errorMessage);
+    }
+  };
+
+  const renderCohortConfig = () => {
     if (!selectedCohortId) {
       return (
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -1479,6 +1707,54 @@ const AdminDashboard: React.FC = () => {
 
     return (
       <div className="space-y-6">
+        {/* Sub-Tab Navigation */}
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setCohortConfigTab('theme')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+                cohortConfigTab === 'theme'
+                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-xl">🎨</span>
+                <span>Theme</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setCohortConfigTab('email-templates')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+                cohortConfigTab === 'email-templates'
+                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-xl">📧</span>
+                <span>Email Templates</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setCohortConfigTab('cohort-settings')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+                cohortConfigTab === 'cohort-settings'
+                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-xl">⚙️</span>
+                <span>Cohort Settings</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-Tab Content */}
+        {cohortConfigTab === 'theme' ? (
+        <div className="space-y-6">
         {/* Default Theme Source Selection */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center mb-6">
@@ -1613,9 +1889,581 @@ const AdminDashboard: React.FC = () => {
             </div>
           )}
         </div>
+        </div>
+        ) : cohortConfigTab === 'email-templates' ? (
+        <div className="space-y-6">
+          {/* Email Configuration Header */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div className="text-2xl mr-3">📧</div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Email Templates</h3>
+                  <p className="text-sm text-gray-600">
+                    Configure email templates for this cohort. Click on any template to customize it.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCopyGlobalConfirmation(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🌐</span>
+                <span>Copy Global Templates</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Email Configurations List */}
+          <div className="space-y-6">
+            {emailConfigs.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <div className="text-6xl mb-4">📧</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Email Configurations</h3>
+                <p className="text-gray-600 mb-6">
+                  You can copy global templates to create email configurations for this cohort.
+                </p>
+
+              </div>
+            ) : (
+              emailConfigs.map((config: any) => (
+                <div key={config.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  {/* Config Header */}
+                  <div 
+                    className="p-6 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setExpandedEmailConfig(expandedEmailConfig === config.emailType ? null : config.emailType)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <span className="text-3xl">{getConfigIcon(config.emailType)}</span>
+                        <div>
+                          <h3 className="text-xl font-semibold text-gray-900">{getConfigDisplayName(config.emailType)}</h3>
+                          <p className="text-gray-600">{config.description || 'No description'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          config.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {config.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          {editingEmailId === config.id ? (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSaveEmailConfig(config);
+                                }}
+                                className="text-green-600 hover:text-green-700 font-medium"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelEmailEdit();
+                                }}
+                                className="text-gray-600 hover:text-gray-700 font-medium"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewEmailConfig(config);
+                                }}
+                                className="text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                Preview
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditEmailConfig(config);
+                                }}
+                                className="text-primary-600 hover:text-primary-700 font-medium"
+                              >
+                                Edit
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <svg
+                          className={`w-5 h-5 text-gray-400 transform transition-transform ${
+                            expandedEmailConfig === config.emailType ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {expandedEmailConfig === config.emailType && (
+                    <div className="p-6 bg-gray-50">
+                      {editingEmailId === config.id ? (
+                        // Edit form
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Subject
+                                </label>
+                                <input
+                                  type="text"
+                                  value={emailFormData.subject}
+                                  onChange={(e) => setEmailFormData(prev => ({ ...prev, subject: e.target.value }))}
+                                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </div>
+                              
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  id={`active-${config.id}`}
+                                  checked={emailFormData.isActive}
+                                  onChange={(e) => setEmailFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                                <label htmlFor={`active-${config.id}`} className="ml-2 block text-sm text-gray-900">
+                                  Active
+                                </label>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h4 className="font-semibold text-gray-900 mb-3">Theme Colors</h4>
+                              <div className="grid grid-cols-1 gap-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Primary Color</label>
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="color"
+                                      value={emailFormData.primaryColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, primaryColor: e.target.value }))}
+                                      className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={emailFormData.primaryColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, primaryColor: e.target.value }))}
+                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Color</label>
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="color"
+                                      value={emailFormData.secondaryColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                                      className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={emailFormData.secondaryColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Text Color</label>
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="color"
+                                      value={emailFormData.textColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, textColor: e.target.value }))}
+                                      className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={emailFormData.textColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, textColor: e.target.value }))}
+                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Button Color</label>
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="color"
+                                      value={emailFormData.buttonColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, buttonColor: e.target.value }))}
+                                      className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={emailFormData.buttonColor}
+                                      onChange={(e) => setEmailFormData(prev => ({ ...prev, buttonColor: e.target.value }))}
+                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Start Templates */}
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <h4 className="text-md font-semibold text-blue-900 mb-3">🎨 Quick Start Templates</h4>
+                            <p className="text-sm text-blue-700 mb-3">Choose a professionally designed template to get started quickly:</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {Object.entries(defaultEmailTemplates).map(([key, template]) => (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => loadDefaultTemplate(key as keyof typeof defaultEmailTemplates)}
+                                  className="text-left p-3 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                                >
+                                  <div className="font-medium text-blue-900 text-sm">{template.name}</div>
+                                  <div className="text-xs text-blue-600 mt-1">{template.description}</div>
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-blue-600 mt-3">
+                              💡 Templates include professional styling and variable placeholders. You can customize them further using the rich text editor.
+                            </p>
+                          </div>
+                          
+                          {/* Email Content Editor with Live Preview */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Email Content *</label>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {/* Editor */}
+                              <div>
+                                <RichTextEditor
+                                  value={emailFormData.htmlContent}
+                                  onChange={(content) => setEmailFormData(prev => ({ ...prev, htmlContent: content }))}
+                                  placeholder="Enter your email content here..."
+                                  colors={{
+                                    primaryColor: emailFormData.primaryColor,
+                                    secondaryColor: emailFormData.secondaryColor,
+                                    textColor: emailFormData.textColor,
+                                    buttonColor: emailFormData.buttonColor,
+                                    backgroundColor: emailFormData.backgroundColor
+                                  }}
+                                />
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Use the toolbar to format your text and insert variables like userName, dashboardUrl, etc.
+                                </p>
+                              </div>
+                              
+                              {/* Live Preview */}
+                              <div>
+                                <div className="border border-gray-300 rounded-lg">
+                                  <div className="bg-gray-50 px-3 py-2 border-b border-gray-300 text-sm font-medium text-gray-700">
+                                    Live Preview
+                                  </div>
+                                  <div 
+                                    className="p-4 min-h-[400px] bg-white overflow-auto"
+                                    style={{ backgroundColor: emailFormData.backgroundColor }}
+                                  >
+                                    <div 
+                                      className="max-w-full"
+                                      dangerouslySetInnerHTML={{ 
+                                        __html: emailFormData.htmlContent
+                                          .replace(/\{\{userName\}\}/g, 'John Doe')
+                                          .replace(/\{\{dashboardUrl\}\}/g, '#')
+                                          .replace(/\{\{questionTitle\}\}/g, 'Sample Question')
+                                          .replace(/\{\{questionNumber\}\}/g, '1')
+                                          .replace(/\{\{grade\}\}/g, 'Excellent')
+                                          .replace(/\{\{feedback\}\}/g, 'Great work!')
+                                          .replace(/\{\{primaryColor\}\}/g, emailFormData.primaryColor)
+                                          .replace(/\{\{secondaryColor\}\}/g, emailFormData.secondaryColor)
+                                          .replace(/\{\{backgroundColor\}\}/g, emailFormData.backgroundColor)
+                                          .replace(/\{\{textColor\}\}/g, emailFormData.textColor)
+                                          .replace(/\{\{buttonColor\}\}/g, emailFormData.buttonColor)
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Preview mode
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 mb-3">Template Details</h4>
+                            <div className="space-y-2 text-sm">
+                              <div><span className="font-medium">Subject:</span> {config.subject}</div>
+                              <div><span className="font-medium">Primary Color:</span> <span className="inline-block w-4 h-4 rounded ml-2" style={{backgroundColor: config.primaryColor}}></span> {config.primaryColor}</div>
+                              <div><span className="font-medium">Secondary Color:</span> <span className="inline-block w-4 h-4 rounded ml-2" style={{backgroundColor: config.secondaryColor}}></span> {config.secondaryColor}</div>
+                              <div><span className="font-medium">Background:</span> <span className="inline-block w-4 h-4 rounded ml-2" style={{backgroundColor: config.backgroundColor}}></span> {config.backgroundColor}</div>
+                              <div><span className="font-medium">Text Color:</span> <span className="inline-block w-4 h-4 rounded ml-2" style={{backgroundColor: config.textColor}}></span> {config.textColor}</div>
+                              <div><span className="font-medium">Button Color:</span> <span className="inline-block w-4 h-4 rounded ml-2" style={{backgroundColor: config.buttonColor}}></span> {config.buttonColor}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900 mb-3">HTML Content Preview</h4>
+                            <div className="bg-white border rounded-lg p-4 max-h-32 overflow-auto">
+                              <div className="text-xs text-gray-600">
+                                {config.htmlContent.length > 200 
+                                  ? `${config.htmlContent.substring(0, 200)}...` 
+                                  : config.htmlContent}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        ) : cohortConfigTab === 'cohort-settings' ? (
+        <div className="space-y-6">
+          {/* Cohort Information and Edit Form */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <div className="text-2xl mr-3">⚙️</div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Cohort Settings</h3>
+                  <p className="text-sm text-gray-600">
+                    Manage this cohort's details, participants, and configuration.
+                  </p>
+                </div>
+              </div>
+              
+              {!editingCohort && (
+                <button
+                  onClick={() => setEditingCohort(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Edit Cohort
+                </button>
+              )}
+            </div>
+
+            {selectedCohort && (
+              <>
+                {editingCohort ? (
+                  // Edit Form
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cohort Number
+                        </label>
+                        <input
+                          type="number"
+                          value={cohortFormData.cohortNumber}
+                          onChange={(e) => setCohortFormData(prev => ({ ...prev, cohortNumber: e.target.value }))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cohort Name
+                        </label>
+                        <input
+                          type="text"
+                          value={cohortFormData.name}
+                          onChange={(e) => setCohortFormData(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          value={cohortFormData.startDate}
+                          onChange={(e) => setCohortFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={cohortFormData.endDate}
+                          onChange={(e) => setCohortFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        value={cohortFormData.description}
+                        onChange={(e) => setCohortFormData(prev => ({ ...prev, description: e.target.value }))}
+                        rows={4}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Enter cohort description..."
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedCohort.isActive}
+                            onChange={(e) => handleToggleCohortStatus(selectedCohort.id, e.target.checked)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-gray-900">Active Cohort</span>
+                        </label>
+                      </div>
+                      
+                      <div className="space-x-3">
+                        <button
+                          onClick={handleUpdateCohort}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Save Changes
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCohort(false);
+                            // Reset form data to current cohort values
+                            setCohortFormData({
+                              cohortNumber: selectedCohort.cohortNumber.toString(),
+                              name: selectedCohort.name,
+                              description: selectedCohort.description || '',
+                              startDate: selectedCohort.startDate ? selectedCohort.startDate.split('T')[0] : '',
+                              endDate: selectedCohort.endDate ? selectedCohort.endDate.split('T')[0] : ''
+                            });
+                          }}
+                          className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Display Mode
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Basic Information</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p><span className="font-medium">Name:</span> {selectedCohort.name}</p>
+                        <p><span className="font-medium">Number:</span> #{selectedCohort.cohortNumber}</p>
+                        <p><span className="font-medium">Status:</span> 
+                          <span className={`ml-1 font-medium ${selectedCohort.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                            {selectedCohort.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Dates</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p><span className="font-medium">Start:</span> {new Date(selectedCohort.startDate).toLocaleDateString()}</p>
+                        {selectedCohort.endDate && (
+                          <p><span className="font-medium">End:</span> {new Date(selectedCohort.endDate).toLocaleDateString()}</p>
+                        )}
+                        <p><span className="font-medium">Created:</span> {new Date(selectedCohort.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Statistics</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p><span className="font-medium">Participants:</span> {users.length}</p>
+                        <p><span className="font-medium">Modules:</span> {modules.length}</p>
+                        <p><span className="font-medium">Email Templates:</span> {emailConfigs.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Cohort Description */}
+                {!editingCohort && selectedCohort?.description && (
+                  <div className="mt-6 border-t pt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Description</h4>
+                    <p className="text-gray-600">{selectedCohort.description}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <button
+                onClick={() => setActiveTab('users')}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-4 rounded-lg transition-colors flex items-center space-x-3"
+              >
+                <span className="text-2xl">👥</span>
+                <div className="text-left">
+                  <div className="font-medium">Manage Participants</div>
+                  <div className="text-sm opacity-75">{users.length} participants</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('modules')}
+                className="bg-green-50 hover:bg-green-100 text-green-700 p-4 rounded-lg transition-colors flex items-center space-x-3"
+              >
+                <span className="text-2xl">📚</span>
+                <div className="text-left">
+                  <div className="font-medium">Manage Modules</div>
+                  <div className="text-sm opacity-75">{modules.length} modules</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('answers')}
+                className="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 p-4 rounded-lg transition-colors flex items-center space-x-3"
+              >
+                <span className="text-2xl">📝</span>
+                <div className="text-left">
+                  <div className="font-medium">Pending Answers</div>
+                  <div className="text-sm opacity-75">{pendingAnswers.length} pending</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setCohortConfigTab('email-templates')}
+                className="bg-purple-50 hover:bg-purple-100 text-purple-700 p-4 rounded-lg transition-colors flex items-center space-x-3"
+              >
+                <span className="text-2xl">📧</span>
+                <div className="text-left">
+                  <div className="font-medium">Email Templates</div>
+                  <div className="text-sm opacity-75">{emailConfigs.length} templates</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+        ) : null}
       </div>
     );
-  }, [selectedCohortId, currentCohort, modules, availableThemes, handleDefaultThemeFromModule, handleModuleThemeUpdate]);
+  };
 
   if (loading) {
     return (
@@ -1683,7 +2531,7 @@ const AdminDashboard: React.FC = () => {
               { id: 'answers', name: 'Pending Answers', icon: '📝', badge: pendingAnswers.length },
               { id: 'modules', name: 'Manage Modules', icon: '📚' },
               { id: 'mini-questions', name: 'Self Learning', icon: '🎯' },
-              { id: 'cohort-config', name: 'Cohort Configuration', icon: '🎨' },
+              { id: 'cohort-config', name: 'Cohort Configuration', icon: '🛠️' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1978,7 +2826,27 @@ const AdminDashboard: React.FC = () => {
                           <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="datetime-local"
-                              value={miniQuestion.releaseDate || ''}
+                              value={(() => {
+                                if (!miniQuestion.releaseDate) return '';
+                                
+                                // If it's already in datetime-local format (YYYY-MM-DDTHH:MM), use as-is
+                                if (typeof miniQuestion.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(miniQuestion.releaseDate)) {
+                                  return miniQuestion.releaseDate;
+                                }
+                                
+                                // Convert from ISO string or Date to datetime-local format
+                                const date = new Date(miniQuestion.releaseDate);
+                                if (isNaN(date.getTime())) return '';
+                                
+                                // Format for datetime-local input (local time)
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              })()}
                               onChange={(e) => {
                                 const updatedContents = [...topicForm.contents];
                                 updatedContents[0].miniQuestions[index] = {
@@ -2566,7 +3434,27 @@ const AdminDashboard: React.FC = () => {
                           <td className="px-6 py-4 border-r border-gray-100">
                             <input
                               type="datetime-local"
-                              value={contentItem.releaseDate || ''}
+                              value={(() => {
+                                if (!contentItem.releaseDate) return '';
+                                
+                                // If it's already in datetime-local format (YYYY-MM-DDTHH:MM), use as-is
+                                if (typeof contentItem.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(contentItem.releaseDate)) {
+                                  return contentItem.releaseDate;
+                                }
+                                
+                                // Convert from ISO string or Date to datetime-local format
+                                const date = new Date(contentItem.releaseDate);
+                                if (isNaN(date.getTime())) return '';
+                                
+                                // Format for datetime-local input (local time)
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              })()}
                               onChange={(e) => {
                                 const newContents = [...(selectedTopic.contents || [])];
                                 newContents[index] = { ...newContents[index], releaseDate: e.target.value };
@@ -2677,7 +3565,17 @@ const AdminDashboard: React.FC = () => {
                           material: item.content,
                           question: item.description,
                           resourceUrl: item.resourceUrl,
-                          releaseDate: item.releaseDate
+                          releaseDate: item.releaseDate ? (() => {
+                            // Handle datetime-local format (YYYY-MM-DDTHH:MM)
+                            if (typeof item.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.releaseDate)) {
+                              // Create a Date object from the datetime-local string
+                              // This treats it as local time and will send the ISO string to backend
+                              const localDate = new Date(item.releaseDate);
+                              return localDate.toISOString();
+                            }
+                            // If it's already an ISO string or other format, pass it through
+                            return item.releaseDate;
+                          })() : undefined
                         }))
                       : [];
 
@@ -2851,6 +3749,82 @@ const AdminDashboard: React.FC = () => {
               >
                 Create Module
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Template Preview Modal */}
+      <HtmlEditorModal
+        isOpen={!!previewEmailConfig}
+        onClose={() => setPreviewEmailConfig(null)}
+        htmlContent={previewEmailConfig?.htmlContent || ''}
+        onSave={() => setPreviewEmailConfig(null)} // Just close the modal
+        readOnly={true}
+        colors={{
+          primaryColor: previewEmailConfig?.primaryColor || '#3B82F6',
+          secondaryColor: previewEmailConfig?.secondaryColor || '#1E40AF',
+          textColor: previewEmailConfig?.textColor || '#1F2937',
+          buttonColor: previewEmailConfig?.buttonColor || '#3B82F6',
+          backgroundColor: previewEmailConfig?.backgroundColor || '#F8FAFC'
+        }}
+      />
+
+      {/* Copy Global Templates Confirmation Modal */}
+      {showCopyGlobalConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                  <span className="text-2xl">🌐</span>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Copy Global Email Templates
+                </h3>
+                <div className="text-sm text-gray-500 mb-4">
+                  {emailConfigs.length > 0 ? (
+                    <>
+                      <p className="mb-2">This will:</p>
+                      <ul className="text-left space-y-1">
+                        <li>• Delete all existing email configurations ({emailConfigs.length} templates)</li>
+                        <li>• Copy all global templates to this cohort</li>
+                        <li>• Replace current settings with global defaults</li>
+                      </ul>
+                      <p className="mt-3 font-medium text-amber-600">
+                        ⚠️ This action cannot be undone!
+                      </p>
+                    </>
+                  ) : (
+                    <p>This will copy all global email templates to this cohort.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowCopyGlobalConfirmation(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={copyingGlobalTemplates}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyGlobalTemplates}
+                  disabled={copyingGlobalTemplates}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {copyingGlobalTemplates ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Copying...</span>
+                    </>
+                  ) : (
+                    <span>{emailConfigs.length > 0 ? 'Replace Templates' : 'Copy Templates'}</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

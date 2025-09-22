@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "========================================"
-echo "Train at Trails - Setup Script"
+echo "BVisionRY Lighthouse - Setup Script"
 echo "========================================"
 echo
 

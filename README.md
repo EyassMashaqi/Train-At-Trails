@@ -1,4 +1,4 @@
-# 🚂 Train at Trails
+# 🚂 BVisionRY Lighthouse
 
 A gamified web application where users progress through a 12-step trail by answering questions that are released every 2 days. Each answer requires admin approval before the user's train moves forward.
 
@@ -300,4 +300,4 @@ For support or questions:
 
 ---
 
-**🚂 All aboard the Train at Trails! Let's make learning an adventure! 🎯**
+**🚂 All aboard the BVisionRY Lighthouse! Let's make learning an adventure! 🎯**

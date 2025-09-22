@@ -590,9 +590,11 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
       // Allow resubmission if:
       // 1. Grade is NEEDS_RESUBMISSION (new grading system), OR
       // 2. Status is REJECTED (legacy system), OR  
-      // 3. Resubmission was manually requested and approved
+      // 3. Status is AWAITING_RESUBMISSION (approved resubmission), OR
+      // 4. Resubmission was manually requested and approved
       const canResubmit = (existingAnswer as any).grade === 'NEEDS_RESUBMISSION' || 
                          existingAnswer.status === 'REJECTED' ||
+                         existingAnswer.status === 'AWAITING_RESUBMISSION' ||
                          ((existingAnswer as any).resubmissionRequested && (existingAnswer as any).resubmissionApproved);
       
       if (!canResubmit) {
@@ -646,9 +648,9 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           reviewedBy: null,
           feedback: null,
           pointsAwarded: null,
-          resubmissionRequested: false, // Clear resubmission flags
-          resubmissionApproved: null,
-          resubmissionRequestedAt: null,
+          resubmissionRequested: false, // Clear current request flag
+          resubmissionApproved: null, // Clear approval to hide question
+          // Keep resubmissionRequestedAt to prevent future requests
           // Update attachment info if new file uploaded
           ...(attachmentFile && {
             attachmentFileName: attachmentFile.originalname,
@@ -772,9 +774,17 @@ router.post('/answer/:answerId/request-resubmission', authenticateToken, async (
       });
     }
 
-    if ((answer as any).resubmissionRequested) {
+    // Check if there's a pending resubmission request
+    if ((answer as any).resubmissionRequested && (answer as any).resubmissionApproved === null) {
       return res.status(400).json({ 
-        error: 'Resubmission has already been requested for this answer' 
+        error: 'Resubmission has already been requested for this answer and is pending approval' 
+      });
+    }
+
+    // Check if resubmission was already requested and approved/rejected
+    if ((answer as any).resubmissionRequestedAt && (answer as any).resubmissionApproved !== null) {
+      return res.status(400).json({ 
+        error: 'You have already requested resubmission for this answer. Only one resubmission request is allowed per answer.' 
       });
     }
 
@@ -1156,8 +1166,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           } else if (canSolveMainQuestion && !hasMainAnswer) {
             questionStatus = 'available';
           } else if (hasMainAnswer) {
-            // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+            // Check if answer can be resubmitted (REJECTED, AWAITING_RESUBMISSION or NEEDS_RESUBMISSION)
             const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                              mainAnswerStatus === 'AWAITING_RESUBMISSION' ||
                               question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
                               (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
             
@@ -1172,8 +1183,9 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           if (!hasMainAnswer) {
             questionStatus = 'available';
           } else {
-            // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+            // Check if answer can be resubmitted (REJECTED, AWAITING_RESUBMISSION or NEEDS_RESUBMISSION)
             const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                              mainAnswerStatus === 'AWAITING_RESUBMISSION' ||
                               question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
                               (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
             
@@ -1423,6 +1435,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 id: true,
                 content: true,
                 status: true,
+                grade: true, // CRITICAL: Include grade for resubmission logic
                 submittedAt: true,
                 reviewedAt: true,
                 feedback: true,
@@ -1557,8 +1570,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
             } else if (canSolveMainQuestion && !hasMainAnswer) {
               topicStatus = 'available';
             } else if (hasMainAnswer) {
-              // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+              // Check if answer can be resubmitted (REJECTED, AWAITING_RESUBMISSION or NEEDS_RESUBMISSION)
               const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                                mainAnswerStatus === 'AWAITING_RESUBMISSION' ||
                                 question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
                                 (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
               
@@ -1585,8 +1599,9 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
             if (!hasMainAnswer) {
               topicStatus = 'available';
             } else {
-              // Check if answer can be resubmitted (REJECTED or NEEDS_RESUBMISSION)
+              // Check if answer can be resubmitted (REJECTED, AWAITING_RESUBMISSION or NEEDS_RESUBMISSION)
               const canResubmit = mainAnswerStatus === 'REJECTED' || 
+                                mainAnswerStatus === 'AWAITING_RESUBMISSION' ||
                                 question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
                                 (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved);
               

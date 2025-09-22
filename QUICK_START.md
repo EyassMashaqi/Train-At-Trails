@@ -1,4 +1,4 @@
-# Quick Start Guide - Train at Trails
+# Quick Start Guide - BVisionRY Lighthouse
 
 ## 🚀 Fast Setup (5 minutes)
 

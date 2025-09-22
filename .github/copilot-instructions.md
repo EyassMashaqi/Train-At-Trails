@@ -1,9 +1,9 @@
 <!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
 
-# Train at Trails - Project Instructions for GitHub Copilot
+# BVisionRY Lighthouse - Project Instructions for GitHub Copilot
 
 ## Project Overview
-This is a full-stack gamification web application called "Train at Trails" where users progress through a 12-step trail by answering questions that are released every 2 days. Each answer requires admin approval before the user's train moves forward.
+This is a full-stack gamification web application called "BVisionRY Lighthouse" where users progress through a 12-step trail by answering questions that are released every 2 days. Each answer requires admin approval before the user's train moves forward.
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + TailwindCSS + Vite
