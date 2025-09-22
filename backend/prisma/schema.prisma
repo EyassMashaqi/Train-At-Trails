@@ -172,24 +172,24 @@ model GameConfig {
 }
 
 model Cohort {
-  id               String              @id @default(cuid())
-  cohortNumber     Int
-  name             String
-  description      String?
-  startDate        DateTime
-  endDate          DateTime?
-  defaultTheme     String              @default("trains")
-  isActive         Boolean             @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  answers          Answer[]
-  gameConfig       CohortGameConfig?
-  cohortMembers    CohortMember[]
-  miniAnswers      MiniAnswer[]
-  modules          Module[]
-  questions        Question[]
-  currentUsers     User[]              @relation("CurrentCohort")
-  emailConfigs     CohortEmailConfig[]
+  id            String              @id @default(cuid())
+  cohortNumber  Int
+  name          String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime?
+  defaultTheme  String              @default("trains")
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  answers       Answer[]
+  emailConfigs  CohortEmailConfig[]
+  gameConfig    CohortGameConfig?
+  cohortMembers CohortMember[]
+  miniAnswers   MiniAnswer[]
+  modules       Module[]
+  questions     Question[]
+  currentUsers  User[]              @relation("CurrentCohort")
 
   @@unique([name, cohortNumber])
   @@map("cohorts")
@@ -225,17 +225,6 @@ model CohortGameConfig {
   cohort                       Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
 
   @@map("cohort_game_configs")
-}
-
-enum EmailType {
-  WELCOME
-  PASSWORD_RESET
-  ANSWER_SUBMISSION
-  ANSWER_FEEDBACK
-  NEW_QUESTION
-  MINI_QUESTION_RELEASE
-  MINI_ANSWER_RESUBMISSION
-  RESUBMISSION_APPROVAL
 }
 
 model GlobalEmailTemplate {
@@ -282,4 +271,15 @@ model CohortEmailConfig {
   @@index([cohortId])
   @@index([emailType])
   @@map("cohort_email_configs")
+}
+
+enum EmailType {
+  WELCOME
+  PASSWORD_RESET
+  ANSWER_SUBMISSION
+  ANSWER_FEEDBACK
+  NEW_QUESTION
+  MINI_QUESTION_RELEASE
+  MINI_ANSWER_RESUBMISSION
+  RESUBMISSION_APPROVAL
 }
