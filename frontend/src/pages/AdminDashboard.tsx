@@ -222,7 +222,7 @@ const AdminDashboard: React.FC = () => {
   // Helper function to download attachment
   const downloadAttachment = async (answerId: string, fileName: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/admin/answer/${answerId}/attachment`, {
+      const response = await fetch(`/api/admin/answer/${answerId}/attachment`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

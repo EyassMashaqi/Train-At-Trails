@@ -23,7 +23,7 @@ import EmailSetupCohort from './pages/EmailSetupCohort';
 
 function App() {
   return (
-    <NetworkProvider serverUrl="http://localhost:3000/api/health">
+    <NetworkProvider serverUrl="/api/health">
       <AuthProvider>
         <Router>
           <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-100">
