@@ -293,6 +293,82 @@ class EmailService {
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
+  // Send user assigned to cohort email
+  async sendUserAssignedToCohortEmail(
+    userEmail: string,
+    userName: string,
+    cohortName: string,
+    cohortStartDate: string,
+    userStatus: string,
+    cohortId: string
+  ): Promise<boolean> {
+    const template = await this.getEmailTemplate('USER_ASSIGNED_TO_COHORT', { 
+      userName, 
+      cohortName,
+      cohortStartDate,
+      userStatus,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, cohortId);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
+  // Send user graduated email
+  async sendUserGraduatedEmail(
+    userEmail: string,
+    userName: string,
+    cohortName: string,
+    graduationDate: string,
+    cohortId: string
+  ): Promise<boolean> {
+    const template = await this.getEmailTemplate('USER_GRADUATED', { 
+      userName, 
+      cohortName,
+      graduationDate,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, cohortId);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
+  // Send user removed from cohort email
+  async sendUserRemovedFromCohortEmail(
+    userEmail: string,
+    userName: string,
+    cohortName: string,
+    userStatus: string,
+    changeDate: string,
+    changedBy: string,
+    cohortId: string
+  ): Promise<boolean> {
+    const template = await this.getEmailTemplate('USER_REMOVED_FROM_COHORT', { 
+      userName, 
+      cohortName,
+      userStatus,
+      changeDate,
+      changedBy,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, cohortId);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
+  // Send user suspended email
+  async sendUserSuspendedEmail(
+    userEmail: string,
+    userName: string,
+    cohortName: string,
+    changeDate: string,
+    changedBy: string,
+    cohortId: string
+  ): Promise<boolean> {
+    const template = await this.getEmailTemplate('USER_SUSPENDED', { 
+      userName, 
+      cohortName,
+      changeDate,
+      changedBy,
+      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+    }, cohortId);
+    return this.sendEmail(userEmail, template.subject, template.html, template.text);
+  }
+
   // Send bulk emails to cohort users
   async sendBulkEmailToCohort(
     emails: string[],
@@ -465,6 +541,26 @@ class EmailService {
         return {
           subject: `Resubmission Approved - ${variables.questionTitle || ''} ✅`,
           html: `<div>Hello ${variables.userName || 'there'}, resubmission approved for: ${variables.questionTitle || ''}</div>`,
+        };
+      case 'USER_ASSIGNED_TO_COHORT':
+        return {
+          subject: `You Have Been Assigned to a New Cohort - ${variables.cohortName || ''} 🎉`,
+          html: `<div>Hello ${variables.userName || 'there'}, you have been assigned to the cohort: ${variables.cohortName || ''}. Start date: ${variables.cohortStartDate || ''}. Status: ${variables.userStatus || ''}.</div>`,
+        };
+      case 'USER_GRADUATED':
+        return {
+          subject: `Congratulations on Your Graduation! 🎓`,
+          html: `<div>Hello ${variables.userName || 'there'}, congratulations on graduating from the cohort: ${variables.cohortName || ''}!</div>`,
+        };
+      case 'USER_REMOVED_FROM_COHORT':
+        return {
+          subject: `You Have Been Removed From a Cohort - ${variables.cohortName || ''} ⚠️`,
+          html: `<div>Hello ${variables.userName || 'there'}, you have been removed from the cohort: ${variables.cohortName || ''}. Status: ${variables.userStatus || ''}. Change date: ${variables.changeDate || ''}.</div>`,
+        };
+      case 'USER_SUSPENDED':
+        return {
+          subject: `Your Account Has Been Suspended ⚠️`,
+          html: `<div>Hello ${variables.userName || 'there'}, your account has been suspended. Please contact support for more information.</div>`,
         };
       default:
         return {

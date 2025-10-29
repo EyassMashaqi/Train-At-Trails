@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { emailService } from '../services/emailService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -325,9 +326,32 @@ router.post('/:cohortId/members', authenticateToken, requireAdmin, async (req, r
                 trainName: true,
                 isAdmin: true
               }
+            },
+            cohort: {
+              select: {
+                id: true,
+                name: true,
+                startDate: true
+              }
             }
           }
         });
+
+        // Send assignment email for reactivation
+        try {
+          await emailService.sendUserAssignedToCohortEmail(
+            updatedMembership.user.email,
+            updatedMembership.user.fullName,
+            updatedMembership.cohort.name,
+            updatedMembership.cohort.startDate.toLocaleDateString(),
+            'ENROLLED',
+            cohortId
+          );
+          console.log(`📧 Re-assignment email sent to ${updatedMembership.user.email} for cohort ${updatedMembership.cohort.name}`);
+        } catch (emailError) {
+          console.error('Warning: Failed to send re-assignment email:', emailError);
+          // Don't fail the membership update if email fails
+        }
 
         return res.status(200).json({ member: updatedMembership });
       }
@@ -350,9 +374,32 @@ router.post('/:cohortId/members', authenticateToken, requireAdmin, async (req, r
             trainName: true,
             isAdmin: true
           }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true
+          }
         }
       }
     });
+
+    // Send assignment email
+    try {
+      await emailService.sendUserAssignedToCohortEmail(
+        membership.user.email,
+        membership.user.fullName,
+        membership.cohort.name,
+        membership.cohort.startDate.toLocaleDateString(),
+        'ENROLLED',
+        cohortId
+      );
+      console.log(`📧 Assignment email sent to ${membership.user.email} for cohort ${membership.cohort.name}`);
+    } catch (emailError) {
+      console.error('Warning: Failed to send assignment email:', emailError);
+      // Don't fail the membership creation if email fails
+    }
 
     res.status(201).json({ member: membership });
   } catch (error) {
@@ -366,12 +413,28 @@ router.delete('/:cohortId/members/:userId', authenticateToken, requireAdmin, asy
   try {
     const { cohortId, userId } = req.params;
 
-    // Find the membership
+    // Find the membership with user and cohort details
     const membership = await (prisma as any).cohortMember.findUnique({
       where: {
         userId_cohortId: {
           userId,
           cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       }
     });
@@ -380,11 +443,39 @@ router.delete('/:cohortId/members/:userId', authenticateToken, requireAdmin, asy
       return res.status(404).json({ message: 'User is not a member of this cohort' });
     }
 
+    // Get admin info for tracking who made the change
+    const adminUser = await (prisma as any).user.findUnique({
+      where: { id: (req as any).user.userId },
+      select: { fullName: true, email: true }
+    });
+
     // Deactivate instead of deleting to preserve data
     await (prisma as any).cohortMember.update({
       where: { id: membership.id },
-      data: { isActive: false }
+      data: { 
+        isActive: false,
+        status: 'REMOVED',
+        statusChangedAt: new Date(),
+        statusChangedBy: adminUser?.fullName || adminUser?.email || 'Admin'
+      }
     });
+
+    // Send removal email
+    try {
+      await emailService.sendUserRemovedFromCohortEmail(
+        membership.user.email,
+        membership.user.fullName,
+        membership.cohort.name,
+        'REMOVED',
+        new Date().toLocaleDateString(),
+        adminUser?.fullName || adminUser?.email || 'Admin',
+        cohortId
+      );
+      console.log(`📧 Removal email sent to ${membership.user.email} for cohort ${membership.cohort.name}`);
+    } catch (emailError) {
+      console.error('Warning: Failed to send removal email:', emailError);
+      // Don't fail the removal if email fails
+    }
 
     res.json({ message: 'User removed from cohort successfully' });
   } catch (error) {
@@ -916,6 +1007,232 @@ router.get('/:cohortId/export', authenticateToken, requireAdmin, async (req, res
     console.error('Error exporting cohort data:', error);
     console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Failed to export cohort data', error: error.message });
+  }
+});
+
+// Suspend user in cohort (admin only)
+router.patch('/:cohortId/members/:userId/suspend', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId, userId } = req.params;
+
+    // Find the membership with user and cohort details
+    const membership = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!membership) {
+      return res.status(404).json({ message: 'User is not a member of this cohort' });
+    }
+
+    // Get admin info for tracking who made the change
+    const adminUser = await (prisma as any).user.findUnique({
+      where: { id: (req as any).user.userId },
+      select: { fullName: true, email: true }
+    });
+
+    // Update status to suspended
+    await (prisma as any).cohortMember.update({
+      where: { id: membership.id },
+      data: { 
+        status: 'SUSPENDED',
+        statusChangedAt: new Date(),
+        statusChangedBy: adminUser?.fullName || adminUser?.email || 'Admin'
+      }
+    });
+
+    // Send suspension email
+    try {
+      await emailService.sendUserSuspendedEmail(
+        membership.user.email,
+        membership.user.fullName,
+        membership.cohort.name,
+        new Date().toLocaleDateString(),
+        adminUser?.fullName || adminUser?.email || 'Admin',
+        cohortId
+      );
+      console.log(`📧 Suspension email sent to ${membership.user.email} for cohort ${membership.cohort.name}`);
+    } catch (emailError) {
+      console.error('Warning: Failed to send suspension email:', emailError);
+      // Don't fail the suspension if email fails
+    }
+
+    res.json({ message: 'User suspended in cohort successfully' });
+  } catch (error) {
+    console.error('Error suspending user in cohort:', error);
+    res.status(500).json({ message: 'Failed to suspend user in cohort' });
+  }
+});
+
+// Graduate user from cohort (admin only)
+router.patch('/:cohortId/members/:userId/graduate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId, userId } = req.params;
+
+    // Find the membership with user and cohort details
+    const membership = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!membership) {
+      return res.status(404).json({ message: 'User is not a member of this cohort' });
+    }
+
+    // Get admin info for tracking who made the change
+    const adminUser = await (prisma as any).user.findUnique({
+      where: { id: (req as any).user.userId },
+      select: { fullName: true, email: true }
+    });
+
+    // Update status to graduated
+    await (prisma as any).cohortMember.update({
+      where: { id: membership.id },
+      data: { 
+        status: 'GRADUATED',
+        isGraduated: true,
+        graduatedAt: new Date(),
+        graduatedBy: adminUser?.fullName || adminUser?.email || 'Admin',
+        statusChangedAt: new Date(),
+        statusChangedBy: adminUser?.fullName || adminUser?.email || 'Admin'
+      }
+    });
+
+    // Send graduation email
+    try {
+      await emailService.sendUserGraduatedEmail(
+        membership.user.email,
+        membership.user.fullName,
+        membership.cohort.name,
+        new Date().toLocaleDateString(),
+        cohortId
+      );
+      console.log(`📧 Graduation email sent to ${membership.user.email} for cohort ${membership.cohort.name}`);
+    } catch (emailError) {
+      console.error('Warning: Failed to send graduation email:', emailError);
+      // Don't fail the graduation if email fails
+    }
+
+    res.json({ message: 'User graduated from cohort successfully' });
+  } catch (error) {
+    console.error('Error graduating user from cohort:', error);
+    res.status(500).json({ message: 'Failed to graduate user from cohort' });
+  }
+});
+
+// Reactivate user in cohort (admin only) - change from suspended/removed back to enrolled
+router.patch('/:cohortId/members/:userId/reactivate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { cohortId, userId } = req.params;
+
+    // Find the membership with user and cohort details
+    const membership = await (prisma as any).cohortMember.findUnique({
+      where: {
+        userId_cohortId: {
+          userId,
+          cohortId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            trainName: true
+          }
+        },
+        cohort: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true
+          }
+        }
+      }
+    });
+
+    if (!membership) {
+      return res.status(404).json({ message: 'User is not a member of this cohort' });
+    }
+
+    // Get admin info for tracking who made the change
+    const adminUser = await (prisma as any).user.findUnique({
+      where: { id: (req as any).user.userId },
+      select: { fullName: true, email: true }
+    });
+
+    // Reactivate membership
+    await (prisma as any).cohortMember.update({
+      where: { id: membership.id },
+      data: { 
+        isActive: true,
+        status: 'ENROLLED',
+        statusChangedAt: new Date(),
+        statusChangedBy: adminUser?.fullName || adminUser?.email || 'Admin'
+      }
+    });
+
+    // Send reactivation email (uses the assignment template)
+    try {
+      await emailService.sendUserAssignedToCohortEmail(
+        membership.user.email,
+        membership.user.fullName,
+        membership.cohort.name,
+        membership.cohort.startDate.toLocaleDateString(),
+        'ENROLLED',
+        cohortId
+      );
+      console.log(`📧 Reactivation email sent to ${membership.user.email} for cohort ${membership.cohort.name}`);
+    } catch (emailError) {
+      console.error('Warning: Failed to send reactivation email:', emailError);
+      // Don't fail the reactivation if email fails
+    }
+
+    res.json({ message: 'User reactivated in cohort successfully' });
+  } catch (error) {
+    console.error('Error reactivating user in cohort:', error);
+    res.status(500).json({ message: 'Failed to reactivate user in cohort' });
   }
 });
 

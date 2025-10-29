@@ -1521,7 +1521,11 @@ const AdminDashboard: React.FC = () => {
       NEW_QUESTION: '🆕',
       MINI_QUESTION_RELEASE: '📚',
       MINI_ANSWER_RESUBMISSION: '🔄',
-      RESUBMISSION_APPROVAL: '✅'
+      RESUBMISSION_APPROVAL: '✅',
+      USER_ASSIGNED_TO_COHORT: '🚂',
+      USER_GRADUATED: '🎓',
+      USER_REMOVED_FROM_COHORT: '📋',
+      USER_SUSPENDED: '⚠️'
     };
     return icons[emailType] || '📧';
   };
@@ -1535,7 +1539,11 @@ const AdminDashboard: React.FC = () => {
       NEW_QUESTION: 'New Assignment Release',
       MINI_QUESTION_RELEASE: 'Self-Learning Release',
       MINI_ANSWER_RESUBMISSION: 'Resubmission Request',
-      RESUBMISSION_APPROVAL: 'Resubmission Approval'
+      RESUBMISSION_APPROVAL: 'Resubmission Approval',
+      USER_ASSIGNED_TO_COHORT: 'User Assigned to Cohort',
+      USER_GRADUATED: 'User Graduated',
+      USER_REMOVED_FROM_COHORT: 'User Removed from Cohort',
+      USER_SUSPENDED: 'User Suspended'
     };
     return names[emailType] || emailType;
   };

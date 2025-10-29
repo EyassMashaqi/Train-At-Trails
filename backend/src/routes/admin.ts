@@ -3065,7 +3065,8 @@ router.put('/user-cohort-status', async (req: AuthRequest, res) => {
         },
         cohort: {
           select: {
-            name: true
+            name: true,
+            startDate: true
           }
         }
       }
@@ -3109,6 +3110,69 @@ router.put('/user-cohort-status', async (req: AuthRequest, res) => {
         where: { id: userId },
         data: { currentCohortId: cohortId }
       });
+    }
+
+    // Send appropriate email based on status change
+    try {
+      const userName = cohortMember.user.fullName;
+      const userEmail = cohortMember.user.email;
+      const cohortName = cohortMember.cohort.name;
+      const adminUser = req.user?.email || 'Admin';
+      const changeDate = new Date().toLocaleDateString();
+
+      switch (status) {
+        case 'ENROLLED':
+          // This handles both new assignments and reactivations
+          await emailService.sendUserAssignedToCohortEmail(
+            userEmail,
+            userName,
+            cohortName,
+            cohortMember.cohort.startDate?.toLocaleDateString() || 'TBD',
+            'ENROLLED',
+            cohortId
+          );
+          console.log(`📧 Assignment email sent to ${userEmail} for cohort ${cohortName}`);
+          break;
+        
+        case 'GRADUATED':
+          await emailService.sendUserGraduatedEmail(
+            userEmail,
+            userName,
+            cohortName,
+            changeDate,
+            cohortId
+          );
+          console.log(`📧 Graduation email sent to ${userEmail} for cohort ${cohortName}`);
+          break;
+        
+        case 'SUSPENDED':
+          await emailService.sendUserSuspendedEmail(
+            userEmail,
+            userName,
+            cohortName,
+            changeDate,
+            adminUser,
+            cohortId
+          );
+          console.log(`📧 Suspension email sent to ${userEmail} for cohort ${cohortName}`);
+          break;
+        
+        case 'REMOVED':
+          await emailService.sendUserRemovedFromCohortEmail(
+            userEmail,
+            userName,
+            cohortName,
+            'REMOVED',
+            changeDate,
+            adminUser,
+            cohortId
+          );
+          console.log(`📧 Removal email sent to ${userEmail} for cohort ${cohortName}`);
+          break;
+      }
+    } catch (emailError) {
+      console.error('Warning: Failed to send status change email:', emailError);
+      // Don't fail the status update if email fails
     }
 
     res.json({ 
