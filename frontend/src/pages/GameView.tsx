@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { gameService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -178,14 +178,45 @@ const GameView: React.FC = () => {
   const [targetQuestion, setTargetQuestion] = useState<Question | null>(null);
 
   // URL validation function
+  // Debounce function to improve performance during paste operations
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
   const validateUrl = (url: string): {isValid: boolean, message: string} => {
     if (!url.trim()) {
       return { isValid: false, message: '' };
     }
 
     try {
-      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-      const isValidPattern = urlPattern.test(url);
+      // More permissive URL pattern that handles modern URLs like Google Docs/Sheets
+      // This pattern allows for:
+      // - Optional protocol (http/https)
+      // - Domain names (including subdomains)
+      // - Paths with various characters including underscores, equals, question marks, etc.
+      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\w\/-]*[\w\/])?(\?[;&a-z\d%_.,~#=]*)?(\#[-a-z\d_]*)?$/i;
+      
+      // Also try using the browser's URL constructor as a fallback
+      let isValidPattern = urlPattern.test(url);
+      
+      // If regex fails, try browser's URL validation (more comprehensive)
+      if (!isValidPattern) {
+        try {
+          const testUrl = url.startsWith('http') ? url : `https://${url}`;
+          new URL(testUrl);
+          isValidPattern = true;
+        } catch {
+          // URL constructor also failed
+        }
+      }
       
       if (!isValidPattern) {
         return { isValid: false, message: 'Please enter a valid URL (e.g., https://example.com)' };
@@ -201,6 +232,18 @@ const GameView: React.FC = () => {
       return { isValid: false, message: 'Invalid URL format' };
     }
   };
+
+  // Debounced validation to prevent freezing during paste operations
+  const debouncedValidateUrl = useCallback(
+    debounce((miniQuestionId: string, url: string) => {
+      const validation = validateUrl(url);
+      setUrlValidation(prev => ({
+        ...prev,
+        [miniQuestionId]: validation
+      }));
+    }, 300), // 300ms delay
+    []
+  );
 
   // Handle resubmission request
   const handleResubmissionRequest = async (answerId: number) => {
@@ -896,13 +939,16 @@ const GameView: React.FC = () => {
       }
     }));
 
-    // Validate URL in real-time if it's the linkUrl field
+    // Use debounced validation for URL field to prevent freezing during paste
     if (field === 'linkUrl') {
-      const validation = validateUrl(value);
+      // Clear any existing validation message immediately for better UX
       setUrlValidation(prev => ({
         ...prev,
-        [miniQuestionId]: validation
+        [miniQuestionId]: { isValid: false, message: '' }
       }));
+      
+      // Then run debounced validation
+      debouncedValidateUrl(miniQuestionId, value);
     }
   };
 
@@ -940,11 +986,24 @@ const GameView: React.FC = () => {
     }
   };
 
+  // Debounced validation for main answer link
+  const debouncedValidateAnswerUrl = useCallback(
+    debounce((url: string) => {
+      const validation = validateUrl(url);
+      setAnswerLinkValidation(validation);
+    }, 300), // 300ms delay
+    []
+  );
+
   // Handler for main answer link changes with validation
   const handleAnswerLinkChange = (value: string) => {
     setAnswerLink(value);
-    const validation = validateUrl(value);
-    setAnswerLinkValidation(validation);
+    
+    // Clear existing validation immediately for better UX
+    setAnswerLinkValidation({ isValid: false, message: '' });
+    
+    // Then run debounced validation
+    debouncedValidateAnswerUrl(value);
   };
 
   // Main question submission handler
@@ -1573,6 +1632,13 @@ const GameView: React.FC = () => {
                                           type="url"
                                           value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
                                           onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
+                                          onPaste={(e) => {
+                                            // Allow paste operation to complete without immediate validation
+                                            setTimeout(() => {
+                                              const pastedValue = (e.target as HTMLInputElement).value;
+                                              debouncedValidateUrl(miniQuestion.id, pastedValue);
+                                            }, 50);
+                                          }}
                                           placeholder="https://example.com/article"
                                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                                             urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
@@ -1632,6 +1698,13 @@ const GameView: React.FC = () => {
                                     type="url"
                                     value={miniAnswers[miniQuestion.id]?.linkUrl || ''}
                                     onChange={(e) => handleMiniAnswerChange(miniQuestion.id, 'linkUrl', e.target.value)}
+                                    onPaste={(e) => {
+                                      // Allow paste operation to complete without immediate validation
+                                      setTimeout(() => {
+                                        const pastedValue = (e.target as HTMLInputElement).value;
+                                        debouncedValidateUrl(miniQuestion.id, pastedValue);
+                                      }, 50);
+                                    }}
                                     placeholder="https://example.com/article"
                                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                                       urlValidation[miniQuestion.id]?.isValid === false && miniAnswers[miniQuestion.id]?.linkUrl
@@ -1779,6 +1852,13 @@ const GameView: React.FC = () => {
                 type="url"
                 value={answerLink}
                 onChange={(e) => handleAnswerLinkChange(e.target.value)}
+                onPaste={(e) => {
+                  // Allow paste operation to complete without immediate validation
+                  setTimeout(() => {
+                    const pastedValue = (e.target as HTMLInputElement).value;
+                    debouncedValidateAnswerUrl(pastedValue);
+                  }, 50);
+                }}
                 placeholder="https://example.com/article"
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
                   answerLink.trim() && !answerLinkValidation.isValid

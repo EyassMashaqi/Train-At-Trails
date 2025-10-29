@@ -53,6 +53,14 @@ class EmailService {
   }
 
   private async verifyConnection(): Promise<void> {
+    // Skip verification if essential SMTP credentials are missing (development mode)
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('⚠️ Email service disabled - SMTP credentials not configured');
+      console.log('💡 Configure SMTP environment variables for email functionality:');
+      console.log('   - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS');
+      return;
+    }
+
     try {
       await this.transporter.verify();
       console.log('✅ Email service is ready to send emails');
@@ -70,6 +78,14 @@ class EmailService {
     html: string,
     text?: string
   ): Promise<boolean> {
+    // Check if SMTP credentials are configured
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('⚠️ Email sending skipped - SMTP credentials not configured');
+      console.log(`📧 Would have sent email to: ${Array.isArray(to) ? to.join(', ') : to}`);
+      console.log(`📧 Subject: ${subject}`);
+      return false;
+    }
+
     try {
       const mailOptions = {
         from: `"${this.fromName}" <${this.fromEmail}>`,
