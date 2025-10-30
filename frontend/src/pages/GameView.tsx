@@ -324,11 +324,6 @@ const GameView: React.FC = () => {
   const getBestGradeForStep = (step: number): string | null => {
     if (!progress?.answers) return null;
     
-    // Debug: log all answers for this step
-    const allStepAnswers = progress.answers.filter(answer => 
-      answer.question?.questionNumber === step
-    );
-    
     const stepAnswers = progress.answers.filter(answer => 
       answer.question?.questionNumber === step && 
       answer.status === 'APPROVED'
