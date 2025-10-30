@@ -149,7 +149,6 @@ const GameView: React.FC = () => {
   const vehicleIcon = useMemo(() => getVehicleIcon(currentTheme), [currentTheme]);
   const vehicleIconStyle = useMemo(() => {
     const style = getVehicleIconStyle(currentTheme.id);
-    console.log('Vehicle Icon Style for theme', currentTheme.id, ':', style);
     return style;
   }, [currentTheme.id]);
   
@@ -201,39 +200,36 @@ const GameView: React.FC = () => {
     }
 
     try {
-      // More permissive URL pattern that handles modern URLs like Google Docs/Sheets
-      // This pattern allows for:
-      // - Optional protocol (http/https)
-      // - Domain names (including subdomains)
-      // - Paths with various characters including underscores, equals, question marks, etc.
-      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\w\/-]*[\w\/])?(\?[;&a-z\d%_.,~#=]*)?(\#[-a-z\d_]*)?$/i;
+      // Use browser's URL constructor for validation (more reliable and faster)
+      // This avoids complex regex patterns that can cause catastrophic backtracking
+      let testUrl = url.trim();
       
-      // Also try using the browser's URL constructor as a fallback
-      let isValidPattern = urlPattern.test(url);
-      
-      // If regex fails, try browser's URL validation (more comprehensive)
-      if (!isValidPattern) {
-        try {
-          const testUrl = url.startsWith('http') ? url : `https://${url}`;
-          new URL(testUrl);
-          isValidPattern = true;
-        } catch {
-          // URL constructor also failed
-        }
+      // Add protocol if missing for validation
+      if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
+        testUrl = `https://${testUrl}`;
       }
       
-      if (!isValidPattern) {
+      // Try to create URL object - this will throw if invalid
+      const urlObj = new URL(testUrl);
+      
+      // Basic validation - must have a hostname
+      if (!urlObj.hostname || urlObj.hostname.length < 3) {
         return { isValid: false, message: 'Please enter a valid URL (e.g., https://example.com)' };
       }
       
-      // Check if URL has protocol
+      // Must have at least one dot in hostname (for domain.com format)
+      if (!urlObj.hostname.includes('.')) {
+        return { isValid: false, message: 'Please enter a valid URL with a domain (e.g., example.com)' };
+      }
+      
+      // Check if original URL has protocol
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        return { isValid: true, message: 'URL looks good! (Protocol will be added automatically)' };
+        return { isValid: true, message: 'URL looks good!' };
       }
       
       return { isValid: true, message: 'Valid URL format ✓' };
     } catch (error) {
-      return { isValid: false, message: 'Invalid URL format' };
+      return { isValid: false, message: 'Please enter a valid URL (e.g., https://example.com)' };
     }
   };
 
@@ -245,7 +241,7 @@ const GameView: React.FC = () => {
         ...prev,
         [miniQuestionId]: validation
       }));
-    }, 300), // 300ms delay
+    }, 500), // Increased to 500ms delay for better performance
     []
   );
 
@@ -333,13 +329,6 @@ const GameView: React.FC = () => {
       answer.question?.questionNumber === step
     );
     
-    console.log(`Step ${step} - All answers:`, allStepAnswers.map(a => ({
-      id: a.id,
-      status: a.status,
-      grade: a.grade,
-      questionNumber: a.question?.questionNumber
-    })));
-    
     const stepAnswers = progress.answers.filter(answer => 
       answer.question?.questionNumber === step && 
       answer.status === 'APPROVED'
@@ -360,7 +349,6 @@ const GameView: React.FC = () => {
       }
     }
     
-    console.log(`Step ${step} - Best mastery points:`, bestGrade);
     return bestGrade;
   };
 
@@ -458,10 +446,6 @@ const GameView: React.FC = () => {
     const availableQuestions: Question[] = [];
     
     // Look through modules to find ALL questions where the user can submit the main assignment
-    console.log('Calculate All Available Questions Debug:', {
-      modulesCount: modules.length,
-      totalTopics: modules.flatMap(m => m.topics).length
-    });
     
     // First pass: Look for approved resubmissions (priority)
     for (const module of modules) {
@@ -488,7 +472,6 @@ const GameView: React.FC = () => {
                 releaseDate: topic.deadline,
                 hasAnswered: true // This is a resubmission
               });
-              console.log('Found PRIORITY available question (approved resubmission):', topic.title);
             }
           }
         }
@@ -536,16 +519,6 @@ const GameView: React.FC = () => {
               userAnswer.status === 'AWAITING_RESUBMISSION' ||
               (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
             
-            console.log(`Topic ${topicNumber} (${topic.title}):`, {
-              isReleased: topic.isReleased,
-              status: topic.status,
-              isTopicAvailable,
-              allMiniQuestionsCompleted,
-              isActuallyAvailable,
-              hasAnswered: !!userAnswer,
-              canSubmitAnswer
-            });
-            
             // Use backend status to determine if this topic is available for submission
             if (isActuallyAvailable && canSubmitAnswer) {
               availableQuestions.push({
@@ -557,14 +530,12 @@ const GameView: React.FC = () => {
                 releaseDate: topic.deadline,
                 hasAnswered: false
               });
-              console.log('Found available question (normal availability):', topic.title);
             }
           }
         }
       }
     }
     
-    console.log('calculateAllAvailableQuestions result:', availableQuestions.map(q => q.title));
     return availableQuestions;
   }, [progress, modules, currentQuestion, miniQuestions]);
 
@@ -579,11 +550,6 @@ const GameView: React.FC = () => {
     // 1. The question is released
     // 2. Either no mini-questions exist OR all mini-questions are completed
     // 3. The user hasn't already answered this question
-    
-    console.log('Calculate Target Question Debug:', {
-      modulesCount: modules.length,
-      totalTopics: modules.flatMap(m => m.topics).length
-    });
     
     for (const module of modules) {
       if (module.isReleased) {
@@ -609,7 +575,6 @@ const GameView: React.FC = () => {
                 releaseDate: topic.deadline,
                 hasAnswered: true // This is a resubmission
               };
-              console.log('Found PRIORITY target question (approved resubmission):', foundTargetQuestion);
               break; // Stop searching once we find an approved resubmission
             }
           }
@@ -655,28 +620,6 @@ const GameView: React.FC = () => {
                 userAnswer.status === 'AWAITING_RESUBMISSION' ||
                 (userAnswer.resubmissionRequested && userAnswer.resubmissionApproved);
               
-              console.log(`Topic ${topicNumber} (${topic.title}):`, {
-                isReleased: topic.isReleased,
-                status: topic.status,
-                isTopicAvailable,
-                allMiniQuestionsCompleted,
-                isActuallyAvailable,
-                hasAnswered: !!userAnswer,
-                canSubmitAnswer,
-                answerDetails: userAnswer ? {
-                  status: userAnswer.status,
-                  grade: userAnswer.grade,
-                  resubmissionRequested: userAnswer.resubmissionRequested,
-                  resubmissionApproved: userAnswer.resubmissionApproved,
-                  resubmissionRequestedAt: userAnswer.resubmissionRequestedAt
-                } : null,
-                miniQuestionProgress: topic.miniQuestionProgress,
-                miniQuestionsCount: topicMiniQuestions.length,
-                completedMiniQuestions: topicMiniQuestions.filter(mq => 
-                  mq.hasAnswer && !mq.answer?.resubmissionRequested
-                ).length
-              });
-              
               // Use backend status to determine if this topic is available for submission
               if (isActuallyAvailable && canSubmitAnswer) {
                 foundTargetQuestion = {
@@ -688,7 +631,6 @@ const GameView: React.FC = () => {
                   releaseDate: topic.deadline,
                   hasAnswered: false
                 };
-                console.log('Found target question (normal availability):', foundTargetQuestion);
                 break;
               }
             }
@@ -703,7 +645,6 @@ const GameView: React.FC = () => {
       foundTargetQuestion = currentQuestion;
     }
 
-    console.log('calculateTargetQuestion result:', foundTargetQuestion);
     return foundTargetQuestion;
   }, [progress, modules, currentQuestion, miniQuestions]);
 
@@ -995,7 +936,7 @@ const GameView: React.FC = () => {
     debounce((url: string) => {
       const validation = validateUrl(url);
       setAnswerLinkValidation(validation);
-    }, 300), // 300ms delay
+    }, 500), // Increased to 500ms delay for better performance
     []
   );
 
@@ -2031,7 +1972,7 @@ const GameView: React.FC = () => {
 
                     <div className="mb-6">
                       <h4 className={`text-lg font-bold ${themeClasses.textPrimary} mb-2`}>
-                        Question {question.questionNumber}: {question.title}
+                         {question.title}
                       </h4>
                       <p className={`${themeClasses.textMuted} mb-4`}>
                         {question.description || question.content}
@@ -2595,19 +2536,9 @@ const GameView: React.FC = () => {
                               // Check if this question has approved resubmission
                               const hasApprovedResubmission = userAnswer?.resubmissionRequested && userAnswer?.resubmissionApproved;
                               
-                              console.log(`🔍 RESUBMISSION DEBUG - ${topic.title}:`, {
-                                hasAnswered,
-                                userAnswerStatus: userAnswer?.status,
-                                resubmissionRequested: userAnswer?.resubmissionRequested,
-                                resubmissionApproved: userAnswer?.resubmissionApproved,
-                                hasApprovedResubmission,
-                                currentTopicStatus: topicStatus
-                              });
-                              
                               if (hasApprovedResubmission) {
                                 // If resubmission is approved, show as available for re-answering
                                 topicStatus = 'available';
-                                console.log(`✅ Setting ${topic.title} to AVAILABLE due to approved resubmission`);
                               } else if (userAnswer?.status === 'APPROVED') {
                                 topicStatus = 'completed';
                               } else {
@@ -2769,16 +2700,8 @@ const GameView: React.FC = () => {
   };
 
   const renderResubmissionSection = () => {
-    console.log('🔄 Resubmission Section Debug:', {
-      hasProgress: !!progress,
-      hasAnswers: !!progress?.answers,
-      answersCount: progress?.answers?.length || 0,
-      hasModules: !!modules,
-      modulesCount: modules?.length || 0
-    });
 
     if (!progress?.answers || !modules) {
-      console.log('🔄 Resubmission Section: Early return - missing data');
       return null;
     }
 
@@ -2788,20 +2711,8 @@ const GameView: React.FC = () => {
       (answer.resubmissionRequested && answer.resubmissionApproved)
     );
 
-    console.log('🔄 Resubmission Section: Filtering results:', {
-      totalAnswers: progress.answers.length,
-      resubmittableCount: resubmittableAnswers.length,
-      resubmittableAnswers: resubmittableAnswers.map(a => ({
-        id: a.id,
-        questionTitle: a.question?.title,
-        grade: a.grade,
-        resubmissionRequested: a.resubmissionRequested,
-        resubmissionApproved: a.resubmissionApproved
-      }))
-    });
 
     if (resubmittableAnswers.length === 0) {
-      console.log('🔄 Resubmission Section: No resubmittable answers found');
       return null;
     }
 
