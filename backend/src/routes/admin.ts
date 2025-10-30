@@ -1249,7 +1249,17 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                   question: contentData.question,
                   description: contentData.question,
                   resourceUrl: contentData.resourceUrl || null, // NEW: Add resourceUrl field
-                  releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
+                  releaseDate: contentData.releaseDate ? (() => {
+                    // Handle various date formats
+                    if (typeof contentData.releaseDate === 'string') {
+                      // If it's in YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS format (local time)
+                      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(contentData.releaseDate)) {
+                        // Treat as local time
+                        return new Date(contentData.releaseDate);
+                      }
+                    }
+                    return new Date(contentData.releaseDate);
+                  })() : null,
                   orderIndex: i + 1
                 }
               });
@@ -1261,7 +1271,17 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                   question: contentData.question,
                   description: contentData.question,
                   resourceUrl: contentData.resourceUrl || null, // NEW: Add resourceUrl field
-                  releaseDate: contentData.releaseDate ? new Date(contentData.releaseDate) : null,
+                  releaseDate: contentData.releaseDate ? (() => {
+                    // Handle various date formats
+                    if (typeof contentData.releaseDate === 'string') {
+                      // If it's in YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS format (local time)
+                      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(contentData.releaseDate)) {
+                        // Treat as local time
+                        return new Date(contentData.releaseDate);
+                      }
+                    }
+                    return new Date(contentData.releaseDate);
+                  })() : null,
                   orderIndex: i + 1,
                   contentId: contentSection.id
                 }
@@ -1332,7 +1352,17 @@ router.put('/questions/:questionId', async (req: AuthRequest, res) => {
                     question: miniQuestionData.question,
                     description: miniQuestionData.description || '',
                     resourceUrl: miniQuestionData.resourceUrl || null,
-                    releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
+                    releaseDate: miniQuestionData.releaseDate ? (() => {
+                      // Handle various date formats
+                      if (typeof miniQuestionData.releaseDate === 'string') {
+                        // If it's in YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS format (local time)
+                        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(miniQuestionData.releaseDate)) {
+                          // Treat as local time
+                          return new Date(miniQuestionData.releaseDate);
+                        }
+                      }
+                      return new Date(miniQuestionData.releaseDate);
+                    })() : null,
                     orderIndex: j + 1,
                     contentId: newContent.id
                   }
@@ -2072,7 +2102,17 @@ router.post('/modules/:moduleId/topics', async (req: AuthRequest, res) => {
                     question: miniQuestionData.question,
                     description: miniQuestionData.description || '',
                     resourceUrl: miniQuestionData.resourceUrl || null,
-                    releaseDate: miniQuestionData.releaseDate ? new Date(miniQuestionData.releaseDate) : null,
+                    releaseDate: miniQuestionData.releaseDate ? (() => {
+                      // Handle various date formats
+                      if (typeof miniQuestionData.releaseDate === 'string') {
+                        // If it's in YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS format (local time)
+                        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(miniQuestionData.releaseDate)) {
+                          // Treat as local time
+                          return new Date(miniQuestionData.releaseDate);
+                        }
+                      }
+                      return new Date(miniQuestionData.releaseDate);
+                    })() : null,
                     orderIndex: j + 1,
                     contentId: newContent.id
                   }
@@ -2880,7 +2920,19 @@ router.put('/mini-questions/:miniQuestionId', async (req: AuthRequest, res) => {
     if (question !== undefined) updateData.question = question;
     if (description !== undefined) updateData.description = description;
     if (resourceUrl !== undefined) updateData.resourceUrl = resourceUrl;
-    if (releaseDate !== undefined) updateData.releaseDate = releaseDate ? new Date(releaseDate) : null;
+    if (releaseDate !== undefined) {
+      updateData.releaseDate = releaseDate ? (() => {
+        // Handle various date formats
+        if (typeof releaseDate === 'string') {
+          // If it's in YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS format (local time)
+          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(releaseDate)) {
+            // Treat as local time
+            return new Date(releaseDate);
+          }
+        }
+        return new Date(releaseDate);
+      })() : null;
+    }
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
     if (typeof isReleased === 'boolean') {
       updateData.isReleased = isReleased;
@@ -3539,9 +3591,9 @@ router.get('/users-with-cohorts', async (req: AuthRequest, res) => {
 router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
   try {
     const { cohortId } = req.params;
-    const { name, description, defaultTheme, cohortNumber, isActive } = req.body;
+    const { name, description, defaultTheme, cohortNumber, isActive, startDate, endDate } = req.body;
 
-    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme, cohortNumber, isActive });
+    console.log(`🔧 Updating cohort ${cohortId} with data:`, { name, description, defaultTheme, cohortNumber, isActive, startDate, endDate });
 
     // Verify cohort exists
     const existingCohort = await prisma.cohort.findUnique({
@@ -3580,6 +3632,8 @@ router.patch('/cohorts/:cohortId', async (req: AuthRequest, res) => {
     if (cohortNumber !== undefined) updateData.cohortNumber = parseInt(cohortNumber);
     if (description !== undefined) updateData.description = description;
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
+    if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
     if (defaultTheme !== undefined) {
       // Validate theme
       const validThemes = ['trains', 'planes', 'sailboat', 'cars', 'f1'];

@@ -3642,10 +3642,9 @@ const AdminDashboard: React.FC = () => {
                           releaseDate: item.releaseDate ? (() => {
                             // Handle datetime-local format (YYYY-MM-DDTHH:MM)
                             if (typeof item.releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.releaseDate)) {
-                              // Create a Date object from the datetime-local string
-                              // This treats it as local time and will send the ISO string to backend
-                              const localDate = new Date(item.releaseDate);
-                              return localDate.toISOString();
+                              // For datetime-local, append seconds and send as-is to preserve local time
+                              // Backend will handle timezone conversion properly
+                              return item.releaseDate + ':00';
                             }
                             // If it's already an ISO string or other format, pass it through
                             return item.releaseDate;
