@@ -252,15 +252,15 @@ const Login: React.FC = () => {
             </p>
           </div>
 
-          <div className="mt-6 border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
-            <div className="space-y-2 text-xs text-gray-600">
-              <p><strong>Admin:</strong> admin@trainattrails.com / admin123</p>
-              <p><strong>User:</strong> alice@traintrails.com / password123</p>
-              <p><strong>User:</strong> bob@traintrails.com / password123</p>
-              <p><strong>User:</strong> test@traintrails.com / test123</p>
-            </div>
-            {import.meta.env.DEV && (
+          {import.meta.env.DEV && (
+            <div className="mt-6 border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Demo Accounts:</h3>
+              <div className="space-y-2 text-xs text-gray-600">
+                <p><strong>Admin:</strong> admin@trainattrails.com / admin123</p>
+                <p><strong>User:</strong> alice@traintrails.com / password123</p>
+                <p><strong>User:</strong> bob@traintrails.com / password123</p>
+                <p><strong>User:</strong> test@traintrails.com / test123</p>
+              </div>
               <div className="mt-4">
                 <button
                   onClick={handleAdminLogin}
@@ -270,8 +270,8 @@ const Login: React.FC = () => {
                   Quick Admin Login
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </form>
       </div>
     </div>
