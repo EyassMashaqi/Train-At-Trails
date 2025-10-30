@@ -87,6 +87,28 @@ router.post('/register', async (req, res) => {
       // Don't fail registration if cohort assignment fails
     }
 
+    // Send notification email to admin about new user registration
+    try {
+      const registrationDate = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      await emailService.sendNewUserRegistrationNotificationToAdmin(
+        user.email,
+        user.fullName,
+        registrationDate
+      );
+      console.log(`📧 Admin notification sent for new user registration: ${user.email}`);
+    } catch (emailError) {
+      console.error('❌ Failed to send admin notification email:', emailError);
+      // Don't fail registration if email sending fails
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },

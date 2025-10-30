@@ -369,6 +369,85 @@ class EmailService {
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
+  // Send new user registration notification to admin
+  async sendNewUserRegistrationNotificationToAdmin(
+    userEmail: string,
+    userName: string,
+    registrationDate: string,
+    adminNotificationEmail: string = `${process.env.SMTP_ADMIN_NOTIFICATION_EMAIL || 'razan@bvisionry.com'}`
+  ): Promise<boolean> {
+    const subject = `🆕 New User Registration - ${userName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8fafc;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #1e40af; margin: 0; font-size: 24px;">🚂 BVisionRY Lighthouse</h1>
+            <p style="color: #64748b; margin: 5px 0 0 0; font-size: 14px;">New User Registration Alert</p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="background-color: #eff6ff; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 25px;">
+            <h2 style="color: #1e40af; margin: 0 0 15px 0; font-size: 20px;">👋 New User Has Joined!</h2>
+            <p style="color: #374151; margin: 0 0 10px 0; font-size: 16px;">
+              A new user has successfully registered for the BVisionRY Lighthouse platform.
+            </p>
+          </div>
+
+          <!-- User Details -->
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+            <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">📋 User Details:</h3>
+            <div style="margin-bottom: 12px;">
+              <span style="color: #6b7280; font-weight: 500;">Full Name:</span>
+              <span style="color: #1f2937; margin-left: 10px; font-weight: 600;">${userName}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <span style="color: #6b7280; font-weight: 500;">Email Address:</span>
+              <span style="color: #1f2937; margin-left: 10px; font-weight: 600;">${userEmail}</span>
+            </div>
+            <div style="margin-bottom: 0;">
+              <span style="color: #6b7280; font-weight: 500;">Registration Date:</span>
+              <span style="color: #1f2937; margin-left: 10px; font-weight: 600;">${registrationDate}</span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="text-align: center; margin-bottom: 25px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5177'}/admin" 
+               style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; 
+                      text-decoration: none; border-radius: 6px; font-weight: 600; margin: 0 10px;">
+              🏮 View Admin Dashboard
+            </a>
+          </div>
+
+          <!-- Footer -->
+          <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 14px; margin: 0;">
+              This is an automated notification from the BVisionRY Lighthouse system.
+            </p>
+            <p style="color: #6b7280; font-size: 12px; margin: 5px 0 0 0;">
+              🚂 All aboard the learning journey! 🌟
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const text = `
+      New User Registration - BVisionRY Lighthouse
+      
+      A new user has registered for the platform:
+      
+      Name: ${userName}
+      Email: ${userEmail}
+      Registration Date: ${registrationDate}
+      
+      Visit the admin dashboard to manage users: ${process.env.FRONTEND_URL || 'http://localhost:5177'}
+    `;
+
+    return this.sendEmail(adminNotificationEmail, subject, html, text);
+  }
+
   // Send bulk emails to cohort users
   async sendBulkEmailToCohort(
     emails: string[],
