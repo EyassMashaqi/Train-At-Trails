@@ -351,7 +351,7 @@ const AdminDashboard: React.FC = () => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(20);
+  const [usersPerPage] = useState(3); // Temporarily reduced for testing
   const [paginationInfo, setPaginationInfo] = useState<any>(null);
 
   // Memoized values for performance optimization
@@ -1066,7 +1066,21 @@ const AdminDashboard: React.FC = () => {
           </table>
         </div>
         
-        {/* Pagination */}
+        {/* Always show user count info */}
+        {paginationInfo && (
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-700">
+            Showing {paginationInfo.startIndex} to {paginationInfo.endIndex} of{' '}
+            {selectedCohortId ? paginationInfo.totalMembers : paginationInfo.totalUsers}{' '}
+            {selectedCohortId ? 'participants' : 'users'}
+            {paginationInfo.totalPages > 1 && (
+              <span className="ml-4 text-gray-500">
+                (Page {paginationInfo.currentPage} of {paginationInfo.totalPages})
+              </span>
+            )}
+          </div>
+        )}
+        
+        {/* Pagination controls - only show when multiple pages */}
         {paginationInfo && paginationInfo.totalPages > 1 && (
           <Pagination
             currentPage={paginationInfo.currentPage}
