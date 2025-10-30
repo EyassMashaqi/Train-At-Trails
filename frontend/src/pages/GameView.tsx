@@ -8,6 +8,10 @@ import { getThemeClasses, getVehicleIcon, getVehicleIconStyle } from '../utils/t
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 
+// Import images
+import BVisionRYLogo from '../assets/BVisionRY.png';
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 interface Question {
   id: string | number; // Allow both string and number for compatibility
   title: string;
@@ -3101,7 +3105,7 @@ const GameView: React.FC = () => {
         <div className="text-center mb-12">
           <div className="flex justify-center items-center mb-4 space-x-8">
             <img 
-              src="./src/assets/BVisionRY.png" 
+              src={BVisionRYLogo} 
               alt="BVisionRY Company Logo" 
               className="w-44 h-16 px-3 py-2 bvisionary-logo"
             />
@@ -3112,7 +3116,7 @@ const GameView: React.FC = () => {
               <p className="text-xl text-gray-600">Your Adventure Journey</p>
             </div>
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-28 h-28 lighthouse-logo"
             />

@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
+// Import images
+import BVisionRYLogo from '../assets/BVisionRY.png';
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -72,12 +76,12 @@ const Register: React.FC = () => {
         <div className="text-center">
           <div className="flex flex-col items-center mb-6 space-y-6">
             <img 
-              src="./src/assets/BVisionRY.png" 
+              src={BVisionRYLogo} 
               alt="BVisionRY Company Logo" 
               className="w-48 h-20 px-6 py-3 bvisionary-logo"
             />
             <img 
-              src="./src/assets/Lighthouse.png" 
+              src={LighthouseLogo} 
               alt="Lighthouse Logo" 
               className="w-32 h-32 lighthouse-logo"
             />
