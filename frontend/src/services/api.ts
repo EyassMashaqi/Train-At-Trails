@@ -182,7 +182,8 @@ export const gameService = {
 
 // Admin service
 export const adminService = {
-  getAllUsers: () => api.get('/admin/users'),
+  getAllUsers: (page = 1, limit = 20) => 
+    api.get('/admin/users', { params: { page, limit } }),
   
   getPendingAnswers: (cohortId?: string) => {
     const params = cohortId ? `?cohortId=${cohortId}` : '';
@@ -469,8 +470,9 @@ export const adminService = {
   // Cohort management
   getAllCohorts: () => api.get('/admin/cohorts'),
   
-  getCohortUsers: (cohortId: string, status?: string) => {
-    const params = status ? { status } : {};
+  getCohortUsers: (cohortId: string, status?: string, page = 1, limit = 20) => {
+    const params: any = { page, limit };
+    if (status) params.status = status;
     return api.get(`/admin/cohort/${cohortId}/users`, { params });
   },
   

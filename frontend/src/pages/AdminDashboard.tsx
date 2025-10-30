@@ -7,6 +7,7 @@ import MiniAnswersView from '../components/MiniAnswersView';
 import MasteryPointsModal from '../components/GradingModal';
 import RichTextEditor from '../components/RichTextEditor';
 import HtmlEditorModal from '../components/HtmlEditorModal';
+import Pagination from '../components/Pagination';
 import { defaultEmailTemplates } from '../utils/defaultEmailTemplates';
 
 // Import the dashboard icon
@@ -348,6 +349,11 @@ const AdminDashboard: React.FC = () => {
   const [allCohorts, setAllCohorts] = useState<any[]>([]);
   const [selectedCohort, setSelectedCohort] = useState<any>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(20);
+  const [paginationInfo, setPaginationInfo] = useState<any>(null);
+
   // Memoized values for performance optimization
   const availableThemes = useMemo(() => [
     { id: 'trains', name: 'Trains', icon: '🚂', description: 'Classic train theme with stations and tracks' },
@@ -368,7 +374,7 @@ const AdminDashboard: React.FC = () => {
   //   return users.filter(user => user.status === statusFilter);
   // }, [users, statusFilter]);
 
-  const loadAdminData = useCallback(async () => {
+  const loadAdminData = useCallback(async (page = currentPage) => {
     try {
       setLoading(true);
       
@@ -399,7 +405,7 @@ const AdminDashboard: React.FC = () => {
       if (selectedCohortId) {
         // Load cohort-specific data
         [usersResponse, pendingResponse, resubmissionResponse, statsResponse] = await Promise.all([
-          adminService.getCohortUsers(selectedCohortId).catch(err => {
+          adminService.getCohortUsers(selectedCohortId, statusFilter === 'all' ? undefined : statusFilter, page, usersPerPage).catch(err => {
             throw err;
           }),
           adminService.getPendingAnswers(selectedCohortId).catch(err => {
@@ -415,7 +421,7 @@ const AdminDashboard: React.FC = () => {
       } else {
         // Load all data
         [usersResponse, pendingResponse, resubmissionResponse, statsResponse] = await Promise.all([
-          adminService.getAllUsers(),
+          adminService.getAllUsers(page, usersPerPage),
           adminService.getPendingAnswers(),
           adminService.getResubmissionRequests(),
           adminService.getGameStats(),
@@ -436,6 +442,9 @@ const AdminDashboard: React.FC = () => {
       const allUsersData = usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || [];
       setAllUsers(allUsersData);
       setUsers(allUsersData); // Initially show all users
+      
+      // Set pagination info
+      setPaginationInfo(usersResponse.data.pagination || null);
       
       // Extract available statuses for filtering (only for cohort-specific data)
       if (selectedCohortId && usersResponse.data.filters?.availableStatuses) {
@@ -489,7 +498,7 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, user?.isAdmin, selectedCohortId]);
+  }, [user?.email, user?.isAdmin, selectedCohortId, currentPage, statusFilter, usersPerPage]);
 
   useEffect(() => {
     loadAdminData();
@@ -628,18 +637,20 @@ const AdminDashboard: React.FC = () => {
 
   const handleStatusFilter = useCallback(async (status: string) => {
     setStatusFilter(status);
+    setCurrentPage(1); // Reset to first page when filtering
     
     if (!selectedCohortId) {
-      // For all users (non-cohort view), no filtering needed
-      setUsers(allUsers);
+      // For all users (non-cohort view), reload with new filter
+      loadAdminData(1);
       return;
     }
 
     try {
       // Fetch users with the selected status filter
-      const response = await adminService.getCohortUsers(selectedCohortId, status === 'all' ? undefined : status);
+      const response = await adminService.getCohortUsers(selectedCohortId, status === 'all' ? undefined : status, 1, usersPerPage);
       const filteredUsers = response.data.members || [];
       setUsers(filteredUsers);
+      setPaginationInfo(response.data.pagination || null);
     } catch (error) {
       toast.error('Failed to filter users');
       // Fallback to client-side filtering
@@ -650,7 +661,22 @@ const AdminDashboard: React.FC = () => {
         setUsers(filtered);
       }
     }
-  }, [selectedCohortId, allUsers]);
+  }, [selectedCohortId, allUsers, usersPerPage, loadAdminData]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  // Reset pagination when switching tabs or cohorts
+  const resetPagination = useCallback(() => {
+    setCurrentPage(1);
+    setPaginationInfo(null);
+  }, []);
+
+  // Reset pagination when changing cohorts or tabs
+  useEffect(() => {
+    resetPagination();
+  }, [selectedCohortId, activeTab, resetPagination]);
 
   const renderOverview = () => {
     if (!stats) return null;
@@ -971,63 +997,89 @@ const AdminDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => (
-                <tr key={user.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={selectedCohortId ? 6 : 5} className="px-6 py-12 text-center">
+                    <div className="text-gray-500">
+                      <div className="text-4xl mb-2">👥</div>
+                      <p>No {selectedCohortId ? 'participants' : 'users'} found</p>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">🚂 {user.trainName}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="text-sm text-gray-900">Step {user.currentStep}/{totalSteps}</div>
-                      <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-primary-600 h-2 rounded-full"
-                          style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 font-medium">
-                      {user.totalPoints !== undefined ? user.totalPoints : '---'} pts
-                    </div>
-                  </td>
-                  {/* Status column - only show for cohort view */}
-                  {selectedCohortId && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.cohortStatus === 'ENROLLED' 
-                          ? 'bg-green-100 text-green-800'
-                          : user.cohortStatus === 'GRADUATED'
-                          ? 'bg-blue-100 text-blue-800'
-                          : user.cohortStatus === 'SUSPENDED'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : user.cohortStatus === 'REMOVED'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.cohortStatus === 'ENROLLED' && '✅ Active'}
-                        {user.cohortStatus === 'GRADUATED' && '🎓 Graduated'}
-                        {user.cohortStatus === 'SUSPENDED' && '⏸️ Suspended'}
-                        {user.cohortStatus === 'REMOVED' && '❌ Removed'}
-                        {!user.cohortStatus && '❓ Unknown'}
-                      </span>
-                    </td>
-                  )}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(user.createdAt).toLocaleDateString()}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                users.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">🚂 {user.trainName}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="text-sm text-gray-900">Step {user.currentStep}/{totalSteps}</div>
+                        <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-primary-600 h-2 rounded-full"
+                            style={{ width: `${(user.currentStep / totalSteps) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 font-medium">
+                        {user.totalPoints !== undefined ? user.totalPoints : '---'} pts
+                      </div>
+                    </td>
+                    {/* Status column - only show for cohort view */}
+                    {selectedCohortId && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.cohortStatus === 'ENROLLED' 
+                            ? 'bg-green-100 text-green-800'
+                            : user.cohortStatus === 'GRADUATED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : user.cohortStatus === 'SUSPENDED'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : user.cohortStatus === 'REMOVED'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.cohortStatus === 'ENROLLED' && '✅ Active'}
+                          {user.cohortStatus === 'GRADUATED' && '🎓 Graduated'}
+                          {user.cohortStatus === 'SUSPENDED' && '⏸️ Suspended'}
+                          {user.cohortStatus === 'REMOVED' && '❌ Removed'}
+                          {!user.cohortStatus && '❓ Unknown'}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination */}
+        {paginationInfo && paginationInfo.totalPages > 1 && (
+          <Pagination
+            currentPage={paginationInfo.currentPage}
+            totalPages={paginationInfo.totalPages}
+            totalItems={selectedCohortId ? paginationInfo.totalMembers : paginationInfo.totalUsers}
+            startIndex={paginationInfo.startIndex}
+            endIndex={paginationInfo.endIndex}
+            hasNextPage={paginationInfo.hasNextPage}
+            hasPrevPage={paginationInfo.hasPrevPage}
+            onPageChange={handlePageChange}
+            itemName={selectedCohortId ? 'participants' : 'users'}
+          />
+        )}
       </div>
     );
   };

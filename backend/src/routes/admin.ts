@@ -44,6 +44,21 @@ router.use(requireAdmin);
 // Get all users and their progress
 router.get('/users', async (req: AuthRequest, res) => {
   try {
+    // Parse pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20; // Default 20 users per page
+    const offset = (page - 1) * limit;
+
+    // Get total count of non-admin users
+    const totalUsers = await prisma.user.count({
+      where: { isAdmin: false }
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalUsers / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
     const users = await prisma.user.findMany({
       where: { isAdmin: false },
       select: {
@@ -69,7 +84,9 @@ router.get('/users', async (req: AuthRequest, res) => {
       orderBy: [
         { currentStep: 'desc' },
         { createdAt: 'asc' }
-      ]
+      ],
+      skip: offset,
+      take: limit
     });
 
     // Calculate total points for each user
@@ -93,7 +110,19 @@ router.get('/users', async (req: AuthRequest, res) => {
       })
     );
 
-    res.json({ users: usersWithPoints });
+    res.json({ 
+      users: usersWithPoints,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        limit,
+        hasNextPage,
+        hasPrevPage,
+        startIndex: offset + 1,
+        endIndex: Math.min(offset + limit, totalUsers)
+      }
+    });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Failed to get users' });
@@ -3312,6 +3341,11 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
   try {
     const { cohortId } = req.params;
     const { status } = req.query; // Add support for status filtering
+    
+    // Parse pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20; // Default 20 users per page
+    const offset = (page - 1) * limit;
 
     // Check if cohort exists
     const cohort = await prisma.cohort.findUnique({
@@ -3336,7 +3370,17 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
       whereClause.status = status.toUpperCase();
     }
 
-    // Get all users with their status in this cohort
+    // Get total count for pagination
+    const totalMembers = await (prisma as any).cohortMember.count({
+      where: whereClause
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalMembers / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    // Get all users with their status in this cohort (with pagination)
     const cohortMembers = await (prisma as any).cohortMember.findMany({
       where: whereClause,
       include: {
@@ -3355,7 +3399,9 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
       orderBy: [
         { status: 'asc' },
         { user: { fullName: 'asc' } }
-      ]
+      ],
+      skip: offset,
+      take: limit
     });
 
     // Get available status options for filtering
@@ -3411,6 +3457,16 @@ router.get('/cohort/:cohortId/users', async (req: AuthRequest, res) => {
       filters: {
         availableStatuses,
         currentFilter: status || 'all'
+      },
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalMembers,
+        limit,
+        hasNextPage,
+        hasPrevPage,
+        startIndex: offset + 1,
+        endIndex: Math.min(offset + limit, totalMembers)
       }
     });
   } catch (error) {
