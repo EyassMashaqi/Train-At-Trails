@@ -448,22 +448,44 @@ const Dashboard: React.FC = () => {
                 Journey Guide
               </h3>
               {user.currentStep < totalSteps ? (
-                <div className={`space-y-3 text-sm ${themeClasses.textSecondary}`}>
-                  <div className="flex items-start">
-                    <span className="mr-2">🎯</span>
-                    <p>Answer thoughtful questions to advance your train</p>
+                <div className={`space-y-4 text-sm ${themeClasses.textSecondary}`}>
+                  <div className="space-y-3">
+                    <div className="flex items-start">
+                      <span className="mr-2">📅</span>
+                      <div>
+                        <p><span className="font-bold">Duration:</span> 10 business days for the self learning phase + three in-person workshops.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="mr-2">🎯</span>
+                      <div>
+                        <p><span className="font-bold">Focus:</span> Completing seven distinct self-learning tasks designed to reveal your unique leadership identity and gather the core components of your EDP+ completing four assignments to put you on track in obtaining the Entrepreneurial mindset.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="mr-2">⏰</span>
+                      <div>
+                        <p><span className="font-bold">Time Commitment:</span> We recommend setting aside a minimum of two focused hours each day to complete the tasks with the necessary depth reflection and practice.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="mr-2">📋</span>
+                      <div>
+                        <p><span className="font-bold">Your Task Hub:</span> For this entire phase, you will use one Google Sheet, creating a new tab for each of the seven tasks and the other four assignments. Instructions on how to share your completed work are in the attached guide.</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-start">
-                    <span className="mr-2">⏱️</span>
-                    <p>New questions are released every 48 hours</p>
-                  </div>
-                  <div className="flex items-start">
-                    <span className="mr-2">✅</span>
-                    <p>Admin approval moves you to the next station</p>
-                  </div>
-                  <div className="flex items-start">
-                    <span className="mr-2">🎉</span>
-                    <p>Complete all {totalSteps} stations to finish your journey!</p>
+                  <div className="border-t border-gray-200 pt-3 mt-4">
+                    <div className="space-y-2">
+                      <div className="flex items-start">
+                        <span className="mr-2">✅</span>
+                        <p>Admin approval moves you to the next station</p>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="mr-2">🎉</span>
+                        <p>Complete all {totalSteps} stations to finish your journey!</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
