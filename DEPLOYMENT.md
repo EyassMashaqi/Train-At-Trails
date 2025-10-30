@@ -87,6 +87,9 @@ RESET_TOKEN_EXPIRY_MINUTES=60
 
 # Frontend URL (for email links)
 FRONTEND_URL=https://yourdomain.com
+
+# Email Base URL (for email links in production - use IP if domain not available)
+EMAIL_BASE_URL=http://176.67.56.83:7000
 ```
 
 ### 3. Install Dependencies

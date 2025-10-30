@@ -71,6 +71,11 @@ class EmailService {
     }
   }
 
+  // Helper method to get the base URL for email links
+  private getEmailBaseUrl(): string {
+    return process.env.EMAIL_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:5177';
+  }
+
   // Send a generic email
   async sendEmail(
     to: string | string[],
@@ -155,7 +160,7 @@ class EmailService {
   async sendWelcomeEmail(userEmail: string, userName: string, cohortId?: string): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
-    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard` }, effectiveCohortId);
+    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${this.getEmailBaseUrl()}/dashboard` }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -168,7 +173,7 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5177'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${this.getEmailBaseUrl()}/reset-password?token=${resetToken}`;
     const template = await this.getEmailTemplate('PASSWORD_RESET', { userName, resetUrl }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -187,7 +192,7 @@ class EmailService {
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -210,7 +215,7 @@ class EmailService {
       questionNumber: questionNumber.toString(), 
       grade, 
       feedback,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -229,7 +234,7 @@ class EmailService {
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -250,7 +255,7 @@ class EmailService {
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -271,7 +276,7 @@ class EmailService {
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -288,7 +293,7 @@ class EmailService {
     const template = await this.getEmailTemplate('RESUBMISSION_APPROVAL', { 
       userName, 
       questionTitle,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -307,7 +312,7 @@ class EmailService {
       cohortName,
       cohortStartDate,
       userStatus,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -324,7 +329,7 @@ class EmailService {
       userName, 
       cohortName,
       graduationDate,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -345,7 +350,7 @@ class EmailService {
       userStatus,
       changeDate,
       changedBy,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -364,7 +369,7 @@ class EmailService {
       cohortName,
       changeDate,
       changedBy,
-      dashboardUrl: `${process.env.FRONTEND_URL || 'http://localhost:5177'}/dashboard`
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -413,7 +418,7 @@ class EmailService {
 
           <!-- Action Buttons -->
           <div style="text-align: center; margin-bottom: 25px;">
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:5177'}/admin" 
+            <a href="${this.getEmailBaseUrl()}/admin" 
                style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; 
                       text-decoration: none; border-radius: 6px; font-weight: 600; margin: 0 10px;">
               🏮 View Admin Dashboard
@@ -442,7 +447,7 @@ class EmailService {
       Email: ${userEmail}
       Registration Date: ${registrationDate}
       
-      Visit the admin dashboard to manage users: ${process.env.FRONTEND_URL || 'http://localhost:5177'}
+      Visit the admin dashboard to manage users: ${this.getEmailBaseUrl()}
     `;
 
     return this.sendEmail(adminNotificationEmail, subject, html, text);
