@@ -6,6 +6,10 @@ import { gameService } from '../services/api';
 import { getThemeClasses, getVehicleIcon } from '../utils/themes';
 import toast from 'react-hot-toast';
 
+// Import images
+import BVisionRYLogo from '../assets/BVisionRY.png';
+import LighthouseLogo from '../assets/Lighthouse.png';
+
 interface Topic {
   id: string;
   isReleased: boolean;
@@ -217,7 +221,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-6">
               <img
-                src="./src/assets/BVisionRY.png"
+                src={BVisionRYLogo}
                 alt="BVisionRY Company Logo"
                 className="w-40 h-14 px-4 py-2 bvisionary-logo"
               />
@@ -229,7 +233,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div className={`transition-all duration-1000 ${showTrainAnimation ? 'transform scale-110' : ''}`}>
                 <img
-                  src="./src/assets/Lighthouse.png"
+                  src={LighthouseLogo}
                   alt="Lighthouse Logo"
                   className="w-24 h-24 lighthouse-logo drop-shadow-lg"
                 />
