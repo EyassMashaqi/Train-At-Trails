@@ -3353,6 +3353,40 @@ router.post('/assign-user-cohort', async (req: AuthRequest, res) => {
         data: { currentCohortId: cohortId }
       });
 
+      // Send email notification to user about cohort assignment
+      try {
+        // Get additional cohort details for the email
+        const cohortDetails = await prisma.cohort.findUnique({
+          where: { id: cohortId },
+          select: { 
+            name: true, 
+            startDate: true 
+          }
+        });
+
+        const cohortStartDate = cohortDetails?.startDate 
+          ? new Date(cohortDetails.startDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })
+          : 'Not specified';
+
+        await emailService.sendUserAssignedToCohortEmail(
+          user.email,
+          user.fullName,
+          cohort.name,
+          cohortStartDate,
+          'ENROLLED', // userStatus
+          cohortId
+        );
+        console.log(`📧 Cohort assignment email sent to ${user.email} for cohort: ${cohort.name}`);
+      } catch (emailError) {
+        console.error('❌ Failed to send cohort assignment email:', emailError);
+        // Don't fail the assignment if email sending fails
+      }
+
       res.json({ 
         message: `${user.fullName} has been re-enrolled in ${cohort.name}`,
         membership: updatedMembership
@@ -3376,6 +3410,40 @@ router.post('/assign-user-cohort', async (req: AuthRequest, res) => {
         where: { id: userId },
         data: { currentCohortId: cohortId }
       });
+
+      // Send email notification to user about cohort assignment
+      try {
+        // Get additional cohort details for the email
+        const cohortDetails = await prisma.cohort.findUnique({
+          where: { id: cohortId },
+          select: { 
+            name: true, 
+            startDate: true 
+          }
+        });
+
+        const cohortStartDate = cohortDetails?.startDate 
+          ? new Date(cohortDetails.startDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })
+          : 'Not specified';
+
+        await emailService.sendUserAssignedToCohortEmail(
+          user.email,
+          user.fullName,
+          cohort.name,
+          cohortStartDate,
+          'ENROLLED', // userStatus
+          cohortId
+        );
+        console.log(`📧 Cohort assignment email sent to ${user.email} for cohort: ${cohort.name}`);
+      } catch (emailError) {
+        console.error('❌ Failed to send cohort assignment email:', emailError);
+        // Don't fail the assignment if email sending fails
+      }
 
       res.json({ 
         message: `${user.fullName} has been assigned to ${cohort.name}`,

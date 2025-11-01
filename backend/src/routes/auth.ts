@@ -26,6 +26,14 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        error: 'Please provide a valid email address' 
+      });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({ 
         error: 'Password must be at least 6 characters long' 
@@ -142,8 +150,8 @@ router.post('/login', async (req, res) => {
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    const loginEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!loginEmailRegex.test(email)) {
       console.log('❌ Login attempt failed: Invalid email format:', email);
       return res.status(400).json({ 
         error: 'Please enter a valid email address',
