@@ -75,6 +75,7 @@ const UserManagement: React.FC = () => {
   const [selectedCohortUser, setSelectedCohortUser] = useState<CohortUser | null>(null);
   const [newStatus, setNewStatus] = useState<string>('');
   const [assignLoading, setAssignLoading] = useState(false);
+  const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.isAdmin) {
@@ -176,6 +177,57 @@ const UserManagement: React.FC = () => {
       toast.error(errorMessage);
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const handleSendWelcomeEmails = async () => {
+    if (!selectedCohortId) {
+      toast.error('Please select a cohort first');
+      return;
+    }
+
+    const enrolledUsers = cohortUsers.filter(user => user.cohortStatus === 'ENROLLED');
+    
+    if (enrolledUsers.length === 0) {
+      toast.error('No enrolled users found in this cohort to send emails to');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to send welcome emails to ${enrolledUsers.length} enrolled users in this cohort?`)) {
+      return;
+    }
+
+    try {
+      setSendingWelcomeEmails(true);
+      
+      let successCount = 0;
+      let failureCount = 0;
+
+      // Send welcome emails to each enrolled user
+      for (const user of enrolledUsers) {
+        try {
+          await api.post('/admin/send-welcome-email', {
+            userEmail: user.email,
+            userName: user.fullName,
+            cohortId: selectedCohortId
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to send welcome email to ${user.email}:`, error);
+          failureCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Welcome emails sent successfully to ${successCount} users!${failureCount > 0 ? ` (${failureCount} failed)` : ''}`);
+      } else {
+        toast.error('Failed to send welcome emails to any users');
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to send welcome emails';
+      toast.error(errorMessage);
+    } finally {
+      setSendingWelcomeEmails(false);
     }
   };
 
@@ -301,13 +353,24 @@ const UserManagement: React.FC = () => {
                 Cohort Participants
                 {cohortLoading && <span className="ml-2 text-sm text-gray-500">(Loading...)</span>}
               </h2>
-              <button
-                onClick={() => setShowAssignModal(true)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
-              >
-                <span>➕</span>
-                <span>Assign Participant</span>
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleSendWelcomeEmails}
+                  disabled={cohortUsers.filter(u => u.cohortStatus === 'ENROLLED').length === 0 || sendingWelcomeEmails}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                  title={`Send welcome emails to ${cohortUsers.filter(u => u.cohortStatus === 'ENROLLED').length} enrolled users`}
+                >
+                  <span>📧</span>
+                  <span>{sendingWelcomeEmails ? 'Sending...' : 'Send Welcome Emails'}</span>
+                </button>
+                <button
+                  onClick={() => setShowAssignModal(true)}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
+                >
+                  <span>➕</span>
+                  <span>Assign Participant</span>
+                </button>
+              </div>
             </div>
 
             {cohortUsers.length === 0 ? (

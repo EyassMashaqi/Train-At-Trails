@@ -3820,6 +3820,128 @@ router.get('/answer/:answerId/attachment', async (req: AuthRequest, res) => {
   }
 });
 
+// Send welcome email to a single user
+router.post('/send-welcome-email', async (req: AuthRequest, res) => {
+  try {
+    const { userEmail, userName, cohortId } = req.body;
+
+    if (!userEmail || !userName) {
+      return res.status(400).json({ error: 'User email and name are required' });
+    }
+
+    console.log(`📧 Sending welcome email to: ${userEmail} (${userName})`);
+
+    try {
+      await emailService.sendWelcomeEmail(
+        userEmail,
+        userName,
+        cohortId || undefined
+      );
+
+      console.log(`✅ Welcome email sent successfully to ${userEmail}`);
+      res.json({
+        message: `Welcome email sent successfully to ${userName}`,
+        details: {
+          userEmail,
+          userName,
+          cohortId: cohortId || null
+        }
+      });
+    } catch (emailError) {
+      console.error(`❌ Failed to send welcome email to ${userEmail}:`, emailError);
+      res.status(500).json({ 
+        error: `Failed to send welcome email to ${userName}`,
+        details: emailError instanceof Error ? emailError.message : 'Unknown error'
+      });
+    }
+  } catch (error) {
+    console.error('Send welcome email error:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
+
+// Send welcome email to all registered users
+router.post('/send-welcome-email-to-all', async (req: AuthRequest, res) => {
+  try {
+    console.log('📧 Starting welcome email send to all users...');
+
+    // Get all non-admin users
+    const allUsers = await prisma.user.findMany({
+      where: { 
+        isAdmin: false 
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        trainName: true,
+        currentCohortId: true,
+        currentCohort: {
+          select: {
+            name: true,
+            startDate: true
+          }
+        }
+      }
+    });
+
+    if (allUsers.length === 0) {
+      return res.status(404).json({ error: 'No users found to send welcome emails to' });
+    }
+
+    console.log(`📧 Found ${allUsers.length} users to send welcome emails to`);
+
+    let successCount = 0;
+    let failureCount = 0;
+    const results = [];
+
+    // Send welcome email to each user
+    for (const user of allUsers) {
+      try {
+        await emailService.sendWelcomeEmail(
+          user.email,
+          user.fullName,
+          user.currentCohortId || undefined
+        );
+
+        successCount++;
+        results.push({
+          email: user.email,
+          fullName: user.fullName,
+          status: 'success'
+        });
+        
+        console.log(`✅ Welcome email sent successfully to ${user.email} (${user.fullName})`);
+      } catch (emailError) {
+        failureCount++;
+        results.push({
+          email: user.email,
+          fullName: user.fullName,
+          status: 'failed',
+          error: emailError instanceof Error ? emailError.message : 'Unknown error'
+        });
+        
+        console.error(`❌ Failed to send welcome email to ${user.email}:`, emailError);
+      }
+    }
+
+    console.log(`📧 Welcome email batch complete: ${successCount} successful, ${failureCount} failed`);
+
+    res.json({
+      message: `Welcome emails sent: ${successCount} successful, ${failureCount} failed`,
+      details: {
+        totalUsers: allUsers.length,
+        successful: successCount,
+        failed: failureCount,
+        results: results
+      }
+    });
+  } catch (error) {
+    console.error('Send welcome email to all users error:', error);
+    res.status(500).json({ error: 'Failed to send welcome emails to all users' });
+  }
+});
+
 // Send bulk email to cohort users
 router.post('/cohorts/:cohortId/send-email', async (req: AuthRequest, res) => {
   try {
