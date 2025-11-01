@@ -193,7 +193,7 @@ const UserManagement: React.FC = () => {
       return;
     }
 
-    if (!confirm(`Are you sure you want to send welcome emails to ${enrolledUsers.length} enrolled users in this cohort?`)) {
+    if (!confirm(`Are you sure you want to send cohort assignment emails to ${enrolledUsers.length} enrolled users in this cohort?`)) {
       return;
     }
 
@@ -203,28 +203,39 @@ const UserManagement: React.FC = () => {
       let successCount = 0;
       let failureCount = 0;
 
-      // Send welcome emails to each enrolled user
+      // Get cohort details for the email
+      const selectedCohort = cohorts.find(c => c.id === selectedCohortId);
+      if (!selectedCohort) {
+        toast.error('Selected cohort not found');
+        return;
+      }
+
+      // Send cohort assignment emails to each enrolled user
       for (const user of enrolledUsers) {
         try {
-          await api.post('/admin/send-welcome-email', {
-            userEmail: user.email,
-            userName: user.fullName,
-            cohortId: selectedCohortId
+          // Use the assign-user-cohort endpoint which automatically sends assignment emails
+          await api.put('/admin/user-cohort-status', {
+            userId: user.id,
+            cohortId: selectedCohortId,
+            status: 'ENROLLED' // Re-assign as ENROLLED to trigger assignment email
           });
           successCount++;
         } catch (error) {
-          console.error(`Failed to send welcome email to ${user.email}:`, error);
+          console.error(`Failed to send assignment email to ${user.email}:`, error);
           failureCount++;
         }
       }
 
       if (successCount > 0) {
-        toast.success(`Welcome emails sent successfully to ${successCount} users!${failureCount > 0 ? ` (${failureCount} failed)` : ''}`);
+        toast.success(`Cohort assignment emails sent successfully to ${successCount} users!${failureCount > 0 ? ` (${failureCount} failed)` : ''}`);
       } else {
-        toast.error('Failed to send welcome emails to any users');
+        toast.error('Failed to send assignment emails to any users');
       }
+
+      // Reload data to reflect any changes
+      await loadCohortUsers();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to send welcome emails';
+      const errorMessage = error.response?.data?.error || 'Failed to send assignment emails';
       toast.error(errorMessage);
     } finally {
       setSendingWelcomeEmails(false);
@@ -358,10 +369,10 @@ const UserManagement: React.FC = () => {
                   onClick={handleSendWelcomeEmails}
                   disabled={cohortUsers.filter(u => u.cohortStatus === 'ENROLLED').length === 0 || sendingWelcomeEmails}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-                  title={`Send welcome emails to ${cohortUsers.filter(u => u.cohortStatus === 'ENROLLED').length} enrolled users`}
+                  title={`Send cohort assignment emails to ${cohortUsers.filter(u => u.cohortStatus === 'ENROLLED').length} enrolled users`}
                 >
                   <span>📧</span>
-                  <span>{sendingWelcomeEmails ? 'Sending...' : 'Send Welcome Emails'}</span>
+                  <span>{sendingWelcomeEmails ? 'Sending...' : 'Send Assignment Emails'}</span>
                 </button>
                 <button
                   onClick={() => setShowAssignModal(true)}
