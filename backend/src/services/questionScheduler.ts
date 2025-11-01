@@ -1,6 +1,7 @@
 import * as cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import emailService from './emailService';
+import { getPalestineTime } from '../utils/timezone';
 
 const prisma = new PrismaClient();
 
@@ -56,7 +57,7 @@ export const startQuestionScheduler = () => {
       }
 
       // Check if it's time to release the next question
-      const now = new Date();
+      const now = getPalestineTime();
       if (now >= nextReleaseTime) {
         // Find the next question to release
         const nextQuestionNumber = latestQuestion ? latestQuestion.questionNumber + 1 : 1;
@@ -169,7 +170,7 @@ export const releaseQuestion = async (questionNumber: number) => {
       where: { id: question.id },
       data: {
         isActive: true,
-        releaseDate: new Date()
+        releaseDate: getPalestineTime()
       }
     });
 

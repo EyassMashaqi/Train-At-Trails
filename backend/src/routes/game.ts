@@ -4,6 +4,7 @@ import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
+import { getPalestineTime } from '../utils/timezone';
 
 // Note: TypeScript may show errors for Prisma client methods like prisma.module and prisma.topic
 // This is a temporary issue with TypeScript language server not recognizing updated Prisma types
@@ -97,7 +98,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
           {
             isReleased: true,
             isActive: true,
-            deadline: { gt: new Date() }
+            deadline: { gt: getPalestineTime() }
           },
           // Questions with approved resubmissions
           {
@@ -503,7 +504,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         where: { 
           isReleased: true,
           isActive: true,
-          deadline: { gt: new Date() },
+          deadline: { gt: getPalestineTime() },
           cohortId: userCohort?.cohortId // FIXED: Added cohort filtering
         },
         orderBy: { questionNumber: 'asc' }
@@ -522,7 +523,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
           where: { 
             isReleased: true,
             releaseDate: {
-              lte: new Date() // And release date must be in the past
+              lte: getPalestineTime() // And release date must be in the past
             }
           },
           include: {
@@ -640,7 +641,7 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
         data: {
           content: link.trim(),
           notes: notes?.trim() || '',
-          submittedAt: new Date(),
+          submittedAt: getPalestineTime(),
           status: 'PENDING', // Reset status to pending for review
           grade: null, // Clear previous grade
           gradePoints: null,
@@ -1090,7 +1091,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
               where: {
                 isReleased: true,
                 releaseDate: {
-                  lte: new Date() // And release date must be in the past
+                  lte: getPalestineTime() // And release date must be in the past
                 }
               },
               include: {
@@ -1405,7 +1406,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                   where: {
                     isReleased: true, // Only include released mini-questions
                     releaseDate: {
-                      lte: new Date() // And release date must be in the past
+                      lte: getPalestineTime() // And release date must be in the past
                     }
                   },
                   include: {

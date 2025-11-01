@@ -4,6 +4,7 @@ import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth
 import emailService from '../services/emailService';
 import fs from 'fs';
 import path from 'path';
+import { getPalestineTime } from '../utils/timezone';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -947,7 +948,7 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
       data: {
         isReleased: true,
         isActive: true, // Also set as active for backward compatibility
-        releaseDate: new Date()
+        releaseDate: getPalestineTime()
       }
     });
 
@@ -958,7 +959,7 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
           for (const miniQuestion of content.miniQuestions) {
             if (miniQuestion.releaseDate) {
               const releaseDate = new Date(miniQuestion.releaseDate);
-              const now = new Date();
+              const now = getPalestineTime();
               
               // If the release date is now or in the past, release immediately
               if (releaseDate <= now) {
@@ -966,7 +967,7 @@ router.post('/questions/:questionId/release', async (req: AuthRequest, res) => {
                   where: { id: miniQuestion.id },
                   data: { 
                     isReleased: true,
-                    actualReleaseDate: new Date()
+                    actualReleaseDate: getPalestineTime()
                   }
                 });
                 

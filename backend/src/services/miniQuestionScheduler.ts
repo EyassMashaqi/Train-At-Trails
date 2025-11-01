@@ -1,6 +1,7 @@
 import * as cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import emailService from './emailService';
+import { getPalestineTime, logWithTimezone } from '../utils/timezone';
 
 const prisma = new PrismaClient();
 
@@ -10,15 +11,14 @@ export const startMiniQuestionScheduler = () => {
   // Run every minute to check if mini questions should be released
   cron.schedule('*/1 * * * *', async () => {
     try {
-      console.log('🎯 Mini question scheduler running at:', new Date().toISOString());
+      const palestineTime = getPalestineTime();
+      logWithTimezone('🎯 Mini question scheduler running at:');
       
-      const now = new Date();
-      
-      // Find mini questions that should be released (release date <= now and not yet released)
+      // Find mini questions that should be released (release date <= now in Palestine time and not yet released)
       const miniQuestionsToRelease = await (prisma as any).miniQuestion.findMany({
         where: {
           releaseDate: {
-            lte: now
+            lte: palestineTime
           },
           isReleased: false,
           content: {
@@ -50,7 +50,7 @@ export const startMiniQuestionScheduler = () => {
             where: { id: miniQuestion.id },
             data: {
               isReleased: true,
-              actualReleaseDate: miniQuestion.actualReleaseDate || new Date() // Keep original release date if it exists
+              actualReleaseDate: miniQuestion.actualReleaseDate || palestineTime // Keep original release date if it exists, use Palestine time
             }
           });
           
@@ -104,11 +104,11 @@ export const startMiniQuestionScheduler = () => {
         }
       }
 
-      // Find mini questions that should be hidden (release date > now and currently released)
+      // Find mini questions that should be hidden (release date > now in Palestine time and currently released)
       const miniQuestionsToHide = await (prisma as any).miniQuestion.findMany({
         where: {
           releaseDate: {
-            gt: now
+            gt: palestineTime
           },
           isReleased: true,
           content: {
