@@ -1093,6 +1093,78 @@ router.delete('/questions/:questionId', async (req: AuthRequest, res) => {
   }
 });
 
+// Force delete question with all answers (admin only)
+router.delete('/questions/:questionId/force', async (req: AuthRequest, res) => {
+  try {
+    const questionId = req.params.questionId;
+    
+    console.log(`🚨 Force deleting question ${questionId} with all related data...`);
+    
+    // Use transaction to ensure all deletes succeed or none
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all main answers first
+      const mainAnswers = await tx.answer.deleteMany({
+        where: { questionId }
+      });
+      console.log(`🗑️ Deleted ${mainAnswers.count} main answers`);
+
+      // 2. Find all contents and their mini questions
+      const contents = await tx.content.findMany({
+        where: { questionId },
+        include: {
+          miniQuestions: {
+            include: {
+              miniAnswers: true
+            }
+          }
+        }
+      });
+
+      // 3. Delete all mini answers
+      let totalMiniAnswers = 0;
+      for (const content of contents) {
+        for (const miniQ of content.miniQuestions) {
+          const miniAnswers = await tx.miniAnswer.deleteMany({
+            where: { miniQuestionId: miniQ.id }
+          });
+          totalMiniAnswers += miniAnswers.count;
+        }
+      }
+      console.log(`🗑️ Deleted ${totalMiniAnswers} mini answers`);
+
+      // 4. Delete all mini questions
+      const miniQuestions = await tx.miniQuestion.deleteMany({
+        where: {
+          content: {
+            questionId
+          }
+        }
+      });
+      console.log(`🗑️ Deleted ${miniQuestions.count} mini questions`);
+
+      // 5. Delete all content sections
+      const contentSections = await tx.content.deleteMany({
+        where: { questionId }
+      });
+      console.log(`🗑️ Deleted ${contentSections.count} content sections`);
+
+      // 6. Finally delete the question
+      await tx.question.delete({
+        where: { id: questionId }
+      });
+      console.log(`🗑️ Deleted question ${questionId}`);
+    });
+
+    res.json({ 
+      message: 'Question and all related data force deleted successfully',
+      warning: 'All answers and progress have been permanently removed'
+    });
+  } catch (error) {
+    console.error('Force delete question error:', error);
+    res.status(500).json({ error: 'Failed to force delete question' });
+  }
+});
+
 // Update question
 router.put('/questions/:questionId', async (req: AuthRequest, res) => {
   try {
@@ -1528,6 +1600,21 @@ router.get('/modules', async (req: AuthRequest, res) => {
             contents: {
               include: {
                 miniQuestions: {
+                  include: {
+                    miniAnswers: {
+                      include: {
+                        user: {
+                          select: {
+                            id: true,
+                            fullName: true,
+                            trainName: true,
+                            email: true,
+                            currentCohortId: true
+                          }
+                        }
+                      }
+                    }
+                  },
                   orderBy: { orderIndex: 'asc' }
                 }
               },
@@ -4030,6 +4117,189 @@ router.post('/cohorts/:cohortId/send-email', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Send bulk email error:', error);
     res.status(500).json({ error: 'Failed to send bulk email' });
+  }
+});
+
+// Get all self-learning activities with answers (independent of module status)
+router.get('/self-learning-activities', async (req: AuthRequest, res) => {
+  try {
+    const { cohortId } = req.query;
+    const adminUserId = req.user!.id;
+    
+    // Check if user is admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { isAdmin: true }
+    });
+
+    let cohortIds: string[] = [];
+    
+    if (adminUser?.isAdmin) {
+      if (cohortId && cohortId !== 'all') {
+        // Verify the requested cohort exists
+        const requestedCohort = await prisma.cohort.findFirst({
+          where: { id: cohortId as string }
+        });
+        
+        if (requestedCohort) {
+          cohortIds = [cohortId as string];
+        } else {
+          return res.status(400).json({ error: 'Invalid cohort specified' });
+        }
+      } else {
+        // Get all active cohorts
+        const allCohorts = await prisma.cohort.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        cohortIds = allCohorts.map(c => c.id);
+      }
+    } else {
+      // For non-admin users, get their cohort access
+      const adminCohorts = await prisma.cohortMember.findMany({
+        where: { 
+          userId: adminUserId,
+          status: 'ENROLLED'
+        },
+        select: { cohortId: true }
+      });
+      cohortIds = adminCohorts.map(ac => ac.cohortId);
+      
+      if (cohortId && cohortId !== 'all' && !cohortIds.includes(cohortId as string)) {
+        return res.status(403).json({ error: 'Access denied to specified cohort' });
+      } else if (cohortId && cohortId !== 'all') {
+        cohortIds = [cohortId as string];
+      }
+    }
+
+    if (cohortIds.length === 0) {
+      return res.json({ activities: [] });
+    }
+
+    // Get ALL mini questions from ALL questions regardless of release status
+    // This ensures admins can see self-learning activities even if main assignment isn't released
+    const activities = await (prisma as any).miniQuestion.findMany({
+      where: {
+        content: {
+          question: {
+            cohortId: { in: cohortIds }
+          }
+        }
+      },
+      include: {
+        content: {
+          include: {
+            question: {
+              select: {
+                id: true,
+                title: true,
+                questionNumber: true,
+                isReleased: true,
+                moduleId: true,
+                topicNumber: true,
+                cohortId: true,
+                module: {
+                  select: {
+                    id: true,
+                    title: true,
+                    moduleNumber: true,
+                    isReleased: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        miniAnswers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                trainName: true,
+                email: true,
+                currentCohortId: true,
+                currentStep: true
+              }
+            }
+          },
+          orderBy: { submittedAt: 'desc' }
+        }
+      },
+      orderBy: [
+        { content: { question: { questionNumber: 'asc' } } },
+        { orderIndex: 'asc' }
+      ]
+    });
+
+    // Format the response to be more user-friendly
+    const formattedActivities = activities.map((activity: any) => ({
+      id: activity.id,
+      title: activity.title,
+      question: activity.question,
+      description: activity.description,
+      resourceUrl: activity.resourceUrl,
+      releaseDate: activity.releaseDate,
+      actualReleaseDate: activity.actualReleaseDate,
+      isReleased: activity.isReleased,
+      orderIndex: activity.orderIndex,
+      
+      // Assignment/Module info (may be null if assignment isn't released)
+      assignment: {
+        id: activity.content.question.id,
+        title: activity.content.question.title,
+        questionNumber: activity.content.question.questionNumber,
+        isReleased: activity.content.question.isReleased,
+        topicNumber: activity.content.question.topicNumber,
+        module: activity.content.question.module
+      },
+      
+      // Content section info
+      contentSection: {
+        id: activity.content.id,
+        title: activity.content.title,
+        material: activity.content.material,
+        orderIndex: activity.content.orderIndex
+      },
+      
+      // All answers for this activity
+      answers: activity.miniAnswers.map((answer: any) => ({
+        id: answer.id,
+        linkUrl: answer.linkUrl,
+        notes: answer.notes,
+        submittedAt: answer.submittedAt,
+        status: answer.status,
+        feedback: answer.feedback,
+        grade: answer.grade,
+        reviewedAt: answer.reviewedAt,
+        user: answer.user,
+        
+        // Include user status info
+        userStatus: {
+          currentStep: answer.user.currentStep,
+          isGraduated: answer.user.currentStep >= 12 // Assuming 12 steps total
+        }
+      })),
+      
+      // Summary statistics
+      statistics: {
+        totalAnswers: activity.miniAnswers.length,
+        answersFromGraduatedUsers: activity.miniAnswers.filter((a: any) => a.user.currentStep >= 12).length,
+        answersFromActiveUsers: activity.miniAnswers.filter((a: any) => a.user.currentStep < 12).length
+      }
+    }));
+
+    res.json({ 
+      activities: formattedActivities,
+      summary: {
+        totalActivities: formattedActivities.length,
+        totalAnswers: formattedActivities.reduce((sum: number, activity: any) => sum + activity.answers.length, 0),
+        activitiesWithAnswers: formattedActivities.filter((activity: any) => activity.answers.length > 0).length
+      }
+    });
+  } catch (error) {
+    console.error('Get self-learning activities error:', error);
+    res.status(500).json({ error: 'Failed to get self-learning activities' });
   }
 });
 

@@ -3712,8 +3712,44 @@ const AdminDashboard: React.FC = () => {
                       toast.success('Assignment deleted successfully!');
                       setShowEditTopicModal(false);
                       setSelectedTopic(null);
-                    } catch (error) {
-                      toast.error('Failed to delete assignment');
+                    } catch (error: any) {
+                      console.error('Delete error:', error);
+                      
+                      // Check if it's the "has answers" error
+                      if (error?.response?.status === 400 && error?.response?.data?.error?.includes('existing answers')) {
+                        const forceDelete = window.confirm(
+                          'This assignment has existing answers/submissions that prevent deletion.\n\n' +
+                          'Would you like to FORCE DELETE this assignment?\n\n' +
+                          '⚠️ WARNING: This will permanently delete:\n' +
+                          '• All student answers and submissions\n' +
+                          '• All self-learning activity responses\n' +
+                          '• All progress data\n\n' +
+                          'This action cannot be undone!'
+                        );
+                        
+                        if (forceDelete) {
+                          try {
+                            await adminService.forceDeleteTopic(selectedTopic.id);
+                            
+                            // Remove topic from state
+                            setModules(prevModules => 
+                              prevModules.map(module => ({
+                                ...module,
+                                topics: module.topics.filter(topic => topic.id !== selectedTopic.id)
+                              }))
+                            );
+                            
+                            toast.success('Assignment force deleted successfully!');
+                            setShowEditTopicModal(false);
+                            setSelectedTopic(null);
+                          } catch (forceError) {
+                            console.error('Force delete error:', forceError);
+                            toast.error('Failed to force delete assignment');
+                          }
+                        }
+                      } else {
+                        toast.error('Failed to delete assignment');
+                      }
                     }
                   }
                 }}

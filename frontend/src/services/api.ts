@@ -365,6 +365,7 @@ export const adminService = {
   releaseTopic: (topicId: string) => api.post(`/admin/questions/${topicId}/release`),
   
   deleteTopic: (topicId: string) => api.delete(`/admin/questions/${topicId}`),
+  forceDeleteTopic: (topicId: string) => api.delete(`/admin/questions/${topicId}/force`),
 
   // Question management (legacy)
   getAllQuestions: (cohortId?: string) => {
@@ -465,6 +466,12 @@ export const adminService = {
   getAllMiniAnswers: (cohortId?: string) => {
     const params = cohortId ? { cohortId } : {};
     return api.get('/admin/mini-answers', { params });
+  },
+
+  // Get self-learning activities with all answers (independent of module status)
+  getSelfLearningActivities: (cohortId?: string) => {
+    const params = cohortId ? { cohortId } : {};
+    return api.get('/admin/self-learning-activities', { params });
   },
 
   // Cohort management

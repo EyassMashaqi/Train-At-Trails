@@ -88,46 +88,63 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
       }
 
 
-      const [miniAnswersResponse, questionsResponse] = await Promise.all([
-        adminService.getAllMiniAnswers(selectedCohortId),
-        adminService.getAllQuestions(selectedCohortId)
-      ]);
+      // Use the new self-learning activities endpoint that shows ALL activities regardless of assignment status
+      const selfLearningResponse = await adminService.getSelfLearningActivities(selectedCohortId);
+      const selfLearningData = selfLearningResponse.data;
 
-      const miniAnswersData = miniAnswersResponse.data.miniAnswers;
-      const questionsData = questionsResponse.data.questions;
+      // Convert the new format to the old format for compatibility
+      const releasedMiniQuestions: MiniQuestion[] = selfLearningData.activities.map((activity: any) => ({
+        id: activity.id,
+        title: activity.title,
+        question: activity.question,
+        description: activity.description,
+        resourceUrl: activity.resourceUrl,
+        content: {
+          id: activity.contentSection.id,
+          title: activity.contentSection.title,
+          question: {
+            id: activity.assignment.id,
+            questionNumber: activity.assignment.questionNumber,
+            title: activity.assignment.title
+          }
+        }
+      }));
 
-      // Extract all released self learning activities from released questions only
-      const releasedMiniQuestions: MiniQuestion[] = [];
-      questionsData.forEach((question: any) => {
-        
-        // Only process self learning activities if the parent main question is also released
-        if (question.isReleased && question.contents) {
-          question.contents.forEach((content: any) => {
-            if (content.miniQuestions) {
-              content.miniQuestions.forEach((miniQ: any) => {
-                if (miniQ.isReleased) {
-                  releasedMiniQuestions.push({
-                    id: miniQ.id,
-                    title: miniQ.title,
-                    question: miniQ.question,
-                    description: miniQ.description,
-                    content: {
-                      id: content.id,
-                      title: content.title,
-                      question: {
-                        id: question.id,
-                        questionNumber: question.questionNumber,
-                        title: question.title
-                      }
-                    }
-                  });
+      // Flatten all answers from all activities
+      const miniAnswersData: MiniAnswer[] = [];
+      selfLearningData.activities.forEach((activity: any) => {
+        activity.answers.forEach((answer: any) => {
+          miniAnswersData.push({
+            id: answer.id,
+            linkUrl: answer.linkUrl,
+            notes: answer.notes,
+            submittedAt: answer.submittedAt,
+            resubmissionRequested: false, // Default value
+            user: {
+              id: answer.user.id,
+              fullName: answer.user.fullName,
+              trainName: answer.user.trainName,
+              email: answer.user.email
+            },
+            miniQuestion: {
+              id: activity.id,
+              title: activity.title,
+              question: activity.question,
+              description: activity.description,
+              resourceUrl: activity.resourceUrl,
+              content: {
+                id: activity.contentSection.id,
+                title: activity.contentSection.title,
+                question: {
+                  id: activity.assignment.id,
+                  questionNumber: activity.assignment.questionNumber,
+                  title: activity.assignment.title
                 }
-              });
+              }
             }
           });
-        }
+        });
       });
-
 
       // Create user-self-learning mapping
       const userMiniQuestionsMap: UserWithMiniQuestions[] = usersData.map((user: User) => {
