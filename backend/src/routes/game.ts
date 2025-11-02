@@ -544,12 +544,12 @@ router.post('/answer', authenticateToken, upload.single('attachment'), async (re
     });
 
     const totalReleasedMiniQuestions = contents.reduce((total: number, content: any) => 
-      total + content.miniQuestions.length, 0
+      total + content.miniQuestions.filter((mq: any) => mq.isReleased).length, 0
     );
     
     const completedMiniQuestions = contents.reduce((total: number, content: any) =>
       total + content.miniQuestions.filter((mq: any) => 
-        mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+        mq.isReleased && mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
       ).length, 0
     );
 
@@ -1518,12 +1518,12 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         // Calculate currently released mini-question progress for UI display
         const contents = question.contents || [];
         const totalReleasedMiniQuestions = contents.reduce((total: number, content: any) => 
-          total + content.miniQuestions.length, 0
+          total + content.miniQuestions.filter((mq: any) => mq.isReleased).length, 0
         );
         
         const completedReleasedMiniQuestions = contents.reduce((total: number, content: any) =>
           total + content.miniQuestions.filter((mq: any) => 
-            mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
+            mq.isReleased && mq.miniAnswers.length > 0 && !mq.miniAnswers[0]?.resubmissionRequested
           ).length, 0
         );
 
