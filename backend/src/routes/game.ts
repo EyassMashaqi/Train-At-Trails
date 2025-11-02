@@ -1157,8 +1157,11 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
       let questionStatus = 'locked';
       
       // Check if BOTH module and question are released and active
-      const isQuestionAccessible = question.isReleased && question.isActive && 
-                                  question.module.isReleased && question.module.isActive;
+      // OR if there are released mini questions (self-learning activities)
+      const hasReleasedMiniQuestions = totalMiniQuestions > 0; // totalMiniQuestions already only counts released ones from the query filter
+      const isQuestionAccessible = (question.isReleased && question.isActive && 
+                                  question.module.isReleased && question.module.isActive) ||
+                                  (question.module.isReleased && hasReleasedMiniQuestions);
       
       if (isQuestionAccessible) {
         if (totalMiniQuestions > 0) {
@@ -1539,14 +1542,18 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         
         // Check if BOTH module and question are released and active
         // OR if the question has approved resubmission (even if not currently active)
+        // OR if there are released mini questions (self-learning activities)
         const hasApprovedResubmission = question.answers.length > 0 && (
           question.answers[0]?.grade === 'NEEDS_RESUBMISSION' ||
           (question.answers[0]?.resubmissionRequested && question.answers[0]?.resubmissionApproved)
         );
         
+        const hasReleasedMiniQuestions = totalReleasedMiniQuestions > 0;
+        
         const isQuestionAccessible = (question.isReleased && question.isActive && 
                                     module.isReleased && module.isActive) ||
-                                    hasApprovedResubmission;
+                                    hasApprovedResubmission ||
+                                    (module.isReleased && hasReleasedMiniQuestions);
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,
