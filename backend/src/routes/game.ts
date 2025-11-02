@@ -1201,6 +1201,13 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
           }
         }
       }
+      
+      // CRITICAL FIX: Always show self-learning activities if module is released and has released mini questions
+      // This ensures self-learning activities are available even when main assignment isn't released
+      if (questionStatus === 'locked' && question.module?.isReleased && totalMiniQuestions > 0) {
+        questionStatus = 'mini_questions_required';
+        console.log(`🎯 PROGRESS FIX: Question ${question.id} unlocked for self-learning activities`);
+      }
 
       return {
         id: question.id,
@@ -1550,10 +1557,26 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
         
         const hasReleasedMiniQuestions = totalReleasedMiniQuestions > 0;
         
-        const isQuestionAccessible = (question.isReleased && question.isActive && 
-                                    module.isReleased && module.isActive) ||
-                                    hasApprovedResubmission ||
-                                    (module.isReleased && hasReleasedMiniQuestions);
+        // Break down the accessibility check for better debugging
+        const normalAccess = question.isReleased && question.isActive && module.isReleased && module.isActive;
+        const resubmissionAccess = hasApprovedResubmission;
+        const miniQuestionAccess = module.isReleased && hasReleasedMiniQuestions;
+        
+        const isQuestionAccessible = normalAccess || resubmissionAccess || miniQuestionAccess;
+        
+        console.log(`🔍 DEBUG: Accessibility check for ${question.title}:`, {
+          questionReleased: question.isReleased,
+          questionActive: question.isActive,
+          moduleReleased: module.isReleased,
+          moduleActive: module.isActive,
+          hasApprovedResubmission,
+          hasReleasedMiniQuestions,
+          totalReleasedMiniQuestions,
+          normalAccess,
+          resubmissionAccess,
+          miniQuestionAccess,
+          isQuestionAccessible
+        });
         
         console.log(`Topic ${question.id} (${question.title}) status calculation:`, {
           isReleased: question.isReleased,
@@ -1620,6 +1643,13 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
               }
             }
           }
+        }
+        
+        // CRITICAL FIX: Always show self-learning activities if module is released and has released mini questions
+        // This ensures self-learning activities are available even when main assignment isn't released
+        if (topicStatus === 'locked' && module.isReleased && totalReleasedMiniQuestions > 0) {
+          topicStatus = 'mini_questions_required';
+          console.log(`🎯 FORCE UNLOCK: Topic ${question.id} unlocked for self-learning activities`);
         }
 
         console.log(`Final status for topic ${question.id}: ${topicStatus}`);
