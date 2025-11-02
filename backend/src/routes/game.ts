@@ -1209,6 +1209,15 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
         console.log(`🎯 PROGRESS FIX: Question ${question.id} unlocked for self-learning activities`);
       }
 
+      console.log(`🎯 PROGRESS DEBUG: Question ${question.id} (${question.title}) final processing:`, {
+        questionStatus,
+        totalMiniQuestions,
+        completedMiniQuestions,
+        hasReleasedMiniQuestions: totalMiniQuestions > 0,
+        moduleReleased: question.module?.isReleased,
+        contentsLength: contents.length
+      });
+
       return {
         id: question.id,
         questionNumber: question.questionNumber,
@@ -1369,6 +1378,7 @@ router.get('/progress', authenticateToken, async (req: AuthRequest, res) => {
 // Get modules - compatibility endpoint for frontend
 // Organizes questions by moduleNumber for backward compatibility
 router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
+
   try {
     const userId = req.user!.id;
 
@@ -1652,7 +1662,38 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
           console.log(`🎯 FORCE UNLOCK: Topic ${question.id} unlocked for self-learning activities`);
         }
 
+        console.log(`🎯 FINAL DEBUG: Topic ${question.id} (${question.title}) final processing:`, {
+          topicStatus,
+          totalReleasedMiniQuestions,
+          completedReleasedMiniQuestions,
+          hasReleasedMiniQuestions: totalReleasedMiniQuestions > 0,
+          contentsLength: contents.length,
+          miniQuestionsInContents: contents.map((c: any) => ({
+            contentId: c.id,
+            contentTitle: c.title,
+            miniQuestionsCount: c.miniQuestions.length,
+            releasedMiniQuestions: c.miniQuestions.filter((mq: any) => mq.isReleased).length
+          }))
+        });
+
         console.log(`Final status for topic ${question.id}: ${topicStatus}`);
+
+        // Debug the contents structure being returned
+        console.log(`🔍 Contents debug for ${question.title}:`, {
+          contentsExists: !!question.contents,
+          contentsLength: question.contents?.length || 0,
+          contents: question.contents?.map((content: any) => ({
+            id: content.id,
+            title: content.title,
+            miniQuestionsCount: content.miniQuestions?.length || 0,
+            miniQuestions: content.miniQuestions?.map((mq: any) => ({
+              id: mq.id,
+              title: mq.title,
+              isReleased: mq.isReleased,
+              releaseDate: mq.releaseDate
+            })) || []
+          })) || []
+        });
 
         return {
           id: question.id,
@@ -1715,7 +1756,16 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
       moduleNumber: m.moduleNumber, 
       title: m.title, 
       isReleased: m.isReleased,
-      topicsCount: m.topics.length 
+      topicsCount: m.topics.length,
+      topics: m.topics.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        contentsCount: t.contents?.length || 0,
+        miniQuestionsTotal: t.contents?.reduce((sum: number, c: any) => sum + (c.miniQuestions?.length || 0), 0) || 0,
+        releasedMiniQuestions: t.contents?.reduce((sum: number, c: any) => 
+          sum + (c.miniQuestions?.filter((mq: any) => mq.isReleased)?.length || 0), 0) || 0
+      }))
     })));
 
     res.json({ modules: formattedModules });

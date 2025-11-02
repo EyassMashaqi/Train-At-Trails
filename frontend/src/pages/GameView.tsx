@@ -719,6 +719,8 @@ const GameView: React.FC = () => {
 
       const data = progressResponse.data;
 
+      console.log('🔍 FRONTEND: Modules response:', modulesResponse.data);
+
       // Extract progress and current question from the single response
       setProgress({
         currentStep: data.currentStep,
@@ -740,6 +742,36 @@ const GameView: React.FC = () => {
       let allMiniQuestions: MiniQuestion[] = [];
       const modulesData = modulesResponse.data.modules || [];
       
+      console.log('🔍 FRONTEND DEBUG: Processing modules data:', {
+        modulesCount: modulesData.length,
+        modules: modulesData.map((m: Module) => ({
+          id: m.id,
+          title: m.title,
+          isReleased: m.isReleased,
+          topicsCount: m.topics?.length || 0,
+          topics: m.topics?.map((t: Topic) => ({
+            id: t.id,
+            title: t.title,
+            isReleased: t.isReleased,
+            contentsCount: t.contents?.length || 0,
+            contents: t.contents?.map((c: Content) => ({
+              id: c.id,
+              title: c.title,
+              miniQuestionsCount: c.miniQuestions?.length || 0,
+              miniQuestions: c.miniQuestions?.map((mq: any) => ({
+                id: mq.id,
+                title: mq.title,
+                isReleased: mq.isReleased,
+                releaseDate: mq.releaseDate,
+                releaseDateParsed: new Date(mq.releaseDate),
+                currentDate: new Date(),
+                isDatePassed: new Date(mq.releaseDate) <= new Date()
+              })) || []
+            })) || []
+          })) || []
+        }))
+      });
+      
       modulesData.forEach((module: Module) => {
         if (module.isReleased) {
           module.topics.forEach((topic: Topic) => {
@@ -747,12 +779,16 @@ const GameView: React.FC = () => {
               topic.contents.forEach((content: Content) => {
                 if (content.miniQuestions) {
                   content.miniQuestions.forEach((mq: any) => {
-                    // Check if mini-question is released based on its release date
-                    const releaseDate = new Date(mq.releaseDate);
-                    const currentDate = new Date();
+                    // SIMPLIFIED: Only check if mini-question is marked as released
+                    // Backend should already handle the release date logic
+                    console.log(`🔍 FRONTEND: Processing mini-question ${mq.id} (${mq.title}):`, {
+                      isReleased: mq.isReleased,
+                      releaseDate: mq.releaseDate,
+                      willInclude: mq.isReleased
+                    });
                     
-                    // Only include mini-questions that are both marked as released AND have a release date in the past
-                    if (mq.isReleased && releaseDate <= currentDate) {
+                    if (mq.isReleased) {
+                      console.log(`✅ FRONTEND: Including mini-question ${mq.id} (${mq.title})`);
                       allMiniQuestions.push({
                         ...mq,
                         questionNumber: topic.questionNumber || topic.topicNumber,
@@ -760,6 +796,8 @@ const GameView: React.FC = () => {
                         contentId: content.id,
                         contentTitle: content.title
                       });
+                    } else {
+                      console.log(`❌ FRONTEND: Excluding mini-question ${mq.id} (${mq.title}) - not marked as released`);
                     }
                   });
                 }
@@ -768,6 +806,8 @@ const GameView: React.FC = () => {
           });
         }
       });
+
+      console.log(`🔍 FRONTEND: Total mini-questions collected: ${allMiniQuestions.length}`, allMiniQuestions);
 
       // Set all mini-questions (from modules + legacy current question if any)
       if (allMiniQuestions.length > 0) {
