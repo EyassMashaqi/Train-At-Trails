@@ -15,17 +15,15 @@ export const startMiniQuestionScheduler = () => {
       logWithTimezone('🎯 Mini question scheduler running at:');
       
       // Find mini questions that should be released (release date <= now in Palestine time and not yet released)
+      // Note: Mini questions can be released independently of main assignment status
       const miniQuestionsToRelease = await (prisma as any).miniQuestion.findMany({
         where: {
           releaseDate: {
             lte: palestineTime
           },
-          isReleased: false,
-          content: {
-            question: {
-              isReleased: true // Only release mini questions for released assignments
-            }
-          }
+          isReleased: false
+          // Removed the constraint: content.question.isReleased: true
+          // Mini questions can now be released even if main assignment is not released
         },
         include: {
           content: {
@@ -105,17 +103,15 @@ export const startMiniQuestionScheduler = () => {
       }
 
       // Find mini questions that should be hidden (release date > now in Palestine time and currently released)
+      // Note: Mini questions can be hidden independently of main assignment status
       const miniQuestionsToHide = await (prisma as any).miniQuestion.findMany({
         where: {
           releaseDate: {
             gt: palestineTime
           },
-          isReleased: true,
-          content: {
-            question: {
-              isReleased: true // Only check mini questions for released assignments
-            }
-          }
+          isReleased: true
+          // Removed the constraint: content.question.isReleased: true
+          // Mini questions can now be managed independently
         },
         include: {
           content: {
