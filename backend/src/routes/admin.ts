@@ -507,9 +507,9 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
     }
 
     // Validate gradePoints
-    if (typeof gradePoints !== 'number' || gradePoints < 0 || gradePoints > 100) {
+    if (typeof gradePoints !== 'number' || gradePoints < 0) {
       return res.status(400).json({ 
-        error: 'Grade points must be a number between 0 and 100' 
+        error: 'Grade points must be a non-negative number' 
       });
     }
 
