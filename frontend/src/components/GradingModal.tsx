@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 interface GradingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGrade: (grade: string, feedback: string) => void;
+  onGrade: (grade: string, gradePoints: number, feedback: string) => void;
   answer: {
     id: string | number;
     content: string;
@@ -29,14 +29,15 @@ const GradingModal: React.FC<GradingModalProps> = ({
   isLoading
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [gradePoints, setGradePoints] = useState<string>('');
   const [feedback, setFeedback] = useState('');
+  const [pointsError, setPointsError] = useState<string>('');
 
   const grades = [
     {
       id: 'GOLD',
       name: 'Gold Medal 🥇',
       description: 'Exceptional work - exceeds expectations',
-      points: 100,
       color: 'from-yellow-400 to-yellow-600',
       textColor: 'text-yellow-800'
     },
@@ -44,7 +45,6 @@ const GradingModal: React.FC<GradingModalProps> = ({
       id: 'SILVER',
       name: 'Silver Medal 🥈',
       description: 'Good work - meets expectations well',
-      points: 85,
       color: 'from-gray-300 to-gray-500',
       textColor: 'text-gray-800'
     },
@@ -52,7 +52,6 @@ const GradingModal: React.FC<GradingModalProps> = ({
       id: 'COPPER',
       name: 'Copper Medal 🥉',
       description: 'Satisfactory work - meets basic requirements',
-      points: 70,
       color: 'from-orange-400 to-orange-600',
       textColor: 'text-orange-800'
     },
@@ -60,7 +59,6 @@ const GradingModal: React.FC<GradingModalProps> = ({
       id: 'NEEDS_RESUBMISSION',
       name: 'Needs Resubmission ❌',
       description: 'Work needs improvement - requires resubmission',
-      points: 0,
       color: 'from-red-400 to-red-600',
       textColor: 'text-red-800'
     }
@@ -68,8 +66,30 @@ const GradingModal: React.FC<GradingModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedGrade && feedback.trim()) {
-      onGrade(selectedGrade, feedback.trim());
+    const points = parseFloat(gradePoints);
+    if (selectedGrade && !isNaN(points) && points >= 0 && points <= 100 && feedback.trim()) {
+      onGrade(selectedGrade, points, feedback.trim());
+    }
+  };
+
+  const validatePoints = (value: string) => {
+    setGradePoints(value);
+    
+    if (!value.trim()) {
+      setPointsError('');
+      return;
+    }
+
+    const points = parseFloat(value);
+    
+    if (isNaN(points)) {
+      setPointsError('Please enter a valid number');
+    } else if (points < 0) {
+      setPointsError('Points cannot be negative');
+    } else if (points > 100) {
+      setPointsError('Points cannot exceed 100');
+    } else {
+      setPointsError('');
     }
   };
 
@@ -123,9 +143,9 @@ const GradingModal: React.FC<GradingModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit}>
-            {/* Mastery Points Selection */}
+            {/* Medal Selection */}
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Select Mastery Points</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Select Medal</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {grades.map((grade) => (
                   <label
@@ -147,11 +167,42 @@ const GradingModal: React.FC<GradingModalProps> = ({
                     <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r ${grade.color} ${grade.textColor} mb-2`}>
                       {grade.name}
                     </div>
-                    <p className="text-sm text-gray-600 mb-1">{grade.description}</p>
-                    <p className="text-sm font-medium text-gray-900">Mastery Points: {grade.points}/100</p>
+                    <p className="text-sm text-gray-600">{grade.description}</p>
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Mastery Points Input */}
+            <div className="mb-6">
+              <label htmlFor="gradePoints" className="block text-sm font-medium text-gray-700 mb-2">
+                Mastery Points (0-100) *
+              </label>
+              <input
+                type="number"
+                id="gradePoints"
+                value={gradePoints}
+                onChange={(e) => validatePoints(e.target.value)}
+                min="0"
+                max="100"
+                step="0.01"
+                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${
+                  pointsError
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                placeholder="Enter points (e.g., 85, 92.5, 100)"
+                required
+              />
+              {pointsError ? (
+                <p className="mt-1 text-sm text-red-600 flex items-center">
+                  <span className="mr-1">⚠️</span> {pointsError}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">
+                  Enter the exact points to award (0-100). This is independent of the medal selected.
+                </p>
+              )}
             </div>
 
             {/* Feedback */}
@@ -182,7 +233,7 @@ const GradingModal: React.FC<GradingModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!selectedGrade || !feedback.trim() || isLoading}
+                disabled={!selectedGrade || !gradePoints.trim() || pointsError !== '' || parseFloat(gradePoints) < 0 || parseFloat(gradePoints) > 100 || isNaN(parseFloat(gradePoints)) || !feedback.trim() || isLoading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Assigning Points...' : 'Submit Mastery Points'}

@@ -156,11 +156,49 @@ class EmailService {
     }
   }
 
+  // Get common variables including cohort information
+  private async getCommonVariables(cohortId?: string): Promise<Record<string, string>> {
+    const variables: Record<string, string> = {
+      companyName: 'BVisionRY Lighthouse',
+      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`,
+      submissionTime: new Date().toLocaleString('en-US', { 
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+
+    // Add cohort information if available
+    if (cohortId) {
+      try {
+        const cohort = await prisma.cohort.findUnique({
+          where: { id: cohortId }
+        });
+        
+        if (cohort) {
+          variables.cohortName = cohort.name;
+          variables.cohortDescription = cohort.description || '';
+        }
+      } catch (error) {
+        console.error('Error fetching cohort data:', error);
+      }
+    }
+
+    return variables;
+  }
+
   // Send welcome email to new users
   async sendWelcomeEmail(userEmail: string, userName: string, cohortId?: string): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
-    const template = await this.getEmailTemplate('WELCOME', { userName, dashboardUrl: `${this.getEmailBaseUrl()}/dashboard` }, effectiveCohortId);
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
+    const template = await this.getEmailTemplate('WELCOME', { 
+      ...commonVars,
+      userName
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -173,8 +211,13 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const resetUrl = `${this.getEmailBaseUrl()}/reset-password?token=${resetToken}`;
-    const template = await this.getEmailTemplate('PASSWORD_RESET', { userName, resetUrl }, effectiveCohortId);
+    const template = await this.getEmailTemplate('PASSWORD_RESET', { 
+      ...commonVars,
+      userName, 
+      resetUrl 
+    }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
 
@@ -188,11 +231,13 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('ANSWER_SUBMISSION', { 
+      ...commonVars,
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -205,17 +250,21 @@ class EmailService {
     questionNumber: number,
     grade: string,
     feedback: string,
+    gradePoints: number,
     cohortId?: string
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('ANSWER_FEEDBACK', { 
+      ...commonVars,
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(), 
       grade, 
+      gradePoints: gradePoints.toString(), // Convert number to string
       feedback,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -230,11 +279,13 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('NEW_QUESTION', { 
+      ...commonVars,
       userName, 
       questionTitle, 
       questionNumber: questionNumber.toString(),
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -250,12 +301,14 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('MINI_QUESTION_RELEASE', { 
+      ...commonVars,
       userName, 
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -271,12 +324,14 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('MINI_ANSWER_RESUBMISSION', { 
+      ...commonVars,
       userName, 
       miniQuestionTitle, 
       contentTitle, 
       questionTitle,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -290,10 +345,12 @@ class EmailService {
   ): Promise<boolean> {
     // Auto-determine cohort if not provided
     const effectiveCohortId = cohortId || await this.getUserCohortId(userEmail) || undefined;
+    const commonVars = await this.getCommonVariables(effectiveCohortId);
     const template = await this.getEmailTemplate('RESUBMISSION_APPROVAL', { 
+      ...commonVars,
       userName, 
       questionTitle,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      questionUrl: `${this.getEmailBaseUrl()}/dashboard`
     }, effectiveCohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -307,12 +364,13 @@ class EmailService {
     userStatus: string,
     cohortId: string
   ): Promise<boolean> {
+    const commonVars = await this.getCommonVariables(cohortId);
     const template = await this.getEmailTemplate('USER_ASSIGNED_TO_COHORT', { 
+      ...commonVars,
       userName, 
       cohortName,
       cohortStartDate,
-      userStatus,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      userStatus
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -325,11 +383,12 @@ class EmailService {
     graduationDate: string,
     cohortId: string
   ): Promise<boolean> {
+    const commonVars = await this.getCommonVariables(cohortId);
     const template = await this.getEmailTemplate('USER_GRADUATED', { 
+      ...commonVars,
       userName, 
       cohortName,
-      graduationDate,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      graduationDate
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -344,13 +403,14 @@ class EmailService {
     changedBy: string,
     cohortId: string
   ): Promise<boolean> {
+    const commonVars = await this.getCommonVariables(cohortId);
     const template = await this.getEmailTemplate('USER_REMOVED_FROM_COHORT', { 
+      ...commonVars,
       userName, 
       cohortName,
       userStatus,
       changeDate,
-      changedBy,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      changedBy
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }
@@ -364,12 +424,13 @@ class EmailService {
     changedBy: string,
     cohortId: string
   ): Promise<boolean> {
+    const commonVars = await this.getCommonVariables(cohortId);
     const template = await this.getEmailTemplate('USER_SUSPENDED', { 
+      ...commonVars,
       userName, 
       cohortName,
       changeDate,
-      changedBy,
-      dashboardUrl: `${this.getEmailBaseUrl()}/dashboard`
+      changedBy
     }, cohortId);
     return this.sendEmail(userEmail, template.subject, template.html, template.text);
   }

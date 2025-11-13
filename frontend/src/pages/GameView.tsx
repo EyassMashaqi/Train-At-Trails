@@ -33,6 +33,7 @@ interface Answer {
   notes?: string;
   status: string;
   grade?: string; // New: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION
+  gradePoints?: number; // Points awarded by admin (0-100)
   submittedAt: string;
   feedback?: string;
   resubmissionRequested?: boolean; // Add resubmission status
@@ -1773,11 +1774,13 @@ const GameView: React.FC = () => {
                 <div>
                   <p className="text-green-800 font-medium">Answer Approved</p>
                   <p className="text-green-700 text-sm">Your answer has been approved!</p>
-                  {userAnswer.grade && (
+                  {userAnswer.gradePoints !== undefined && (
                     <div className="mt-2 flex items-center space-x-2">
                       <span className="text-sm text-gray-600">Grade:</span>
-                      <span className="text-lg">{getMedalForGrade(userAnswer.grade)}</span>
-                      <span className="text-xs text-gray-500">({userAnswer.grade})</span>
+                      <span className="text-lg font-bold text-green-700">{userAnswer.gradePoints} points</span>
+                      {userAnswer.grade && (
+                        <span className="text-sm">{getMedalForGrade(userAnswer.grade)}</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2646,12 +2649,7 @@ const GameView: React.FC = () => {
                                       {topicIsReleased && (
                                         <div className="flex items-center mt-2 text-xs text-gray-500 space-x-4">
                                           <span>Deadline: {new Date(topic.deadline).toLocaleDateString()}</span>
-                                          <span>Points: {topic.points}</span>
-                                          {topic.bonusPoints > 0 && (
-                                            <span className="text-amber-600">
-                                              Bonus: {topic.bonusPoints}
-                                            </span>
-                                          )}
+                                          <span className="font-semibold">Points: {topic.userAnswer?.gradePoints !== undefined ? topic.userAnswer.gradePoints : topic.points}</span>
                                           {(hasMiniQuestions || hasFutureMiniQuestions) && (
                                             <span className={`font-medium ${
                                               completedAllMiniQuestions === totalAllMiniQuestions

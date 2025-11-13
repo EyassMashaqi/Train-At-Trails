@@ -196,9 +196,10 @@ export const adminService = {
     }),
 
   // New mastery points system methods
-  gradeAnswer: (answerId: number, grade: string, feedback: string) =>
+  gradeAnswer: (answerId: number, grade: string, gradePoints: number, feedback: string) =>
     api.put(`/admin/answer/${answerId}/review`, { 
-      grade, 
+      grade,
+      gradePoints,
       feedback 
     }),
 

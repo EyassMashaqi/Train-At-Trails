@@ -114,7 +114,10 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const commonVariables = [
     'userName', 'dashboardUrl', 'questionTitle', 'questionNumber', 
-    'grade', 'feedback', 'resetUrl', 'miniQuestionTitle', 'contentTitle'
+    'grade', 'feedback', 'resetUrl', 'miniQuestionTitle', 'contentTitle',
+    'cohortName', 'cohortDescription', 'submissionTime', 'questionUrl',
+    'companyName', 'gradePoints', 'primaryColor', 'secondaryColor',
+    'textColor', 'buttonColor', 'backgroundColor'
   ];
 
   return (

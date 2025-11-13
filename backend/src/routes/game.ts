@@ -1457,6 +1457,7 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
                 content: true,
                 status: true,
                 grade: true, // CRITICAL: Include grade for resubmission logic
+                gradePoints: true, // CRITICAL: Include actual numeric points
                 submittedAt: true,
                 reviewedAt: true,
                 feedback: true,
@@ -1712,6 +1713,8 @@ router.get('/modules', authenticateToken, async (req: AuthRequest, res) => {
           canSolveMainQuestion,
           hasMainAnswer,
           mainAnswer: hasMainAnswer ? question.answers[0] : null,
+          userAnswer: hasMainAnswer ? question.answers[0] : null, // CRITICAL: Add userAnswer for frontend compatibility
+          questionNumber: question.questionNumber,
           miniQuestionProgress: {
             total: totalReleasedMiniQuestions,
             completed: completedReleasedMiniQuestions,

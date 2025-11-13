@@ -489,20 +489,27 @@ router.get('/resubmission-requests', async (req: AuthRequest, res) => {
 router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
   try {
     const { answerId } = req.params;
-    const { grade, feedback } = req.body;
+    const { grade, gradePoints, feedback } = req.body;
     const adminId = req.user!.id;
 
     // Define grade levels and their properties
     const gradeConfig = {
-      'GOLD': { status: 'APPROVED', points: 100, passThreshold: true },
-      'SILVER': { status: 'APPROVED', points: 85, passThreshold: true },
-      'COPPER': { status: 'APPROVED', points: 70, passThreshold: true },
-      'NEEDS_RESUBMISSION': { status: 'REJECTED', points: 0, passThreshold: false }
+      'GOLD': { status: 'APPROVED', passThreshold: true },
+      'SILVER': { status: 'APPROVED', passThreshold: true },
+      'COPPER': { status: 'APPROVED', passThreshold: true },
+      'NEEDS_RESUBMISSION': { status: 'REJECTED', passThreshold: false }
     };
 
     if (!gradeConfig[grade as keyof typeof gradeConfig]) {
       return res.status(400).json({ 
-        error: 'Mastery points must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
+        error: 'Medal must be one of: GOLD, SILVER, COPPER, NEEDS_RESUBMISSION' 
+      });
+    }
+
+    // Validate gradePoints
+    if (typeof gradePoints !== 'number' || gradePoints < 0 || gradePoints > 100) {
+      return res.status(400).json({ 
+        error: 'Grade points must be a number between 0 and 100' 
       });
     }
 
@@ -542,11 +549,11 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
       data: {
         status: gradeDetails.status,
         grade: grade,
-        gradePoints: gradeDetails.points,
+        gradePoints: gradePoints, // Use the custom points from request
         reviewedAt: new Date(),
         reviewedBy: adminId,
         feedback,
-        pointsAwarded: gradeDetails.points,
+        pointsAwarded: gradePoints, // Use the custom points from request
         // Automatically approve resubmission for NEEDS_RESUBMISSION grade
         resubmissionRequested: grade === 'NEEDS_RESUBMISSION' ? true : false,
         resubmissionApproved: grade === 'NEEDS_RESUBMISSION' ? true : null,
@@ -598,7 +605,8 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
         questionTitle,
         answer.question?.questionNumber || 0,
         grade,
-        feedback
+        feedback,
+        gradePoints
       );
       console.log(`✅ Feedback email sent to ${answer.user.email} for ${questionTitle}`);
     } catch (emailError) {
@@ -610,7 +618,7 @@ router.put('/answer/:answerId/review', async (req: AuthRequest, res) => {
       message: `Answer graded as ${grade} successfully`,
       answer: updatedAnswer,
       grade: grade,
-      points: gradeDetails.points
+      points: gradePoints // Use the custom points from request
     });
   } catch (error) {
     console.error('Review answer error:', error);

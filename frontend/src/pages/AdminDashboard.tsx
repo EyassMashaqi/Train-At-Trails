@@ -160,6 +160,8 @@ interface TopicAnswer {
   reviewedAt?: string;
   feedback?: string;
   pointsAwarded?: number;
+  grade?: string;
+  gradePoints?: number;
   user: {
     id: string;
     fullName: string;
@@ -607,13 +609,13 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const submitGrade = async (grade: string, feedback: string) => {
+  const submitGrade = async (grade: string, gradePoints: number, feedback: string) => {
     if (!gradingAnswer) return;
 
     setGradingLoading(true);
     try {
-      await adminService.gradeAnswer(gradingAnswer.id, grade, feedback);
-      toast.success(`Mastery points assigned as ${grade} successfully!`);
+      await adminService.gradeAnswer(gradingAnswer.id, grade, gradePoints, feedback);
+      toast.success(`Mastery points assigned as ${grade} with ${gradePoints} points successfully!`);
       setShowGradingModal(false);
       setGradingAnswer(null);
       await loadAdminData(); // Refresh data
@@ -1406,13 +1408,20 @@ const AdminDashboard: React.FC = () => {
                                             <span className="font-medium text-sm">
                                               {answer.user.fullName} ({answer.user.trainName})
                                             </span>
-                                            <span className={`text-xs px-2 py-1 rounded ${
-                                              answer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                              answer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                              'bg-yellow-100 text-yellow-800'
-                                            }`}>
-                                              {answer.status}
-                                            </span>
+                                            <div className="flex items-center space-x-2">
+                                              {answer.gradePoints !== undefined && (
+                                                <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 font-bold">
+                                                  {answer.gradePoints} pts
+                                                </span>
+                                              )}
+                                              <span className={`text-xs px-2 py-1 rounded ${
+                                                answer.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                                answer.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                                'bg-yellow-100 text-yellow-800'
+                                              }`}>
+                                                {answer.status}
+                                              </span>
+                                            </div>
                                           </div>
                                           {answer.content && (
                                             answer.content.startsWith('http://') || answer.content.startsWith('https://') ? (
