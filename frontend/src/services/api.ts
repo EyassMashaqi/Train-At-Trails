@@ -132,14 +132,10 @@ export const gameService = {
   
   getCohortHistory: () => api.get('/game/cohort-history'),
   
-  submitAnswer: (link: string, notes: string = '', questionId?: string, file?: File | null) => {
-    console.log('submitAnswer called with:', { link, notes: notes?.length, questionId, hasFile: !!file });
-    
+  submitAnswer: (link: string, notes: string = '', questionId?: string, file?: File | null) => {    
     // Validate that we have valid IDs
     const validQuestionId = questionId && questionId !== 'NaN' && questionId !== 'undefined' ? questionId : undefined;
-    
-    console.log('Valid IDs:', { validQuestionId });
-    
+        
     // Always use FormData for consistency
     const formData = new FormData();
     formData.append('link', link);
@@ -147,12 +143,10 @@ export const gameService = {
     
     if (validQuestionId) {
       formData.append('questionId', validQuestionId);
-      console.log('Added questionId to FormData:', validQuestionId);
     }
     
     if (file) {
       formData.append('attachment', file);
-      console.log('Added file to FormData:', file.name);
     }
     
     return api.post('/game/answer', formData, {

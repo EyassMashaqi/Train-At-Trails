@@ -719,8 +719,6 @@ const GameView: React.FC = () => {
 
       const data = progressResponse.data;
 
-      console.log('🔍 FRONTEND: Modules response:', modulesResponse.data);
-
       // Extract progress and current question from the single response
       setProgress({
         currentStep: data.currentStep,
@@ -742,35 +740,35 @@ const GameView: React.FC = () => {
       let allMiniQuestions: MiniQuestion[] = [];
       const modulesData = modulesResponse.data.modules || [];
       
-      console.log('🔍 FRONTEND DEBUG: Processing modules data:', {
-        modulesCount: modulesData.length,
-        modules: modulesData.map((m: Module) => ({
-          id: m.id,
-          title: m.title,
-          isReleased: m.isReleased,
-          topicsCount: m.topics?.length || 0,
-          topics: m.topics?.map((t: Topic) => ({
-            id: t.id,
-            title: t.title,
-            isReleased: t.isReleased,
-            contentsCount: t.contents?.length || 0,
-            contents: t.contents?.map((c: Content) => ({
-              id: c.id,
-              title: c.title,
-              miniQuestionsCount: c.miniQuestions?.length || 0,
-              miniQuestions: c.miniQuestions?.map((mq: any) => ({
-                id: mq.id,
-                title: mq.title,
-                isReleased: mq.isReleased,
-                releaseDate: mq.releaseDate,
-                releaseDateParsed: new Date(mq.releaseDate),
-                currentDate: new Date(),
-                isDatePassed: new Date(mq.releaseDate) <= new Date()
-              })) || []
-            })) || []
-          })) || []
-        }))
-      });
+      // console.log('🔍 FRONTEND DEBUG: Processing modules data:', {
+      //   modulesCount: modulesData.length,
+      //   modules: modulesData.map((m: Module) => ({
+      //     id: m.id,
+      //     title: m.title,
+      //     isReleased: m.isReleased,
+      //     topicsCount: m.topics?.length || 0,
+      //     topics: m.topics?.map((t: Topic) => ({
+      //       id: t.id,
+      //       title: t.title,
+      //       isReleased: t.isReleased,
+      //       contentsCount: t.contents?.length || 0,
+      //       contents: t.contents?.map((c: Content) => ({
+      //         id: c.id,
+      //         title: c.title,
+      //         miniQuestionsCount: c.miniQuestions?.length || 0,
+      //         miniQuestions: c.miniQuestions?.map((mq: any) => ({
+      //           id: mq.id,
+      //           title: mq.title,
+      //           isReleased: mq.isReleased,
+      //           releaseDate: mq.releaseDate,
+      //           releaseDateParsed: new Date(mq.releaseDate),
+      //           currentDate: new Date(),
+      //           isDatePassed: new Date(mq.releaseDate) <= new Date()
+      //         })) || []
+      //       })) || []
+      //     })) || []
+      //   }))
+      // });
       
       modulesData.forEach((module: Module) => {
         if (module.isReleased) {
@@ -779,16 +777,8 @@ const GameView: React.FC = () => {
               topic.contents.forEach((content: Content) => {
                 if (content.miniQuestions) {
                   content.miniQuestions.forEach((mq: any) => {
-                    // SIMPLIFIED: Only check if mini-question is marked as released
-                    // Backend should already handle the release date logic
-                    console.log(`🔍 FRONTEND: Processing mini-question ${mq.id} (${mq.title}):`, {
-                      isReleased: mq.isReleased,
-                      releaseDate: mq.releaseDate,
-                      willInclude: mq.isReleased
-                    });
                     
                     if (mq.isReleased) {
-                      console.log(`✅ FRONTEND: Including mini-question ${mq.id} (${mq.title})`);
                       allMiniQuestions.push({
                         ...mq,
                         questionNumber: topic.questionNumber || topic.topicNumber,
@@ -796,8 +786,6 @@ const GameView: React.FC = () => {
                         contentId: content.id,
                         contentTitle: content.title
                       });
-                    } else {
-                      console.log(`❌ FRONTEND: Excluding mini-question ${mq.id} (${mq.title}) - not marked as released`);
                     }
                   });
                 }
@@ -807,7 +795,6 @@ const GameView: React.FC = () => {
         }
       });
 
-      console.log(`🔍 FRONTEND: Total mini-questions collected: ${allMiniQuestions.length}`, allMiniQuestions);
 
       // Set all mini-questions (from modules + legacy current question if any)
       if (allMiniQuestions.length > 0) {
@@ -1000,11 +987,6 @@ const GameView: React.FC = () => {
       return;
     }
 
-    if (!answerNotes.trim()) {
-      toast.error('Please provide notes about your work');
-      return;
-    }
-
     const questionForSubmission = questionToSubmit || targetQuestion;
     if (!questionForSubmission) {
       toast.error('No target question available');
@@ -1014,11 +996,16 @@ const GameView: React.FC = () => {
     try {
       setSubmitting(true);
 
+      // Auto-add protocol if missing
+      let linkToSubmit = answerLink.trim();
+      if (!linkToSubmit.startsWith('http://') && !linkToSubmit.startsWith('https://')) {
+        linkToSubmit = 'https://' + linkToSubmit;
+      }
       
       // Submit using link + notes format
       await gameService.submitAnswer(
-        answerLink.trim(),
-        answerNotes.trim(), 
+        linkToSubmit,
+        answerNotes?.trim() || '', // Ensure notes is always a string, even if empty
         questionForSubmission.id.toString(), // questionId
         answerFile
       );
@@ -1031,10 +1018,11 @@ const GameView: React.FC = () => {
       
       // Refresh data
       await loadGameData();
-    } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : 'Failed to submit answer';
+    } catch (error: any) {
+      console.error('Submit answer error:', error);
+      console.error('Error response:', error.response?.data);
+      const errorMessage = error.response?.data?.error || 
+        (error instanceof Error ? error.message : 'Failed to submit answer');
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
@@ -1862,7 +1850,7 @@ const GameView: React.FC = () => {
 
             <div>
               <label className={`block text-sm font-medium ${themeClasses.textSecondary} mb-2`}>
-                Notes About Your Work *
+                Notes About Your Work (optional)
               </label>
               <textarea
                 value={answerNotes}
@@ -1898,7 +1886,7 @@ const GameView: React.FC = () => {
 
             <button
               onClick={() => handleMainAnswerSubmit(question)}
-              disabled={submitting || !answerLink.trim() || !answerNotes.trim() || !answerLinkValidation.isValid}
+              disabled={submitting || !answerLink.trim() || !answerLinkValidation.isValid}
               className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
               {submitting ? (
@@ -1918,7 +1906,6 @@ const GameView: React.FC = () => {
 
   // Render multiple main assignments (NEW APPROACH)
   const renderMainAssignments = () => {
-    console.log('renderMainAssignments called - progress:', !!progress);
     if (!progress) return null;
 
     const availableQuestions = calculateAllAvailableQuestions;
