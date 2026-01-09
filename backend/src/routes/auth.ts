@@ -40,9 +40,14 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
+    // Check if user already exists (case-insensitive)
+    const existingUser = await prisma.user.findFirst({
+      where: { 
+        email: {
+          equals: email,
+          mode: 'insensitive'
+        }
+      }
     });
 
     if (existingUser) {
@@ -161,9 +166,14 @@ router.post('/login', async (req, res) => {
 
     console.log('🔍 Login attempt for email:', email);
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() }
+    // Find user (case-insensitive)
+    const user = await prisma.user.findFirst({
+      where: { 
+        email: {
+          equals: email.trim(),
+          mode: 'insensitive'
+        }
+      }
     });
 
     if (!user) {
