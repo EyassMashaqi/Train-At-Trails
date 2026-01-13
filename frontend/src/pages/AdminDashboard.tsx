@@ -441,7 +441,6 @@ const AdminDashboard: React.FC = () => {
 
 
       const allUsersData = usersResponse.data.members || usersResponse.data.users || usersResponse.data.cohortUsers || [];
-      setAllUsers(allUsersData);
       setUsers(allUsersData); // Initially show all users
       
       // Set pagination info
