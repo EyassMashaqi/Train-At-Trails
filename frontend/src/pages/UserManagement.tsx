@@ -273,25 +273,6 @@ const UserManagement: React.FC = () => {
     setCohortCurrentPage(page);
   };
 
-  const oldLoadData = async () => {
-    try {
-      setLoading(true);
-
-      const [usersResponse, cohortsResponse] = await Promise.all([
-        api.get('/admin/users-with-cohorts'),
-        api.get('/admin/cohorts')
-      ]);
-
-      setUsers(usersResponse.data.users || []);
-      setCohorts(cohortsResponse.data.cohorts || []);
-
-    } catch (error) {
-      toast.error('Failed to load users and cohorts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAssignToCohort = async () => {
     if (!selectedUser || !selectedCohortId) {
       toast.error('Please select a user and cohort');

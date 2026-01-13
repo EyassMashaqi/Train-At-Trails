@@ -62,10 +62,9 @@ interface UserWithMiniQuestions {
 
 interface MiniAnswersViewProps {
   selectedCohortId?: string;
-  cohortUsers?: User[];
 }
 
-const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, cohortUsers }) => {
+const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [allMiniAnswers, setAllMiniAnswers] = useState<MiniAnswer[]>([]);
   const [allReleasedMiniQuestions, setAllReleasedMiniQuestions] = useState<MiniQuestion[]>([]);

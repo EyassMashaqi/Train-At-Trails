@@ -305,7 +305,6 @@ const AdminDashboard: React.FC = () => {
   // User status filtering
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]); // Store unfiltered users
   
   // Mastery Points modal state
   const [showGradingModal, setShowGradingModal] = useState(false);
