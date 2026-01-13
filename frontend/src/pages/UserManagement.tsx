@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
-
+import Pagination from '../components/Pagination';
 
 // Import images
 import BVisionRYLogo from '../assets/BVisionRY.png';
@@ -76,6 +76,20 @@ const UserManagement: React.FC = () => {
   const [newStatus, setNewStatus] = useState<string>('');
   const [assignLoading, setAssignLoading] = useState(false);
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
+  
+  // Pagination states for All Participants
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(10);
+  const [paginationInfo, setPaginationInfo] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  
+  // Pagination states for Cohort Participants
+  const [cohortCurrentPage, setCohortCurrentPage] = useState(1);
+  const [cohortUsersPerPage] = useState(5);
+  const [cohortPaginationInfo, setCohortPaginationInfo] = useState<any>(null);
+  const [cohortSearchTerm, setCohortSearchTerm] = useState('');
+  const [cohortSearchInput, setCohortSearchInput] = useState('');
 
   useEffect(() => {
     if (!currentUser?.isAdmin) {
@@ -90,10 +104,176 @@ const UserManagement: React.FC = () => {
       loadCohortUsers();
     } else {
       setCohortUsers([]);
+      setCohortPaginationInfo(null);
+      setCohortCurrentPage(1);
+      setCohortSearchTerm('');
+      setCohortSearchInput('');
     }
   }, [selectedCohortId]);
 
-  const loadData = async () => {
+  useEffect(() => {
+    loadData(currentPage, searchTerm);
+  }, [currentPage, searchTerm]);
+
+  useEffect(() => {
+    if (selectedCohortId) {
+      loadCohortUsers(cohortCurrentPage, cohortSearchTerm);
+    }
+  }, [cohortCurrentPage, cohortSearchTerm]);
+
+  const loadData = useCallback(async (page = 1, search = '') => {
+    try {
+      setLoading(true);
+
+      const cohortsResponse = await api.get('/admin/cohorts');
+      setCohorts(cohortsResponse.data.cohorts || []);
+
+      // Load all users (backend doesn't support pagination for this endpoint)
+      const allUsersResponse = await api.get('/admin/users-with-cohorts');
+      let allUsers = allUsersResponse.data.users || [];
+      
+      // Filter if searching
+      if (search) {
+        allUsers = allUsers.filter((user: User) =>
+          user.fullName.toLowerCase().includes(search.toLowerCase()) ||
+          user.trainName?.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+      
+      // Paginate on client side
+      const totalFiltered = allUsers.length;
+      const totalPages = Math.ceil(totalFiltered / usersPerPage);
+      const startIndex = (page - 1) * usersPerPage;
+      const endIndex = Math.min(startIndex + usersPerPage, totalFiltered);
+      
+      const usersData = allUsers.slice(startIndex, endIndex);
+      
+      // Create pagination info
+      const pagination = {
+        currentPage: page,
+        totalPages: totalPages,
+        totalUsers: totalFiltered,
+        startIndex: startIndex + 1,
+        endIndex: endIndex,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      };
+
+      setUsers(usersData);
+      setPaginationInfo(pagination);
+
+    } catch (error) {
+      toast.error('Failed to load users and cohorts');
+    } finally {
+      setLoading(false);
+    }
+  }, [usersPerPage]);
+
+  const loadCohortUsers = useCallback(async (page = 1, search = '') => {
+    if (!selectedCohortId) return;
+
+    try {
+      setCohortLoading(true);
+      
+      let usersData: CohortUser[] = [];
+      let pagination: any = null;
+
+      if (search) {
+        // When searching, load all cohort users
+        const response = await api.get(`/admin/cohort/${selectedCohortId}/users?limit=1000`);
+        const allUsers = response.data.members || [];
+        
+        // Filter on client side
+        const filteredUsers = allUsers.filter((user: CohortUser) =>
+          user.fullName.toLowerCase().includes(search.toLowerCase()) ||
+          user.trainName?.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase())
+        );
+        
+        // Paginate filtered results
+        const totalFiltered = filteredUsers.length;
+        const totalPages = Math.ceil(totalFiltered / cohortUsersPerPage);
+        const startIndex = (page - 1) * cohortUsersPerPage;
+        const endIndex = Math.min(startIndex + cohortUsersPerPage, totalFiltered);
+        
+        usersData = filteredUsers.slice(startIndex, endIndex);
+        
+        // Create pagination for filtered results
+        pagination = {
+          currentPage: page,
+          totalPages: totalPages,
+          totalMembers: totalFiltered,
+          startIndex: startIndex + 1,
+          endIndex: endIndex,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        };
+      } else {
+        // Normal pagination when not searching
+        const response = await api.get(`/admin/cohort/${selectedCohortId}/users?page=${page}&limit=${cohortUsersPerPage}`);
+        usersData = response.data.members || [];
+        pagination = response.data.pagination;
+      }
+
+      setCohortUsers(usersData);
+      setCohortPaginationInfo(pagination);
+    } catch (error) {
+      toast.error('Failed to load cohort users');
+    } finally {
+      setCohortLoading(false);
+    }
+  }, [selectedCohortId, cohortUsersPerPage]);
+
+  const handleSearch = () => {
+    setSearchTerm(searchInput);
+    setCurrentPage(1);
+  };
+
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    if (value === '') {
+      setSearchTerm('');
+      setCurrentPage(1);
+    }
+  };
+
+  const handleCohortSearch = () => {
+    setCohortSearchTerm(cohortSearchInput);
+    setCohortCurrentPage(1);
+  };
+
+  const handleCohortSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleCohortSearch();
+    }
+  };
+
+  const handleCohortSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCohortSearchInput(value);
+    if (value === '') {
+      setCohortSearchTerm('');
+      setCohortCurrentPage(1);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleCohortPageChange = (page: number) => {
+    setCohortCurrentPage(page);
+  };
+
+  const oldLoadData = async () => {
     try {
       setLoading(true);
 
@@ -109,20 +289,6 @@ const UserManagement: React.FC = () => {
       toast.error('Failed to load users and cohorts');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCohortUsers = async () => {
-    if (!selectedCohortId) return;
-
-    try {
-      setCohortLoading(true);
-      const response = await api.get(`/admin/cohort/${selectedCohortId}/users`);
-      setCohortUsers(response.data.members || []);
-    } catch (error) {
-      toast.error('Failed to load cohort users');
-    } finally {
-      setCohortLoading(false);
     }
   };
 
@@ -142,8 +308,10 @@ const UserManagement: React.FC = () => {
       toast.success(`User assigned to cohort successfully!`);
       setShowAssignModal(false);
       setSelectedUser(null);
-      await loadData();
-      await loadCohortUsers();
+      await loadData(currentPage, searchTerm);
+      if (selectedCohortId) {
+        await loadCohortUsers(cohortCurrentPage, cohortSearchTerm);
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to assign user to cohort';
       toast.error(errorMessage);
@@ -170,8 +338,10 @@ const UserManagement: React.FC = () => {
       setShowStatusModal(false);
       setSelectedCohortUser(null);
       setNewStatus('');
-      await loadData();
-      await loadCohortUsers();
+      await loadData(currentPage, searchTerm);
+      if (selectedCohortId) {
+        await loadCohortUsers(cohortCurrentPage, cohortSearchTerm);
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to update user status';
       toast.error(errorMessage);
@@ -233,7 +403,7 @@ const UserManagement: React.FC = () => {
       }
 
       // Reload data to reflect any changes
-      await loadCohortUsers();
+      await loadCohortUsers(cohortCurrentPage, cohortSearchTerm);
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to send assignment emails';
       toast.error(errorMessage);
@@ -358,10 +528,11 @@ const UserManagement: React.FC = () => {
         {/* Cohort Users (when cohort is selected) */}
         {selectedCohortId && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                 <span className="text-xl mr-2">👥</span>
                 Cohort Participants
+                {cohortPaginationInfo && ` (${cohortPaginationInfo.totalMembers} users)`}
                 {cohortLoading && <span className="ml-2 text-sm text-gray-500">(Loading...)</span>}
               </h2>
               <div className="flex items-center space-x-3">
@@ -382,6 +553,28 @@ const UserManagement: React.FC = () => {
                   <span>Assign Participant</span>
                 </button>
               </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="mb-6 flex items-center space-x-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search by name, train, or email..."
+                  value={cohortSearchInput}
+                  onChange={handleCohortSearchChange}
+                  onKeyPress={handleCohortSearchKeyPress}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                onClick={handleCohortSearch}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🔍</span>
+                <span>Search</span>
+              </button>
             </div>
 
             {cohortUsers.length === 0 ? (
@@ -434,6 +627,22 @@ const UserManagement: React.FC = () => {
                     </div>
                   </div>
                 ))}
+
+                {/* Pagination */}
+                {cohortPaginationInfo && (
+                  <div className="mt-6">
+                    <Pagination
+                      currentPage={cohortPaginationInfo.currentPage}
+                      totalPages={cohortPaginationInfo.totalPages}
+                      onPageChange={handleCohortPageChange}
+                      startIndex={cohortPaginationInfo.startIndex}
+                      endIndex={cohortPaginationInfo.endIndex}
+                      totalItems={cohortPaginationInfo.totalMembers}
+                      hasNextPage={cohortPaginationInfo.hasNextPage}
+                      hasPrevPage={cohortPaginationInfo.hasPrevPage}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -441,10 +650,33 @@ const UserManagement: React.FC = () => {
 
         {/* All Users Overview */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <span className="text-xl mr-2">📊</span>
-            All Participants Overview ({users.length} users)
+            All Participants Overview
+            {paginationInfo && ` (${paginationInfo.totalUsers} users)`}
           </h2>
+
+          {/* Search Bar */}
+          <div className="mb-6 flex items-center space-x-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</span>
+              <input
+                type="text"
+                placeholder="Search by name, train, or email..."
+                value={searchInput}
+                onChange={handleSearchChange}
+                onKeyPress={handleSearchKeyPress}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={handleSearch}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <span>🔍</span>
+              <span>Search</span>
+            </button>
+          </div>
 
           {users.length === 0 ? (
             <div className="text-center py-12">
@@ -521,6 +753,22 @@ const UserManagement: React.FC = () => {
                   </div>
                 </div>
               ))}
+
+              {/* Pagination */}
+              {paginationInfo && (
+                <div className="mt-6">
+                  <Pagination
+                    currentPage={paginationInfo.currentPage}
+                    totalPages={paginationInfo.totalPages}
+                    onPageChange={handlePageChange}
+                    startIndex={paginationInfo.startIndex}
+                    endIndex={paginationInfo.endIndex}
+                    totalItems={paginationInfo.totalUsers}
+                    hasNextPage={paginationInfo.hasNextPage}
+                    hasPrevPage={paginationInfo.hasPrevPage}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

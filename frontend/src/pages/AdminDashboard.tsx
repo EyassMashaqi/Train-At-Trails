@@ -447,6 +447,8 @@ const AdminDashboard: React.FC = () => {
       
       // Set pagination info
       setPaginationInfo(usersResponse.data.pagination || null);
+      console.log('Pagination Info:', usersResponse.data.pagination);
+      console.log('Users count:', allUsersData.length);
       
       // Extract available statuses for filtering (only for cohort-specific data)
       if (selectedCohortId && usersResponse.data.filters?.availableStatuses) {
@@ -500,11 +502,13 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, user?.isAdmin, selectedCohortId, currentPage, statusFilter, usersPerPage]);
+  }, [user?.email, user?.isAdmin, selectedCohortId, statusFilter, usersPerPage]);
 
+  // Load data when component mounts or when key dependencies change  
   useEffect(() => {
-    loadAdminData();
-  }, [loadAdminData]);
+    loadAdminData(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCohortId, statusFilter, currentPage]);
 
   // Validation function to check if assignment deadline is before any mini question release date
   const validateAssignmentDeadline = (deadline: string, contents: any[]): { isValid: boolean; errorMessage?: string; conflictingIndices?: number[] } => {
@@ -637,42 +641,20 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleStatusFilter = useCallback(async (status: string) => {
+  const handleStatusFilter = useCallback((status: string) => {
     setStatusFilter(status);
     setCurrentPage(1); // Reset to first page when filtering
-    
-    if (!selectedCohortId) {
-      // For all users (non-cohort view), reload with new filter
-      loadAdminData(1);
-      return;
-    }
-
-    try {
-      // Fetch users with the selected status filter
-      const response = await adminService.getCohortUsers(selectedCohortId, status === 'all' ? undefined : status, 1, usersPerPage);
-      const filteredUsers = response.data.members || [];
-      setUsers(filteredUsers);
-      setPaginationInfo(response.data.pagination || null);
-    } catch (error) {
-      toast.error('Failed to filter users');
-      // Fallback to client-side filtering
-      if (status === 'all') {
-        setUsers(allUsers);
-      } else {
-        const filtered = allUsers.filter(user => user.cohortStatus === status);
-        setUsers(filtered);
-      }
-    }
-  }, [selectedCohortId, allUsers, usersPerPage, loadAdminData]);
+  }, []);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-  }, []);
+    loadAdminData(page);
+  }, [loadAdminData]);
 
   // Reset pagination when switching tabs or cohorts
   const resetPagination = useCallback(() => {
     setCurrentPage(1);
-    setPaginationInfo(null);
+    // Don't clear paginationInfo here - let loadAdminData set it
   }, []);
 
   // Reset pagination when changing cohorts or tabs
@@ -685,13 +667,14 @@ const AdminDashboard: React.FC = () => {
 
     // Use cohort-specific counts if a cohort is selected
     const displayStats = selectedCohortId ? {
-      totalUsers: users.length,
+      totalUsers: paginationInfo?.totalMembers || users.length,
       totalAnswers: stats.totalAnswers, // TODO: filter by cohort when backend supports it
       pendingAnswers: pendingAnswers.length,
       resubmissionRequests: resubmissionRequests.length,
       averageProgress: stats.averageProgress
     } : {
       ...stats,
+      totalUsers: paginationInfo?.totalUsers || stats.totalUsers,
       pendingAnswers: pendingAnswers.length,
       resubmissionRequests: resubmissionRequests.length
     };
@@ -1067,20 +1050,6 @@ const AdminDashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
-        {/* Always show user count info */}
-        {paginationInfo && (
-          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-700">
-            Showing {paginationInfo.startIndex} to {paginationInfo.endIndex} of{' '}
-            {selectedCohortId ? paginationInfo.totalMembers : paginationInfo.totalUsers}{' '}
-            {selectedCohortId ? 'participants' : 'users'}
-            {paginationInfo.totalPages > 1 && (
-              <span className="ml-4 text-gray-500">
-                (Page {paginationInfo.currentPage} of {paginationInfo.totalPages})
-              </span>
-            )}
-          </div>
-        )}
         
         {/* Pagination controls - only show when multiple pages */}
         {paginationInfo && paginationInfo.totalPages > 1 && (
@@ -1754,7 +1723,7 @@ const AdminDashboard: React.FC = () => {
     if (!cohortId) return;
 
     try {
-      await api.patch(`/admin/cohorts/${cohortId}/toggle-status`);
+      await api.patch(`/admin/cohorts/${cohortId}`, { isActive: newStatus });
       toast.success(`Cohort ${newStatus ? 'activated' : 'deactivated'} successfully`);
       loadAdminData(); // Reload data
     } catch (error: any) {
@@ -2648,7 +2617,6 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'mini-questions' && (
             <MiniAnswersView 
               selectedCohortId={selectedCohortId || undefined}
-              cohortUsers={selectedCohortId ? users : undefined}
             />
           )}
           {activeTab === 'cohort-config' && renderCohortConfig()}

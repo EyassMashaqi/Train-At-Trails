@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../services/api';
 import toast from 'react-hot-toast';
+import Pagination from './Pagination';
 
 interface User {
   id: number;
@@ -72,20 +73,71 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
   const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
   const [selectedAnswer, setSelectedAnswer] = useState<MiniAnswer | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Separate state for input field
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(3);
+  const [paginationInfo, setPaginationInfo] = useState<any>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (page = 1, search = '') => {
     try {
       setLoading(true);
       
-      // Use provided cohort users or load all users if no cohort is selected
+      // Load users with pagination (or all if searching)
       let usersData: User[] = [];
-      if (selectedCohortId && cohortUsers) {
-        usersData = cohortUsers;
+      let pagination: any = null;
+      
+      if (search) {
+        // When searching, load all users to search through them
+        let allUsers: User[] = [];
+        if (selectedCohortId) {
+          const usersResponse = await adminService.getCohortUsers(selectedCohortId, undefined, 1, 1000);
+          allUsers = usersResponse.data.members || [];
+        } else {
+          const usersResponse = await adminService.getAllUsers(1, 1000);
+          allUsers = usersResponse.data.users || [];
+        }
+        
+        // Filter on client side
+        const filteredUsers = allUsers.filter(user =>
+          user.fullName.toLowerCase().includes(search.toLowerCase()) ||
+          user.trainName?.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase())
+        );
+        
+        // Paginate filtered results
+        const totalFiltered = filteredUsers.length;
+        const totalPages = Math.ceil(totalFiltered / usersPerPage);
+        const startIndex = (page - 1) * usersPerPage;
+        const endIndex = Math.min(startIndex + usersPerPage, totalFiltered);
+        
+        usersData = filteredUsers.slice(startIndex, endIndex);
+        
+        // Create pagination for filtered results
+        pagination = {
+          currentPage: page,
+          totalPages: totalPages,
+          totalMembers: totalFiltered,
+          totalUsers: totalFiltered,
+          startIndex: startIndex + 1,
+          endIndex: endIndex,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        };
       } else {
-        const usersResponse = await adminService.getAllUsers();
-        usersData = usersResponse.data.users;
+        // Normal pagination when not searching
+        if (selectedCohortId) {
+          const usersResponse = await adminService.getCohortUsers(selectedCohortId, undefined, page, usersPerPage);
+          usersData = usersResponse.data.members || [];
+          pagination = usersResponse.data.pagination;
+        } else {
+          const usersResponse = await adminService.getAllUsers(page, usersPerPage);
+          usersData = usersResponse.data.users || [];
+          pagination = usersResponse.data.pagination;
+        }
       }
+      
+      setPaginationInfo(pagination);
 
 
       // Use the new self-learning activities endpoint that shows ALL activities regardless of assignment status
@@ -186,11 +238,38 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
     } finally {
       setLoading(false);
     }
-  }, [selectedCohortId, cohortUsers]);
+  }, [selectedCohortId, usersPerPage]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(currentPage, searchTerm);
+  }, [loadData, currentPage, searchTerm]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setExpandedUsers(new Set()); // Collapse all when changing pages
+  };
+  
+  const handleSearch = () => {
+    setSearchTerm(searchInput);
+    setCurrentPage(1); // Reset to first page when searching
+    setExpandedUsers(new Set()); // Collapse all when searching
+  };
+  
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+  
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    // If cleared, reset search immediately
+    if (value === '') {
+      setSearchTerm('');
+      setCurrentPage(1);
+      setExpandedUsers(new Set());
+    }
+  };
 
   const toggleUserExpansion = (userId: number) => {
     const newExpanded = new Set(expandedUsers);
@@ -208,7 +287,7 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
         await adminService.requestMiniAnswerResubmission(miniAnswerId, userId);
         toast.success(`Resubmission request sent to ${userName}`);
         // Reload data to update the display
-        await loadData();
+        await loadData(currentPage, searchTerm);
       }
     } catch (error: any) {
       console.error('Error requesting resubmission:', error);
@@ -216,11 +295,8 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
     }
   };
 
-  const filteredUserMiniQuestions = userMiniQuestions.filter(item =>
-    item.user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.user.trainName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Don't filter here - filtering is now done in loadData
+  const filteredUserMiniQuestions = userMiniQuestions;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -250,7 +326,7 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
         </div>
         <div className="bg-primary-50 rounded-lg px-4 py-2">
           <div className="text-sm text-primary-800">
-            <div>Total Users: <span className="font-semibold">{users.length}</span></div>
+            <div>Total Users: <span className="font-semibold">{paginationInfo?.totalMembers || paginationInfo?.totalUsers || users.length}</span></div>
             <div>Released Self Learning: <span className="font-semibold">{allReleasedMiniQuestions.length}</span></div>
             <div>Total Submissions: <span className="font-semibold">{allMiniAnswers.length}</span></div>
           </div>
@@ -259,16 +335,24 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
 
       {/* Search */}
       <div className="bg-white rounded-lg border p-4">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
           <div className="flex-1">
             <input
               type="text"
               placeholder="Search users by name, lighthouse name, or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyPress={handleSearchKeyPress}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
+          <button
+            onClick={handleSearch}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2"
+          >
+            <span>🔍</span>
+            <span>Search</span>
+          </button>
         </div>
       </div>
 
@@ -449,10 +533,25 @@ const MiniAnswersView: React.FC<MiniAnswersViewProps> = ({ selectedCohortId, coh
 
         {filteredUserMiniQuestions.length === 0 && (
           <div className="text-center py-8 text-gray-500">
-            No users found
+            {searchTerm ? 'No users found matching your search' : 'No users found'}
           </div>
         )}
       </div>
+
+      {/* Pagination controls */}
+      {paginationInfo && paginationInfo.totalPages > 1 && (
+        <Pagination
+          currentPage={paginationInfo.currentPage}
+          totalPages={paginationInfo.totalPages}
+          totalItems={selectedCohortId ? paginationInfo.totalMembers : paginationInfo.totalUsers}
+          startIndex={paginationInfo.startIndex}
+          endIndex={paginationInfo.endIndex}
+          hasNextPage={paginationInfo.hasNextPage}
+          hasPrevPage={paginationInfo.hasPrevPage}
+          onPageChange={handlePageChange}
+          itemName="users"
+        />
+      )}
 
       {/* Answer Detail Modal */}
       {selectedAnswer && (

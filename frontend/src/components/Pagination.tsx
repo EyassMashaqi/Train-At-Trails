@@ -62,9 +62,9 @@ const Pagination: React.FC<PaginationProps> = ({
   const pageNumbers = generatePageNumbers();
 
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+    <div className="flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-3">
       {/* Mobile pagination info */}
-      <div className="flex flex-1 justify-between sm:hidden">
+      <div className="flex flex-1 justify-between sm:hidden w-full mb-3 sm:mb-0">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={!hasPrevPage}
@@ -96,6 +96,9 @@ const Pagination: React.FC<PaginationProps> = ({
             {' '}of{' '}
             <span className="font-medium">{totalItems}</span>
             {' '}{itemName}
+            <span className="ml-4 text-gray-500">
+              (Page {currentPage} of {totalPages})
+            </span>
           </p>
         </div>
         <div>
